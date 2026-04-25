@@ -48,7 +48,9 @@ func TestCollectFromStdin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pipe: %v", err)
 	}
-	defer r.Close()
+	t.Cleanup(func() {
+		_ = r.Close()
+	})
 
 	prev := os.Stdin
 	os.Stdin = r
