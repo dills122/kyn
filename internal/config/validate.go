@@ -18,6 +18,12 @@ var allowedTemplateVars = map[string]struct{}{
 }
 
 var allowedSeverities = []string{"info", "warn", "error"}
+var allowedChangedStatuses = map[string]struct{}{
+	"added":    {},
+	"modified": {},
+	"deleted":  {},
+	"renamed":  {},
+}
 
 func Validate(cfg Config) error {
 	if cfg.Version != 1 && cfg.Version != 2 {
@@ -104,7 +110,13 @@ func Validate(cfg Config) error {
 		if err := validateChangedAny(cfg, fam, rule.ID, "if", rule.IfClauses().ChangedAny); err != nil {
 			return err
 		}
+		if err := validateChangedStatuses(rule.ID, "if", rule.IfClauses().ChangedStatusAny); err != nil {
+			return err
+		}
 		if err := validateChangedAny(cfg, fam, rule.ID, "assert", rule.AssertClauses().ChangedAny); err != nil {
+			return err
+		}
+		if err := validateChangedStatuses(rule.ID, "assert", rule.AssertClauses().ChangedStatusAny); err != nil {
 			return err
 		}
 		if err := validateKinRefs(rule.ID, "if.kinExists", rule.IfClauses().KinExists, fam.Kin); err != nil {
@@ -132,6 +144,15 @@ func Validate(cfg Config) error {
 		}
 	}
 
+	return nil
+}
+
+func validateChangedStatuses(ruleID string, clause string, statuses []string) error {
+	for i, status := range statuses {
+		if _, ok := allowedChangedStatuses[status]; !ok {
+			return fmt.Errorf("rule %q %s.changedStatusAny[%d] invalid status %q", ruleID, clause, i, status)
+		}
+	}
 	return nil
 }
 

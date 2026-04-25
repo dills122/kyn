@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"kyn/internal/changes"
 	"kyn/internal/config"
 	"kyn/internal/family"
 )
@@ -252,6 +253,73 @@ func TestEvaluate_KinExistenceErrorPath(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected error for invalid kin path")
+	}
+}
+
+func TestEvaluate_ChangedStatusAny(t *testing.T) {
+	cfg := config.Config{
+		Version: 2,
+		Rules: []config.Rule{
+			{
+				ID:       "renamed-only",
+				Family:   "angular-component",
+				Severity: "error",
+				If: config.RuleClauses{
+					ChangedAny:       []string{"source"},
+					ChangedStatusAny: []string{"renamed"},
+				},
+				Assert: config.RuleClauses{
+					KinChanged: []string{"story"},
+				},
+				Message: "Renamed source requires story update.",
+			},
+		},
+	}
+
+	inst := family.Instance{
+		FamilyID:    "angular-component",
+		Name:        "libs/ui/button/button",
+		SourceFiles: []string{"libs/ui/button/button.component.ts"},
+		Kin: map[string]string{
+			"story": "libs/ui/button/button.stories.ts",
+		},
+	}
+	changed := map[string]struct{}{
+		"libs/ui/button/button.component.ts": {},
+	}
+
+	summary, err := Evaluate(EvalInput{
+		Cwd:     t.TempDir(),
+		FailOn:  "error",
+		Changed: changed,
+		StatusByFile: map[string]changes.Status{
+			"libs/ui/button/button.component.ts": changes.StatusModified,
+		},
+		Rules:     cfg.Rules,
+		Instances: []family.Instance{inst},
+	})
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if len(summary.Results) != 0 {
+		t.Fatalf("expected rule to be skipped for modified status, got %d results", len(summary.Results))
+	}
+
+	summary, err = Evaluate(EvalInput{
+		Cwd:     t.TempDir(),
+		FailOn:  "error",
+		Changed: changed,
+		StatusByFile: map[string]changes.Status{
+			"libs/ui/button/button.component.ts": changes.StatusRenamed,
+		},
+		Rules:     cfg.Rules,
+		Instances: []family.Instance{inst},
+	})
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if len(summary.Results) != 1 {
+		t.Fatalf("expected rule to run for renamed status, got %d results", len(summary.Results))
 	}
 }
 

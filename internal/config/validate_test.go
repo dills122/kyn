@@ -116,6 +116,21 @@ func TestValidate(t *testing.T) {
 				cfg.Rules[0].Actions = RuleActions{Emit: []string{"storybook-sync-required"}}
 			},
 		},
+		{
+			name: "invalid changed status",
+			modify: func(cfg *Config) {
+				cfg.Version = 2
+				cfg.Families[0].Groups = GroupMap{
+					"source": {Include: []string{"libs/**/*.component.ts"}},
+				}
+				cfg.Families[0].Include = nil
+				cfg.Rules[0].If = RuleClauses{
+					ChangedAny:       []string{"source"},
+					ChangedStatusAny: []string{"moved"},
+				}
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

@@ -61,7 +61,7 @@ Choose exactly one change input mode:
 				filesFrom = "-"
 			}
 
-			changedFiles, err := changes.Collect(changes.Input{
+			changedResult, err := changes.CollectDetailed(changes.Input{
 				Cwd:       cwd,
 				FilesCSV:  opts.FilesCSV,
 				FilesFrom: filesFrom,
@@ -75,23 +75,24 @@ Choose exactly one change input mode:
 				return usageError("invalid change input: %v", err)
 			}
 
-			instances, err := family.Resolve(cfg, changedFiles)
+			instances, err := family.Resolve(cfg, changedResult.Files)
 			if err != nil {
 				return runtimeError("family resolution failed: %v", err)
 			}
 
-			changedSet := make(map[string]struct{}, len(changedFiles))
-			for _, f := range changedFiles {
+			changedSet := make(map[string]struct{}, len(changedResult.Files))
+			for _, f := range changedResult.Files {
 				changedSet[f] = struct{}{}
 			}
 
 			summary, err := rules.Evaluate(rules.EvalInput{
-				Cwd:         cwd,
-				FailOn:      opts.FailOn,
-				FailOnEmpty: opts.FailOnEmpty,
-				Changed:     changedSet,
-				Rules:       cfg.Rules,
-				Instances:   instances,
+				Cwd:          cwd,
+				FailOn:       opts.FailOn,
+				FailOnEmpty:  opts.FailOnEmpty,
+				Changed:      changedSet,
+				StatusByFile: changedResult.StatusByFile,
+				Rules:        cfg.Rules,
+				Instances:    instances,
 			})
 			if err != nil {
 				return runtimeError("rule evaluation failed: %v", err)
@@ -104,7 +105,7 @@ Choose exactly one change input mode:
 					cfgPath,
 					len(cfg.Families),
 					len(cfg.Rules),
-					len(changedFiles),
+					len(changedResult.Files),
 					len(instances),
 				)
 			}
