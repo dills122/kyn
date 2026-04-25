@@ -24,6 +24,10 @@ func fromCSV(csv string) ([]string, error) {
 }
 
 func fromFile(cwd string, filePath string) ([]string, error) {
+	if filePath == "-" {
+		return readList(os.Stdin, "stdin")
+	}
+
 	p := filePath
 	if !filepath.IsAbs(p) {
 		p = filepath.Join(cwd, p)
@@ -35,7 +39,11 @@ func fromFile(cwd string, filePath string) ([]string, error) {
 	}
 	defer f.Close()
 
-	sc := bufio.NewScanner(f)
+	return readList(f, "--files-from")
+}
+
+func readList(r *os.File, source string) ([]string, error) {
+	sc := bufio.NewScanner(r)
 	out := make([]string, 0, 64)
 	for sc.Scan() {
 		line := sc.Text()
@@ -46,7 +54,7 @@ func fromFile(cwd string, filePath string) ([]string, error) {
 		out = append(out, normalized)
 	}
 	if err := sc.Err(); err != nil {
-		return nil, fmt.Errorf("read --files-from: %w", err)
+		return nil, fmt.Errorf("read %s: %w", source, err)
 	}
 
 	return out, nil

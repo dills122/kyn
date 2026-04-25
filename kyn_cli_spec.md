@@ -172,13 +172,14 @@ kyn check
 ```txt
 --config <path>         Path to Kyn config file
 --files <csv>           Comma-separated changed files
---files-from <path>     Path to file containing changed files, one per line
+--files-from <path>     Path to file containing changed files, one per line; use '-' for stdin
 --base <ref>            Git base ref/SHA for diff detection
 --head <ref>            Git head ref/SHA for diff detection
 --cwd <path>            Working directory; defaults to current directory
 --format <format>       Output format: text | json; default text
 --fail-on <level>       Minimum severity that fails the command: error | warn; default error
 --fail-on-empty         Fail when no family instances match; default false
+--show-passes           Include passing rule results in text output; default false
 --verbose               Print diagnostic information
 ```
 
@@ -194,6 +195,12 @@ kyn check --config kyn.config.yaml --files libs/ui/button/button.component.ts,li
 
 ```bash
 kyn check --config kyn.config.yaml --files-from changed-files.txt
+```
+
+### Files from stdin
+
+```bash
+git diff --name-only origin/main...HEAD | kyn check --config kyn.config.yaml --files-from -
 ```
 
 ### Git diff mode
@@ -831,11 +838,13 @@ For test assertions.
 ## Output Behavior
 
 - Text output is human-readable.
+- Text output lists failures before informational/passing results.
 - JSON output is valid JSON.
 - JSON output includes `ok`, counts, results, and flags.
 - `--fail-on error` fails only on error results.
 - `--fail-on warn` fails on warn or error results.
 - `--fail-on-empty` fails when no family instances matched.
+- `--show-passes` includes pass results in text output.
 - Output ordering for results/files/flags is deterministic.
 
 ---

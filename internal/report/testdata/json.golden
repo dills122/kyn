@@ -1,0 +1,50 @@
+{
+  "ok": false,
+  "passed": 1,
+  "failed": 1,
+  "infos": 1,
+  "warnings": 1,
+  "errors": 1,
+  "results": [
+    {
+      "ruleId": "story-sync",
+      "familyId": "angular-component",
+      "familyName": "libs/ui/button/button",
+      "severity": "error",
+      "status": "fail",
+      "message": "Story was not updated.",
+      "changedFiles": [
+        "libs/ui/button/button.component.ts"
+      ],
+      "expectedFiles": [
+        "libs/ui/button/button.stories.ts"
+      ]
+    },
+    {
+      "ruleId": "figma-flag",
+      "familyId": "angular-component",
+      "familyName": "libs/ui/button/button",
+      "severity": "warn",
+      "status": "info",
+      "message": "Figma publish may be required.",
+      "changedFiles": [
+        "libs/ui/button/button.component.ts"
+      ]
+    },
+    {
+      "ruleId": "docs-sync",
+      "familyId": "angular-component",
+      "familyName": "libs/ui/button/button",
+      "severity": "info",
+      "status": "pass",
+      "message": "Docs updated.",
+      "changedFiles": [
+        "libs/ui/button/button.docs.md"
+      ]
+    }
+  ],
+  "flags": [
+    "alphaFlag",
+    "zetaFlag"
+  ]
+}

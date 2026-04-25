@@ -7,6 +7,7 @@ This matrix defines valid and invalid combinations for change input flags.
 1. `kyn check --files a.ts`
 2. `kyn check --files-from changed.txt`
 3. `kyn check --base origin/main --head HEAD`
+4. `git diff --name-only origin/main...HEAD | kyn check --files-from -`
 
 ## Invalid (Exit 2)
 
@@ -23,5 +24,5 @@ This matrix defines valid and invalid combinations for change input flags.
 
 1. `--format` must be `text` or `json`.
 2. `--fail-on` must be `error` or `warn`.
-3. Unknown positional arguments after flags are invalid usage.
-
+3. `--show-passes` only affects text output rendering.
+4. Unknown positional arguments after flags are invalid usage.

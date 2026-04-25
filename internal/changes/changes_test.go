@@ -43,6 +43,32 @@ func TestCollectFromFile(t *testing.T) {
 	}
 }
 
+func TestCollectFromStdin(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	defer r.Close()
+
+	prev := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = prev })
+
+	_, _ = w.WriteString("z.ts\n./y.ts\nx.ts\n")
+	_ = w.Close()
+
+	files, err := Collect(Input{
+		FilesFrom: "-",
+	})
+	if err != nil {
+		t.Fatalf("Collect returned error: %v", err)
+	}
+	want := []string{"x.ts", "y.ts", "z.ts"}
+	if !slices.Equal(files, want) {
+		t.Fatalf("got %v, want %v", files, want)
+	}
+}
+
 func TestCollectFromGitDiffNameStatus(t *testing.T) {
 	dir := t.TempDir()
 

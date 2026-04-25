@@ -41,6 +41,7 @@ kyn check \
   [--format text|json] \
   [--fail-on error|warn] \
   [--fail-on-empty] \
+  [--show-passes] \
   [--verbose]
 ```
 
@@ -67,6 +68,12 @@ go run ./cmd/kyn check \
   --cwd testdata/angular \
   --config kyn.config.yaml \
   --files-from changed-files.txt
+
+# stdin input (for piped changed file lists)
+git diff --name-only origin/main...HEAD | go run ./cmd/kyn check \
+  --cwd . \
+  --config kyn.config.yaml \
+  --files-from -
 
 # json output
 go run ./cmd/kyn check \

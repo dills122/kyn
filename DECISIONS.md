@@ -7,7 +7,7 @@ This file captures product and implementation decisions locked for MVP.
 Exactly one change input mode is allowed per run:
 
 1. `--files <csv>`
-2. `--files-from <path>`
+2. `--files-from <path>` (supports `-` to read from stdin)
 3. `--base <ref> --head <ref>`
 
 Invalid combinations are CLI usage errors (`exit 2`).
@@ -63,4 +63,5 @@ Output should be deterministic:
 
 - Stable ordering of results.
 - Stable ordering of `changedFiles`, `expectedFiles`, and `flags`.
-
+- Text output groups failures first.
+- Passing results are hidden by default in text output and can be shown with `--show-passes`.

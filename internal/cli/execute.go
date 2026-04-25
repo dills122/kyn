@@ -25,6 +25,7 @@ type checkOptions struct {
 	Format      string
 	FailOn      string
 	FailOnEmpty bool
+	ShowPasses  bool
 	Verbose     bool
 }
 

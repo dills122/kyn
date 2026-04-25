@@ -93,7 +93,9 @@ func newCheckCommand() *cobra.Command {
 				_, _ = cmd.OutOrStdout().Write(out)
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 			} else {
-				_, _ = cmd.OutOrStdout().Write([]byte(report.RenderText(summary)))
+				_, _ = cmd.OutOrStdout().Write([]byte(report.RenderText(summary, report.TextOptions{
+					ShowPasses: opts.ShowPasses,
+				})))
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 			}
 
@@ -107,13 +109,14 @@ func newCheckCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "Path to Kyn config file")
 	cmd.Flags().StringVar(&opts.FilesCSV, "files", "", "Comma-separated changed files")
-	cmd.Flags().StringVar(&opts.FilesFrom, "files-from", "", "Path to changed files list (one per line)")
+	cmd.Flags().StringVar(&opts.FilesFrom, "files-from", "", "Path to changed files list (one per line); use '-' for stdin")
 	cmd.Flags().StringVar(&opts.Base, "base", "", "Git base ref/SHA for diff detection")
 	cmd.Flags().StringVar(&opts.Head, "head", "", "Git head ref/SHA for diff detection")
 	cmd.Flags().StringVar(&opts.Cwd, "cwd", ".", "Working directory")
 	cmd.Flags().StringVar(&opts.Format, "format", "text", "Output format: text|json")
 	cmd.Flags().StringVar(&opts.FailOn, "fail-on", "error", "Minimum severity that fails command: error|warn")
 	cmd.Flags().BoolVar(&opts.FailOnEmpty, "fail-on-empty", false, "Fail if no family instances match")
+	cmd.Flags().BoolVar(&opts.ShowPasses, "show-passes", false, "Include passing rule results in text output")
 	cmd.Flags().BoolVar(&opts.Verbose, "verbose", false, "Enable diagnostic output")
 
 	return cmd
