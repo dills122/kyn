@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"kyn/internal/config"
 )
 
 func TestExecuteUnknownCommandReturnsUsage(t *testing.T) {
@@ -319,6 +321,106 @@ func TestExecuteInitExistingWithoutForceFails(t *testing.T) {
 	})
 	if code != ExitUsage {
 		t.Fatalf("expected exit %d, got %d", ExitUsage, code)
+	}
+}
+
+func TestExecuteConfigMigrateWritesOutput(t *testing.T) {
+	dir := t.TempDir()
+	cfg := `version: 1
+families:
+  - id: angular-component
+    include:
+      - "libs/**/*.component.ts"
+    kin:
+      story: "{dir}/{base}.stories.ts"
+rules:
+  - id: storybook-sync
+    family: angular-component
+    severity: error
+    when:
+      changedAny: [source]
+    require:
+      kinChanged: [story]
+      emitFlag: figmaPublishRequired
+    message: "sync story"
+`
+	inPath := filepath.Join(dir, "kyn.config.yaml")
+	if err := os.WriteFile(inPath, []byte(cfg), 0o600); err != nil {
+		t.Fatalf("write cfg: %v", err)
+	}
+
+	code := runWithArgs(t, []string{
+		"kyn", "config", "migrate",
+		"--cwd", dir,
+		"--config", "kyn.config.yaml",
+		"--from", "v1",
+		"--to", "v2",
+	})
+	if code != ExitOK {
+		t.Fatalf("expected exit %d, got %d", ExitOK, code)
+	}
+
+	outPath := filepath.Join(dir, "kyn.config.v2.yaml")
+	if _, err := os.Stat(outPath); err != nil {
+		t.Fatalf("expected migrated config to exist: %v", err)
+	}
+	outCfg, _, err := config.Load(dir, "kyn.config.v2.yaml")
+	if err != nil {
+		t.Fatalf("load migrated config: %v", err)
+	}
+	if outCfg.Version != 2 {
+		t.Fatalf("expected migrated version 2, got %d", outCfg.Version)
+	}
+	if len(outCfg.Rules) != 1 || len(outCfg.Rules[0].Actions.Emit) != 1 {
+		t.Fatalf("expected migrated rule emit actions, got %+v", outCfg.Rules)
+	}
+}
+
+func TestExecuteConfigMigrateInPlaceCreatesBackup(t *testing.T) {
+	dir := t.TempDir()
+	cfg := `version: 1
+families:
+  - id: angular-component
+    include:
+      - "libs/**/*.component.ts"
+    kin:
+      story: "{dir}/{base}.stories.ts"
+rules:
+  - id: storybook-sync
+    family: angular-component
+    severity: error
+    when:
+      changedAny: [source]
+    require:
+      kinChanged: [story]
+    message: "sync story"
+`
+	inPath := filepath.Join(dir, "kyn.config.yaml")
+	if err := os.WriteFile(inPath, []byte(cfg), 0o600); err != nil {
+		t.Fatalf("write cfg: %v", err)
+	}
+
+	code := runWithArgs(t, []string{
+		"kyn", "config", "migrate",
+		"--cwd", dir,
+		"--config", "kyn.config.yaml",
+		"--from", "v1",
+		"--to", "v2",
+		"--in-place",
+	})
+	if code != ExitOK {
+		t.Fatalf("expected exit %d, got %d", ExitOK, code)
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "kyn.config.yaml.bak")); err != nil {
+		t.Fatalf("expected backup file to exist: %v", err)
+	}
+	outCfg, _, err := config.Load(dir, "kyn.config.yaml")
+	if err != nil {
+		t.Fatalf("load migrated in-place config: %v", err)
+	}
+	if outCfg.Version != 2 {
+		t.Fatalf("expected migrated version 2, got %d", outCfg.Version)
 	}
 }
 

@@ -78,6 +78,7 @@ Web/frontend is a strong fit, but the pattern applies broadly:
 - `kyn check` command for policy evaluation
 - `kyn explain` command for per-rule diagnostics
 - `kyn init` command for starter config generation
+- `kyn config migrate` command for safe v1 -> v2 schema migration
 - YAML config with schema validation
 - Multiple change input modes: `--files`
 - Multiple change input modes: `--files-from`
@@ -155,6 +156,9 @@ kyn explain -c kyn.config.yaml --base origin/main --head HEAD
 
 # Bootstrap a starter v2 config
 kyn init
+
+# Safely migrate v1 config to v2 side-by-side output
+kyn config migrate -c kyn.config.yaml --from v1 --to v2
 ```
 
 ## Exit Codes
