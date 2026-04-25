@@ -192,11 +192,18 @@ Detailed provider examples: [docs/ci.md](docs/ci.md)
 ## Development
 
 ```bash
+make hooks
 make fmt
+make lint
 make test
 make vet
 make build
 ```
+
+`make hooks` configures repo-managed git hooks (`.githooks`) for:
+
+- pre-commit: format staged Go files + `go vet ./...`
+- pre-push: `go test ./...`
 
 Project layout:
 
