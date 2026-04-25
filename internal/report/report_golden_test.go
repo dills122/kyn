@@ -63,6 +63,27 @@ func TestRenderResolveJSON(t *testing.T) {
 	assertGolden(t, "dry_run_json.golden", string(out)+"\n")
 }
 
+func TestRenderExplainText(t *testing.T) {
+	summary := sampleExplainSummary()
+	got := RenderExplainText(summary, false)
+	assertGolden(t, "explain_text.golden", got)
+}
+
+func TestRenderExplainTextSummaryOnly(t *testing.T) {
+	summary := sampleExplainSummary()
+	got := RenderExplainText(summary, true)
+	assertGolden(t, "explain_text_summary_only.golden", got)
+}
+
+func TestRenderExplainJSON(t *testing.T) {
+	summary := sampleExplainSummary()
+	out, err := RenderExplainJSON(summary)
+	if err != nil {
+		t.Fatalf("RenderExplainJSON returned error: %v", err)
+	}
+	assertGolden(t, "explain_json.golden", string(out)+"\n")
+}
+
 func sampleSummary() rules.Summary {
 	return rules.Summary{
 		OK:       false,
@@ -126,6 +147,80 @@ func sampleResolveReport() ResolveReport {
 				Kin: map[string]string{
 					"spec":  "libs/ui/button/button.spec.ts",
 					"story": "libs/ui/button/button.stories.ts",
+				},
+			},
+		},
+	}
+}
+
+func sampleExplainSummary() rules.ExplainSummary {
+	return rules.ExplainSummary{
+		OK:       false,
+		Passed:   1,
+		Failed:   1,
+		Infos:    1,
+		Skipped:  1,
+		Warnings: 2,
+		Errors:   1,
+		Flags:    []string{"figmaPublishRequired"},
+		Results: []rules.ExplainResult{
+			{
+				RuleID:        "story-sync",
+				FamilyID:      "angular-component",
+				FamilyName:    "libs/ui/button/button",
+				Severity:      rules.SeverityError,
+				Status:        rules.ExplainStatusFail,
+				Message:       "Story was not updated.",
+				ChangedFiles:  []string{"libs/ui/button/button.component.ts"},
+				ExpectedFiles: []string{"libs/ui/button/button.stories.ts"},
+				IfTrace: []rules.ClauseTrace{
+					{Clause: "if.changedAny", Result: rules.ClauseResultPass, Detail: "1 source files changed"},
+				},
+				AssertTrace: []rules.ClauseTrace{
+					{Clause: "assert.kinChanged", Result: rules.ClauseResultFail, Detail: "story was not changed (libs/ui/button/button.stories.ts)"},
+				},
+			},
+			{
+				RuleID:       "figma-flag",
+				FamilyID:     "angular-component",
+				FamilyName:   "libs/ui/button/button",
+				Severity:     rules.SeverityWarn,
+				Status:       rules.ExplainStatusInfo,
+				Message:      "Figma publish may be required.",
+				ChangedFiles: []string{"libs/ui/button/button.component.ts"},
+				EmittedFlags: []string{"figmaPublishRequired"},
+				IfTrace: []rules.ClauseTrace{
+					{Clause: "if.changedStatusAny", Result: rules.ClauseResultPass, Detail: "matched one of [modified]"},
+				},
+				AssertTrace: []rules.ClauseTrace{
+					{Clause: "actions.emit", Result: rules.ClauseResultPass, Detail: "emit flag figmaPublishRequired"},
+				},
+			},
+			{
+				RuleID:       "docs-sync",
+				FamilyID:     "angular-component",
+				FamilyName:   "libs/ui/button/button",
+				Severity:     rules.SeverityWarn,
+				Status:       rules.ExplainStatusPass,
+				Message:      "Docs were updated.",
+				ChangedFiles: []string{"libs/ui/button/button.component.ts"},
+				IfTrace: []rules.ClauseTrace{
+					{Clause: "if.changedAny", Result: rules.ClauseResultPass, Detail: "1 source files changed"},
+				},
+				AssertTrace: []rules.ClauseTrace{
+					{Clause: "assert.kinChanged", Result: rules.ClauseResultPass, Detail: "docs changed (libs/ui/button/button.docs.md)"},
+				},
+			},
+			{
+				RuleID:       "rename-only",
+				FamilyID:     "angular-component",
+				FamilyName:   "libs/ui/button/button",
+				Severity:     rules.SeverityWarn,
+				Status:       rules.ExplainStatusSkipped,
+				Message:      "Only for renamed changes.",
+				ChangedFiles: []string{"libs/ui/button/button.component.ts"},
+				IfTrace: []rules.ClauseTrace{
+					{Clause: "if.changedStatusAny", Result: rules.ClauseResultFail, Detail: "no source file status matched allowed set [renamed]"},
 				},
 			},
 		},

@@ -1,0 +1,113 @@
+{
+  "ok": false,
+  "passed": 1,
+  "failed": 1,
+  "infos": 1,
+  "skipped": 1,
+  "warnings": 2,
+  "errors": 1,
+  "results": [
+    {
+      "ruleId": "story-sync",
+      "familyId": "angular-component",
+      "familyName": "libs/ui/button/button",
+      "severity": "error",
+      "status": "fail",
+      "message": "Story was not updated.",
+      "changedFiles": [
+        "libs/ui/button/button.component.ts"
+      ],
+      "expectedFiles": [
+        "libs/ui/button/button.stories.ts"
+      ],
+      "if": [
+        {
+          "clause": "if.changedAny",
+          "result": "pass",
+          "detail": "1 source files changed"
+        }
+      ],
+      "assert": [
+        {
+          "clause": "assert.kinChanged",
+          "result": "fail",
+          "detail": "story was not changed (libs/ui/button/button.stories.ts)"
+        }
+      ]
+    },
+    {
+      "ruleId": "figma-flag",
+      "familyId": "angular-component",
+      "familyName": "libs/ui/button/button",
+      "severity": "warn",
+      "status": "info",
+      "message": "Figma publish may be required.",
+      "changedFiles": [
+        "libs/ui/button/button.component.ts"
+      ],
+      "emittedFlags": [
+        "figmaPublishRequired"
+      ],
+      "if": [
+        {
+          "clause": "if.changedStatusAny",
+          "result": "pass",
+          "detail": "matched one of [modified]"
+        }
+      ],
+      "assert": [
+        {
+          "clause": "actions.emit",
+          "result": "pass",
+          "detail": "emit flag figmaPublishRequired"
+        }
+      ]
+    },
+    {
+      "ruleId": "docs-sync",
+      "familyId": "angular-component",
+      "familyName": "libs/ui/button/button",
+      "severity": "warn",
+      "status": "pass",
+      "message": "Docs were updated.",
+      "changedFiles": [
+        "libs/ui/button/button.component.ts"
+      ],
+      "if": [
+        {
+          "clause": "if.changedAny",
+          "result": "pass",
+          "detail": "1 source files changed"
+        }
+      ],
+      "assert": [
+        {
+          "clause": "assert.kinChanged",
+          "result": "pass",
+          "detail": "docs changed (libs/ui/button/button.docs.md)"
+        }
+      ]
+    },
+    {
+      "ruleId": "rename-only",
+      "familyId": "angular-component",
+      "familyName": "libs/ui/button/button",
+      "severity": "warn",
+      "status": "skipped",
+      "message": "Only for renamed changes.",
+      "changedFiles": [
+        "libs/ui/button/button.component.ts"
+      ],
+      "if": [
+        {
+          "clause": "if.changedStatusAny",
+          "result": "fail",
+          "detail": "no source file status matched allowed set [renamed]"
+        }
+      ]
+    }
+  ],
+  "flags": [
+    "figmaPublishRequired"
+  ]
+}

@@ -91,5 +91,6 @@ func newRootCommand() *cobra.Command {
 	cmd.SilenceErrors = true
 
 	cmd.AddCommand(newCheckCommand())
+	cmd.AddCommand(newExplainCommand())
 	return cmd
 }

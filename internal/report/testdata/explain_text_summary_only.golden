@@ -1,0 +1,13 @@
+kyn explain
+
+FAIL
+
+Rules failed: 1
+Rules passed: 1
+Rules info: 1
+Rules skipped: 1
+Warnings: 2
+Errors: 1
+
+Flags:
+  - figmaPublishRequired
