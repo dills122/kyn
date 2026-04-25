@@ -19,7 +19,7 @@ MVP foundation is implemented:
 
 ```bash
 go build ./cmd/kyn
-./kyn check --cwd testdata/angular --config kyn.config.yaml --files libs/ui/button/button.component.ts,libs/ui/button/button.component.html
+./kyn check -c testdata/angular/kyn.config.yaml -f libs/ui/button/button.component.ts,libs/ui/button/button.component.html --cwd testdata/angular
 ```
 
 ## Development
@@ -35,10 +35,10 @@ make build
 
 ```bash
 kyn check \
-  --config <path> \
-  [--files <csv> | --files-from <path> | --base <ref> --head <ref>] \
+  -c, --config <path> \
+  [-f, --files <csv> | --files-from <path> | --stdin | --base <ref> --head <ref>] \
   [--cwd <path>] \
-  [--format text|json] \
+  [-o, --format text|json] \
   [--fail-on error|warn] \
   [--fail-on-empty] \
   [--show-passes] \
@@ -60,27 +60,27 @@ Exactly one change input mode is allowed.
 # explicit files
 go run ./cmd/kyn check \
   --cwd testdata/angular \
-  --config kyn.config.yaml \
-  --files libs/ui/button/button.component.ts,libs/ui/button/button.component.html
+  -c kyn.config.yaml \
+  -f libs/ui/button/button.component.ts,libs/ui/button/button.component.html
 
 # files-from input
 go run ./cmd/kyn check \
   --cwd testdata/angular \
-  --config kyn.config.yaml \
+  -c kyn.config.yaml \
   --files-from changed-files.txt
 
 # stdin input (for piped changed file lists)
 git diff --name-only origin/main...HEAD | go run ./cmd/kyn check \
   --cwd . \
-  --config kyn.config.yaml \
-  --files-from -
+  -c kyn.config.yaml \
+  --stdin
 
 # json output
 go run ./cmd/kyn check \
   --cwd testdata/angular \
-  --config kyn.config.yaml \
-  --files libs/ui/button/button.component.ts,libs/ui/button/button.component.html \
-  --format json
+  -c kyn.config.yaml \
+  -f libs/ui/button/button.component.ts,libs/ui/button/button.component.html \
+  -o json
 ```
 
 ## Project Layout
@@ -96,5 +96,7 @@ testdata/          Fixture test inputs
 
 ```bash
 go build -o ./bin/kyn ./cmd/kyn
-./bin/kyn check --config ./kyn.config.yaml --base origin/main --head HEAD --format text
+./bin/kyn check -c ./kyn.config.yaml --base origin/main --head HEAD -o json
 ```
+
+See DevOps-focused guidance: [CI Guide](/Users/dsteele/go/src/kyn/docs/ci.md)

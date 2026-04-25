@@ -33,6 +33,12 @@ func TestValidateCheckOptions(t *testing.T) {
 			},
 		},
 		{
+			name: "valid stdin mode",
+			modify: func(o *checkOptions) {
+				o.Stdin = true
+			},
+		},
+		{
 			name:    "invalid no mode",
 			wantErr: true,
 		},
@@ -41,6 +47,14 @@ func TestValidateCheckOptions(t *testing.T) {
 			modify: func(o *checkOptions) {
 				o.FilesCSV = "a.ts"
 				o.FilesFrom = "changed.txt"
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid stdin plus files-from",
+			modify: func(o *checkOptions) {
+				o.Stdin = true
+				o.FilesFrom = "-"
 			},
 			wantErr: true,
 		},

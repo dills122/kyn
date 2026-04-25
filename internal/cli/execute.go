@@ -19,6 +19,7 @@ type checkOptions struct {
 	ConfigPath  string
 	FilesCSV    string
 	FilesFrom   string
+	Stdin       bool
 	Base        string
 	Head        string
 	Cwd         string

@@ -6,8 +6,10 @@ This matrix defines valid and invalid combinations for change input flags.
 
 1. `kyn check --files a.ts`
 2. `kyn check --files-from changed.txt`
-3. `kyn check --base origin/main --head HEAD`
-4. `git diff --name-only origin/main...HEAD | kyn check --files-from -`
+3. `kyn check --stdin`
+4. `kyn check --base origin/main --head HEAD`
+5. `git diff --name-only origin/main...HEAD | kyn check --files-from -`
+6. `git diff --name-only origin/main...HEAD | kyn check --stdin`
 
 ## Invalid (Exit 2)
 
@@ -19,6 +21,8 @@ This matrix defines valid and invalid combinations for change input flags.
 6. `kyn check --head HEAD` (missing `--base`)
 7. `kyn check --base origin/main --head HEAD --files a.ts`
 8. `kyn check --base origin/main --head HEAD --files-from changed.txt`
+9. `kyn check --stdin --files-from changed.txt`
+10. `kyn check --stdin --files a.ts`
 
 ## Other Validation Rules
 

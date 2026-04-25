@@ -21,7 +21,26 @@ func newCheckCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check",
 		Short: "Evaluate changed files against configured family/rule relationships",
-		Args:  cobra.NoArgs,
+		Long: strings.TrimSpace(`
+Evaluate changed files against configured family/rule relationships.
+
+Choose exactly one change input mode:
+  --files
+  --files-from (use '-' to read from stdin)
+  --stdin
+  --base + --head
+`),
+		Example: strings.TrimSpace(`
+  # CI happy path (git refs)
+  kyn check -c kyn.config.yaml --base origin/main --head HEAD
+
+  # Piped changed-file list
+  git diff --name-only origin/main...HEAD | kyn check -c kyn.config.yaml --files-from -
+
+  # Explicit files
+  kyn check -c kyn.config.yaml -f libs/ui/button/button.component.ts,libs/ui/button/button.component.html
+`),
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := validateCheckOptions(opts); err != nil {
 				return usageError("invalid options: %v", err)
@@ -37,10 +56,15 @@ func newCheckCommand() *cobra.Command {
 				return usageError("invalid config: %v", err)
 			}
 
+			filesFrom := opts.FilesFrom
+			if opts.Stdin {
+				filesFrom = "-"
+			}
+
 			changedFiles, err := changes.Collect(changes.Input{
 				Cwd:       cwd,
 				FilesCSV:  opts.FilesCSV,
-				FilesFrom: opts.FilesFrom,
+				FilesFrom: filesFrom,
 				Base:      opts.Base,
 				Head:      opts.Head,
 			})
@@ -107,13 +131,14 @@ func newCheckCommand() *cobra.Command {
 	}
 	cmd.SilenceUsage = true
 
-	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "Path to Kyn config file")
-	cmd.Flags().StringVar(&opts.FilesCSV, "files", "", "Comma-separated changed files")
+	cmd.Flags().StringVarP(&opts.ConfigPath, "config", "c", "", "Path to Kyn config file")
+	cmd.Flags().StringVarP(&opts.FilesCSV, "files", "f", "", "Comma-separated changed files")
 	cmd.Flags().StringVar(&opts.FilesFrom, "files-from", "", "Path to changed files list (one per line); use '-' for stdin")
+	cmd.Flags().BoolVar(&opts.Stdin, "stdin", false, "Read changed files from stdin (alias for --files-from -)")
 	cmd.Flags().StringVar(&opts.Base, "base", "", "Git base ref/SHA for diff detection")
 	cmd.Flags().StringVar(&opts.Head, "head", "", "Git head ref/SHA for diff detection")
 	cmd.Flags().StringVar(&opts.Cwd, "cwd", ".", "Working directory")
-	cmd.Flags().StringVar(&opts.Format, "format", "text", "Output format: text|json")
+	cmd.Flags().StringVarP(&opts.Format, "format", "o", "text", "Output format: text|json")
 	cmd.Flags().StringVar(&opts.FailOn, "fail-on", "error", "Minimum severity that fails command: error|warn")
 	cmd.Flags().BoolVar(&opts.FailOnEmpty, "fail-on-empty", false, "Fail if no family instances match")
 	cmd.Flags().BoolVar(&opts.ShowPasses, "show-passes", false, "Include passing rule results in text output")
@@ -135,22 +160,31 @@ func validateCheckOptions(opts checkOptions) error {
 		return fmt.Errorf("invalid --fail-on %q; expected error|warn", opts.FailOn)
 	}
 
-	modes := 0
+	selectedModes := make([]string, 0, 4)
 	if strings.TrimSpace(opts.FilesCSV) != "" {
-		modes++
+		selectedModes = append(selectedModes, "files")
 	}
 	if strings.TrimSpace(opts.FilesFrom) != "" {
-		modes++
+		selectedModes = append(selectedModes, "files-from")
+	}
+	if opts.Stdin {
+		selectedModes = append(selectedModes, "stdin")
 	}
 	if opts.Base != "" || opts.Head != "" {
 		if opts.Base == "" || opts.Head == "" {
 			return errors.New("--base and --head must be provided together")
 		}
-		modes++
+		selectedModes = append(selectedModes, "git")
 	}
 
-	if modes != 1 {
-		return errors.New("exactly one input mode is required: --files | --files-from | --base+--head")
+	if len(selectedModes) != 1 {
+		if len(selectedModes) == 0 {
+			return errors.New("exactly one input mode is required: --files | --files-from | --stdin | --base+--head (selected: none)")
+		}
+		return fmt.Errorf(
+			"exactly one input mode is required: --files | --files-from | --stdin | --base+--head (selected: %s)",
+			strings.Join(selectedModes, ", "),
+		)
 	}
 
 	return nil

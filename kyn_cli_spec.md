@@ -173,6 +173,7 @@ kyn check
 --config <path>         Path to Kyn config file
 --files <csv>           Comma-separated changed files
 --files-from <path>     Path to file containing changed files, one per line; use '-' for stdin
+--stdin                 Read changed files from stdin (alias for --files-from -)
 --base <ref>            Git base ref/SHA for diff detection
 --head <ref>            Git head ref/SHA for diff detection
 --cwd <path>            Working directory; defaults to current directory
@@ -203,6 +204,12 @@ kyn check --config kyn.config.yaml --files-from changed-files.txt
 git diff --name-only origin/main...HEAD | kyn check --config kyn.config.yaml --files-from -
 ```
 
+Equivalent stdin alias:
+
+```bash
+git diff --name-only origin/main...HEAD | kyn check --config kyn.config.yaml --stdin
+```
+
 ### Git diff mode
 
 ```bash
@@ -229,7 +236,8 @@ Exactly one change input mode must be selected:
 
 1. `--files`
 2. `--files-from`
-3. `--base` and `--head` using git diff
+3. `--stdin`
+4. `--base` and `--head` using git diff
 
 Invalid combinations are CLI usage errors (exit code `2`).
 

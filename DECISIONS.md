@@ -8,7 +8,8 @@ Exactly one change input mode is allowed per run:
 
 1. `--files <csv>`
 2. `--files-from <path>` (supports `-` to read from stdin)
-3. `--base <ref> --head <ref>`
+3. `--stdin` (alias for `--files-from -`)
+4. `--base <ref> --head <ref>`
 
 Invalid combinations are CLI usage errors (`exit 2`).
 
