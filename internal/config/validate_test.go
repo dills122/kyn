@@ -65,6 +65,13 @@ func TestValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "invalid kin reference",
+			modify: func(cfg *Config) {
+				cfg.Rules[0].Require.KinChanged = []string{"missing-kin"}
+			},
+			wantErr: true,
+		},
+		{
 			name: "invalid template variable",
 			modify: func(cfg *Config) {
 				cfg.Families[0].Kin["story"] = "{dir}/{wat}.stories.ts"

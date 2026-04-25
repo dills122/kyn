@@ -9,6 +9,9 @@ import (
 
 	"kyn/internal/changes"
 	"kyn/internal/config"
+	"kyn/internal/family"
+	"kyn/internal/report"
+	"kyn/internal/rules"
 
 	"github.com/spf13/cobra"
 )
@@ -48,14 +51,55 @@ func newCheckCommand() *cobra.Command {
 				return usageError("invalid change input: %v", err)
 			}
 
-			_, _ = fmt.Fprintf(
-				cmd.OutOrStdout(),
-				"kyn check: scaffold ready (config=%s families=%d rules=%d changed=%d)\n",
-				cfgPath,
-				len(cfg.Families),
-				len(cfg.Rules),
-				len(changedFiles),
-			)
+			instances, err := family.Resolve(cfg, changedFiles)
+			if err != nil {
+				return runtimeError("family resolution failed: %v", err)
+			}
+
+			changedSet := make(map[string]struct{}, len(changedFiles))
+			for _, f := range changedFiles {
+				changedSet[f] = struct{}{}
+			}
+
+			summary, err := rules.Evaluate(rules.EvalInput{
+				Cwd:         cwd,
+				FailOn:      opts.FailOn,
+				FailOnEmpty: opts.FailOnEmpty,
+				Changed:     changedSet,
+				Rules:       cfg.Rules,
+				Instances:   instances,
+			})
+			if err != nil {
+				return runtimeError("rule evaluation failed: %v", err)
+			}
+
+			if opts.Verbose {
+				_, _ = fmt.Fprintf(
+					cmd.OutOrStdout(),
+					"config=%s families=%d rules=%d changed=%d instances=%d\n\n",
+					cfgPath,
+					len(cfg.Families),
+					len(cfg.Rules),
+					len(changedFiles),
+					len(instances),
+				)
+			}
+
+			if opts.Format == "json" {
+				out, err := report.RenderJSON(summary)
+				if err != nil {
+					return runtimeError("json render failed: %v", err)
+				}
+				_, _ = cmd.OutOrStdout().Write(out)
+				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
+			} else {
+				_, _ = cmd.OutOrStdout().Write([]byte(report.RenderText(summary)))
+				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
+			}
+
+			if !summary.OK {
+				return ruleFailureError()
+			}
 			return nil
 		},
 	}

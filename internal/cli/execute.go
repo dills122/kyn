@@ -30,25 +30,29 @@ type checkOptions struct {
 
 type codedError struct {
 	code int
-	err  error
+	msg  string
 }
 
 func (e codedError) Error() string {
-	return e.err.Error()
+	return e.msg
 }
 
 func usageError(format string, args ...any) error {
 	return codedError{
 		code: ExitUsage,
-		err:  fmt.Errorf(format, args...),
+		msg:  fmt.Sprintf(format, args...),
 	}
 }
 
 func runtimeError(format string, args ...any) error {
 	return codedError{
 		code: ExitRuntime,
-		err:  fmt.Errorf(format, args...),
+		msg:  fmt.Sprintf(format, args...),
 	}
+}
+
+func ruleFailureError() error {
+	return codedError{code: ExitRuleFailure}
 }
 
 // Execute is the entrypoint for the kyn CLI binary.
@@ -60,11 +64,13 @@ func Execute() int {
 	if err := root.Execute(); err != nil {
 		var coded codedError
 		if errors.As(err, &coded) {
-			_, _ = fmt.Fprintln(os.Stderr, coded.Error())
+			if coded.msg != "" {
+				_, _ = fmt.Fprintln(os.Stderr, coded.Error())
+			}
 			return coded.code
 		}
 		_, _ = fmt.Fprintln(os.Stderr, err.Error())
-		return ExitRuntime
+		return ExitUsage
 	}
 
 	return ExitOK
