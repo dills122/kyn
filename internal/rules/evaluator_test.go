@@ -108,6 +108,59 @@ func TestEvaluateFailOnEmpty(t *testing.T) {
 	}
 }
 
+func TestEvaluateV2ActionsEmit(t *testing.T) {
+	cwd := t.TempDir()
+	mustWrite(t, filepath.Join(cwd, "libs/ui/button/figma.button.json"))
+
+	cfg := config.Config{
+		Version: 2,
+		Rules: []config.Rule{
+			{
+				ID:       "figma-publish-signal",
+				Family:   "angular-component",
+				Severity: "warn",
+				If: config.RuleClauses{
+					ChangedAny: []string{"source"},
+					KinExists:  []string{"figma"},
+				},
+				Actions: config.RuleActions{
+					Emit: []string{"figmaPublishRequired", "designReviewRequired"},
+				},
+				Message: "Signals follow-up actions.",
+			},
+		},
+	}
+
+	inst := family.Instance{
+		FamilyID:    "angular-component",
+		Name:        "libs/ui/button/button",
+		SourceFiles: []string{"libs/ui/button/button.component.ts"},
+		Kin: map[string]string{
+			"figma": "libs/ui/button/figma.button.json",
+		},
+	}
+	changed := map[string]struct{}{
+		"libs/ui/button/button.component.ts": {},
+	}
+
+	summary, err := Evaluate(EvalInput{
+		Cwd:       cwd,
+		FailOn:    "error",
+		Changed:   changed,
+		Rules:     cfg.Rules,
+		Instances: []family.Instance{inst},
+	})
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if !summary.OK {
+		t.Fatalf("expected summary to pass")
+	}
+	if len(summary.Flags) != 2 {
+		t.Fatalf("expected two flags, got %v", summary.Flags)
+	}
+}
+
 func TestEvaluate_KinUnchangedAndMissing(t *testing.T) {
 	cwd := t.TempDir()
 	mustWrite(t, filepath.Join(cwd, "libs/ui/button/button.spec.ts"))

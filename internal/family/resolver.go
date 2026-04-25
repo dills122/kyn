@@ -21,13 +21,15 @@ func Resolve(cfg config.Config, changedFiles []string) ([]Instance, error) {
 	instances := make(map[string]*acc)
 
 	for _, fam := range cfg.Families {
+		includePatterns := fam.SourceInclude()
+		excludePatterns := fam.SourceExclude()
 		for _, file := range changedFiles {
 			file = matcher.NormalizePath(file)
 			if file == "" {
 				continue
 			}
 
-			include, err := matcher.MatchAny(fam.Include, file)
+			include, err := matcher.MatchAny(includePatterns, file)
 			if err != nil {
 				return nil, fmt.Errorf("family %q include match failed for %q: %w", fam.ID, file, err)
 			}
@@ -35,8 +37,8 @@ func Resolve(cfg config.Config, changedFiles []string) ([]Instance, error) {
 				continue
 			}
 
-			if len(fam.Exclude) > 0 {
-				excluded, err := matcher.MatchAny(fam.Exclude, file)
+			if len(excludePatterns) > 0 {
+				excluded, err := matcher.MatchAny(excludePatterns, file)
 				if err != nil {
 					return nil, fmt.Errorf("family %q exclude match failed for %q: %w", fam.ID, file, err)
 				}

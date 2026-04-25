@@ -65,3 +65,43 @@ func TestResolve(t *testing.T) {
 		t.Fatalf("unexpected button spec kin: %q", button.Kin["spec"])
 	}
 }
+
+func TestResolveV2SourceGroup(t *testing.T) {
+	cfg := config.Config{
+		Version: 2,
+		Families: []config.Family{
+			{
+				ID: "angular-component",
+				Groups: config.GroupMap{
+					"source": {
+						Include: []string{
+							"libs/**/*.component.ts",
+						},
+					},
+				},
+				BaseName: config.BaseName{
+					StripSuffixes: []string{".component"},
+				},
+				Kin: config.KinMap{
+					"story": "{dir}/{base}.stories.ts",
+				},
+			},
+		},
+	}
+
+	changed := []string{
+		"libs/ui/button/button.component.ts",
+		"libs/ui/button/button.stories.ts",
+	}
+
+	instances, err := Resolve(cfg, changed)
+	if err != nil {
+		t.Fatalf("Resolve returned error: %v", err)
+	}
+	if len(instances) != 1 {
+		t.Fatalf("expected 1 instance, got %d", len(instances))
+	}
+	if instances[0].Name != "libs/ui/button/button" {
+		t.Fatalf("unexpected instance name %q", instances[0].Name)
+	}
+}
