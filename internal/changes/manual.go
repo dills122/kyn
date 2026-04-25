@@ -38,7 +38,9 @@ func fromFile(cwd string, filePath string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open --files-from: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	return readList(f, "--files-from")
 }

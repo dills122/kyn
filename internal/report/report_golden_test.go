@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"kyn/internal/rules"
@@ -79,6 +80,7 @@ func sampleSummary() rules.Summary {
 func assertGolden(t *testing.T, name string, got string) {
 	t.Helper()
 	path := filepath.Join("testdata", name)
+	got = normalizeGoldenText(got)
 	if *updateGolden {
 		if err := os.WriteFile(path, []byte(got), 0o600); err != nil {
 			t.Fatalf("write golden: %v", err)
@@ -88,7 +90,13 @@ func assertGolden(t *testing.T, name string, got string) {
 	if err != nil {
 		t.Fatalf("read golden: %v", err)
 	}
-	if got != string(want) {
-		t.Fatalf("golden mismatch for %s\n--- got ---\n%s\n--- want ---\n%s", name, got, string(want))
+	wantText := normalizeGoldenText(string(want))
+	if got != wantText {
+		t.Fatalf("golden mismatch for %s\n--- got ---\n%s\n--- want ---\n%s", name, got, wantText)
 	}
+}
+
+func normalizeGoldenText(s string) string {
+	// Ensure cross-platform stable snapshots: compare on LF regardless of runner OS.
+	return strings.ReplaceAll(s, "\r\n", "\n")
 }

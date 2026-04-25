@@ -107,9 +107,7 @@ func buildTemplateContext(file string, stripSuffixes []string) templateContext {
 	name := strings.TrimSuffix(filename, ext)
 	base := name
 	for _, suffix := range stripSuffixes {
-		if strings.HasSuffix(base, suffix) {
-			base = strings.TrimSuffix(base, suffix)
-		}
+		base = strings.TrimSuffix(base, suffix)
 	}
 
 	return templateContext{
