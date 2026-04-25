@@ -24,6 +24,12 @@ func TestRenderText_ShowPasses(t *testing.T) {
 	assertGolden(t, "text_show_passes.golden", got)
 }
 
+func TestRenderText_SummaryOnly(t *testing.T) {
+	summary := sampleSummary()
+	got := RenderText(summary, TextOptions{SummaryOnly: true})
+	assertGolden(t, "text_summary_only.golden", got)
+}
+
 func TestRenderJSON(t *testing.T) {
 	summary := sampleSummary()
 	out, err := RenderJSON(summary)
@@ -31,6 +37,30 @@ func TestRenderJSON(t *testing.T) {
 		t.Fatalf("RenderJSON returned error: %v", err)
 	}
 	assertGolden(t, "json.golden", string(out)+"\n")
+}
+
+func TestRenderJSONSummary(t *testing.T) {
+	summary := sampleSummary()
+	out, err := RenderJSONSummary(summary)
+	if err != nil {
+		t.Fatalf("RenderJSONSummary returned error: %v", err)
+	}
+	assertGolden(t, "json_summary_only.golden", string(out)+"\n")
+}
+
+func TestRenderResolveText(t *testing.T) {
+	resolve := sampleResolveReport()
+	got := RenderResolveText(resolve)
+	assertGolden(t, "dry_run_text.golden", got)
+}
+
+func TestRenderResolveJSON(t *testing.T) {
+	resolve := sampleResolveReport()
+	out, err := RenderResolveJSON(resolve)
+	if err != nil {
+		t.Fatalf("RenderResolveJSON returned error: %v", err)
+	}
+	assertGolden(t, "dry_run_json.golden", string(out)+"\n")
 }
 
 func sampleSummary() rules.Summary {
@@ -72,6 +102,31 @@ func sampleSummary() rules.Summary {
 				Status:       rules.StatusPass,
 				Message:      "Docs updated.",
 				ChangedFiles: []string{"libs/ui/button/button.docs.md"},
+			},
+		},
+	}
+}
+
+func sampleResolveReport() ResolveReport {
+	return ResolveReport{
+		Mode:             "git",
+		Base:             "origin/main",
+		Head:             "HEAD",
+		ChangedCount:     2,
+		MatchedInstances: 1,
+		ChangedFiles: []string{
+			"libs/ui/button/button.component.ts",
+			"libs/ui/button/button.stories.ts",
+		},
+		Instances: []ResolveInstance{
+			{
+				FamilyID:    "angular-component",
+				Name:        "libs/ui/button/button",
+				SourceFiles: []string{"libs/ui/button/button.component.ts"},
+				Kin: map[string]string{
+					"spec":  "libs/ui/button/button.spec.ts",
+					"story": "libs/ui/button/button.stories.ts",
+				},
 			},
 		},
 	}

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -45,6 +46,13 @@ func TestValidateCheckOptions(t *testing.T) {
 		},
 		{
 			name:    "invalid no mode",
+			wantErr: false,
+		},
+		{
+			name: "invalid no mode when strict",
+			modify: func(o *checkOptions) {
+				o.StrictInput = true
+			},
 			wantErr: true,
 		},
 		{
@@ -143,4 +151,72 @@ func TestResolveCWD(t *testing.T) {
 			t.Fatal("expected error, got nil")
 		}
 	})
+}
+
+func TestApplyAutoInputMode(t *testing.T) {
+	t.Run("non-git cwd with no mode errors", func(t *testing.T) {
+		dir := t.TempDir()
+		_, _, err := applyAutoInputMode(checkOptions{}, dir)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("strict mode skips auto", func(t *testing.T) {
+		dir := t.TempDir()
+		got, auto, err := applyAutoInputMode(checkOptions{StrictInput: true}, dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if auto {
+			t.Fatal("expected auto=false, got true")
+		}
+		if got.Base != "" || got.Head != "" {
+			t.Fatalf("expected empty base/head, got %q/%q", got.Base, got.Head)
+		}
+	})
+
+	t.Run("git cwd with no mode uses defaults", func(t *testing.T) {
+		dir := t.TempDir()
+		runGitCheck(t, dir, "init")
+
+		got, auto, err := applyAutoInputMode(checkOptions{}, dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !auto {
+			t.Fatal("expected auto=true, got false")
+		}
+		if got.Base != "origin/main" || got.Head != "HEAD" {
+			t.Fatalf("unexpected refs %q/%q", got.Base, got.Head)
+		}
+	})
+
+	t.Run("env overrides defaults", func(t *testing.T) {
+		dir := t.TempDir()
+		runGitCheck(t, dir, "init")
+		t.Setenv("KYN_BASE_REF", "upstream/trunk")
+		t.Setenv("KYN_HEAD_REF", "feature-branch")
+
+		got, auto, err := applyAutoInputMode(checkOptions{}, dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !auto {
+			t.Fatal("expected auto=true, got false")
+		}
+		if got.Base != "upstream/trunk" || got.Head != "feature-branch" {
+			t.Fatalf("unexpected refs %q/%q", got.Base, got.Head)
+		}
+	})
+}
+
+func runGitCheck(t *testing.T, cwd string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", cwd}, args...)...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, string(out))
+	}
+	return string(out)
 }

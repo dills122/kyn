@@ -1,0 +1,11 @@
+kyn check
+
+FAIL
+
+Rules failed: 1
+Warnings: 1
+Infos: 1
+
+Flags:
+  - alphaFlag
+  - zetaFlag

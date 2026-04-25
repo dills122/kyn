@@ -81,8 +81,9 @@ Web/frontend is a strong fit, but the pattern applies broadly:
 - Multiple change input modes: `--files-from`
 - Multiple change input modes: `--stdin` (alias for `--files-from -`)
 - Multiple change input modes: `--base` + `--head` (git diff)
+- Auto git mode when no input mode is selected (defaults: `origin/main...HEAD`)
 - Family/kin resolution via glob + templates
-- Rule evaluation with `when` and `require` clauses
+- Rule evaluation with v1 (`when`/`require`) and v2 (`if`/`assert`/`actions`) compatibility
 - Deterministic text and JSON output
 - Stable exit codes for CI integration
 
@@ -115,15 +116,19 @@ Run against included fixture data:
 kyn check \
   -c, --config <path> \
   [-f, --files <csv> | --files-from <path> | --stdin | --base <ref> --head <ref>] \
+  [--strict-input-mode] \
   [--cwd <path>] \
   [-o, --format text|json] \
   [--fail-on error|warn] \
+  [--summary-only] \
+  [--dry-run-resolve] \
   [--fail-on-empty] \
   [--show-passes] \
   [--verbose]
 ```
 
-Exactly one change input mode is required.
+Default behavior: if no input mode is provided and `--cwd` is a git repo, Kyn auto-selects git mode.
+Use `--strict-input-mode` to require exactly one explicit mode.
 
 ### Common commands
 
@@ -131,11 +136,17 @@ Exactly one change input mode is required.
 # CI happy path (git refs)
 kyn check -c kyn.config.yaml --base origin/main --head HEAD -o json
 
+# CI happy path with auto mode
+kyn check -c kyn.config.yaml -o json
+
 # Piped changed-file list
 git diff --name-only origin/main...HEAD | kyn check -c kyn.config.yaml --stdin
 
 # Explicit files
 kyn check -c kyn.config.yaml -f path/a.ts,path/b.ts
+
+# Resolve families/kin only (no policy evaluation)
+kyn check -c kyn.config.yaml --dry-run-resolve
 ```
 
 ## Exit Codes

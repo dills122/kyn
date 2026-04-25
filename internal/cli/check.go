@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -24,11 +25,16 @@ func newCheckCommand() *cobra.Command {
 		Long: strings.TrimSpace(`
 Evaluate changed files against configured family/rule relationships.
 
-Choose exactly one change input mode:
+Choose one change input mode, or rely on auto git mode:
   --files
   --files-from (use '-' to read from stdin)
   --stdin
   --base + --head
+
+Auto mode (default unless --strict-input-mode):
+  - If no input mode is selected and --cwd is a git repo, Kyn uses git diff
+    with default refs: base=origin/main, head=HEAD.
+  - Override defaults with env vars KYN_BASE_REF and KYN_HEAD_REF.
 `),
 		Example: strings.TrimSpace(`
   # CI happy path (git refs)
@@ -42,31 +48,35 @@ Choose exactly one change input mode:
 `),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := validateCheckOptions(opts); err != nil {
-				return usageError("invalid options: %v", err)
-			}
-
 			cwd, err := resolveCWD(opts.Cwd)
 			if err != nil {
 				return usageError("invalid --cwd: %v", err)
 			}
 
-			cfg, cfgPath, err := config.Load(cwd, opts.ConfigPath)
+			effectiveOpts, autoMode, err := applyAutoInputMode(opts, cwd)
+			if err != nil {
+				return usageError("invalid options: %v", err)
+			}
+			if err := validateCheckOptions(effectiveOpts); err != nil {
+				return usageError("invalid options: %v", err)
+			}
+
+			cfg, cfgPath, err := config.Load(cwd, effectiveOpts.ConfigPath)
 			if err != nil {
 				return usageError("invalid config: %v", err)
 			}
 
-			filesFrom := opts.FilesFrom
-			if opts.Stdin {
+			filesFrom := effectiveOpts.FilesFrom
+			if effectiveOpts.Stdin {
 				filesFrom = "-"
 			}
 
 			changedResult, err := changes.CollectDetailed(changes.Input{
 				Cwd:       cwd,
-				FilesCSV:  opts.FilesCSV,
+				FilesCSV:  effectiveOpts.FilesCSV,
 				FilesFrom: filesFrom,
-				Base:      opts.Base,
-				Head:      opts.Head,
+				Base:      effectiveOpts.Base,
+				Head:      effectiveOpts.Head,
 			})
 			if err != nil {
 				if errors.Is(err, changes.ErrGitFailure) {
@@ -80,6 +90,37 @@ Choose exactly one change input mode:
 				return runtimeError("family resolution failed: %v", err)
 			}
 
+			selectedModes, err := selectedInputModes(effectiveOpts)
+			if err != nil {
+				return usageError("invalid options: %v", err)
+			}
+			mode := "unknown"
+			if len(selectedModes) > 0 {
+				mode = selectedModes[0]
+			}
+			if effectiveOpts.DryRun {
+				resolveReport := report.NewResolveReport(
+					mode,
+					effectiveOpts.Base,
+					effectiveOpts.Head,
+					changedResult.Files,
+					instances,
+					effectiveOpts.SummaryOnly,
+				)
+				if effectiveOpts.Format == "json" {
+					out, err := report.RenderResolveJSON(resolveReport)
+					if err != nil {
+						return runtimeError("json render failed: %v", err)
+					}
+					_, _ = cmd.OutOrStdout().Write(out)
+					_, _ = cmd.OutOrStdout().Write([]byte("\n"))
+				} else {
+					_, _ = cmd.OutOrStdout().Write([]byte(report.RenderResolveText(resolveReport)))
+					_, _ = cmd.OutOrStdout().Write([]byte("\n"))
+				}
+				return nil
+			}
+
 			changedSet := make(map[string]struct{}, len(changedResult.Files))
 			for _, f := range changedResult.Files {
 				changedSet[f] = struct{}{}
@@ -87,8 +128,8 @@ Choose exactly one change input mode:
 
 			summary, err := rules.Evaluate(rules.EvalInput{
 				Cwd:          cwd,
-				FailOn:       opts.FailOn,
-				FailOnEmpty:  opts.FailOnEmpty,
+				FailOn:       effectiveOpts.FailOn,
+				FailOnEmpty:  effectiveOpts.FailOnEmpty,
 				Changed:      changedSet,
 				StatusByFile: changedResult.StatusByFile,
 				Rules:        cfg.Rules,
@@ -98,20 +139,30 @@ Choose exactly one change input mode:
 				return runtimeError("rule evaluation failed: %v", err)
 			}
 
-			if opts.Verbose {
+			if effectiveOpts.Verbose {
 				_, _ = fmt.Fprintf(
 					cmd.OutOrStdout(),
-					"config=%s families=%d rules=%d changed=%d instances=%d\n\n",
+					"config=%s families=%d rules=%d changed=%d instances=%d mode=%s autoMode=%t\n\n",
 					cfgPath,
 					len(cfg.Families),
 					len(cfg.Rules),
 					len(changedResult.Files),
 					len(instances),
+					mode,
+					autoMode,
 				)
 			}
 
-			if opts.Format == "json" {
-				out, err := report.RenderJSON(summary)
+			if effectiveOpts.Format == "json" {
+				var (
+					out []byte
+					err error
+				)
+				if effectiveOpts.SummaryOnly {
+					out, err = report.RenderJSONSummary(summary)
+				} else {
+					out, err = report.RenderJSON(summary)
+				}
 				if err != nil {
 					return runtimeError("json render failed: %v", err)
 				}
@@ -119,7 +170,8 @@ Choose exactly one change input mode:
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 			} else {
 				_, _ = cmd.OutOrStdout().Write([]byte(report.RenderText(summary, report.TextOptions{
-					ShowPasses: opts.ShowPasses,
+					ShowPasses:  effectiveOpts.ShowPasses,
+					SummaryOnly: effectiveOpts.SummaryOnly,
 				})))
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 			}
@@ -138,10 +190,13 @@ Choose exactly one change input mode:
 	cmd.Flags().BoolVar(&opts.Stdin, "stdin", false, "Read changed files from stdin (alias for --files-from -)")
 	cmd.Flags().StringVar(&opts.Base, "base", "", "Git base ref/SHA for diff detection")
 	cmd.Flags().StringVar(&opts.Head, "head", "", "Git head ref/SHA for diff detection")
+	cmd.Flags().BoolVar(&opts.StrictInput, "strict-input-mode", false, "Require an explicit single input mode; disable auto git mode")
 	cmd.Flags().StringVar(&opts.Cwd, "cwd", ".", "Working directory")
 	cmd.Flags().StringVarP(&opts.Format, "format", "o", "text", "Output format: text|json")
 	cmd.Flags().StringVar(&opts.FailOn, "fail-on", "error", "Minimum severity that fails command: error|warn")
 	cmd.Flags().BoolVar(&opts.FailOnEmpty, "fail-on-empty", false, "Fail if no family instances match")
+	cmd.Flags().BoolVar(&opts.SummaryOnly, "summary-only", false, "Print only aggregate results")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run-resolve", false, "Resolve families/kin only; skip rule evaluation")
 	cmd.Flags().BoolVar(&opts.ShowPasses, "show-passes", false, "Include passing rule results in text output")
 	cmd.Flags().BoolVar(&opts.Verbose, "verbose", false, "Enable diagnostic output")
 
@@ -168,6 +223,9 @@ func validateCheckOptions(opts checkOptions) error {
 
 	if len(selectedModes) != 1 {
 		if len(selectedModes) == 0 {
+			if !opts.StrictInput {
+				return nil
+			}
 			return errors.New("exactly one input mode is required: --files | --files-from | --stdin | --base+--head (selected: none)")
 		}
 		return fmt.Errorf(
@@ -197,6 +255,45 @@ func selectedInputModes(opts checkOptions) ([]string, error) {
 		selectedModes = append(selectedModes, "git")
 	}
 	return selectedModes, nil
+}
+
+func applyAutoInputMode(opts checkOptions, cwd string) (checkOptions, bool, error) {
+	selectedModes, err := selectedInputModes(opts)
+	if err != nil {
+		return opts, false, err
+	}
+	if len(selectedModes) > 0 || opts.StrictInput {
+		return opts, false, nil
+	}
+
+	if !isGitRepo(cwd) {
+		return opts, false, errors.New(
+			"no input mode selected and auto git mode is unavailable (cwd is not a git repository); " +
+				"provide one mode: --files | --files-from | --stdin | --base+--head",
+		)
+	}
+
+	opts.Base = firstNonEmpty(strings.TrimSpace(os.Getenv("KYN_BASE_REF")), "origin/main")
+	opts.Head = firstNonEmpty(strings.TrimSpace(os.Getenv("KYN_HEAD_REF")), "HEAD")
+	return opts, true, nil
+}
+
+func isGitRepo(cwd string) bool {
+	cmd := exec.Command("git", "-C", cwd, "rev-parse", "--is-inside-work-tree")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(out)) == "true"
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func resolveCWD(cwd string) (string, error) {

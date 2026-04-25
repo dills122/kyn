@@ -10,7 +10,8 @@ import (
 )
 
 type TextOptions struct {
-	ShowPasses bool
+	ShowPasses  bool
+	SummaryOnly bool
 }
 
 func RenderText(summary rules.Summary, opts TextOptions) string {
@@ -25,6 +26,16 @@ func RenderText(summary rules.Summary, opts TextOptions) string {
 	_, _ = fmt.Fprintf(&b, "Rules failed: %d\n", summary.Failed)
 	_, _ = fmt.Fprintf(&b, "Warnings: %d\n", summary.Warnings)
 	_, _ = fmt.Fprintf(&b, "Infos: %d\n", summary.Infos)
+
+	if opts.SummaryOnly {
+		if len(summary.Flags) > 0 {
+			_, _ = fmt.Fprintf(&b, "\nFlags:\n")
+			for _, f := range summary.Flags {
+				_, _ = fmt.Fprintf(&b, "  - %s\n", f)
+			}
+		}
+		return b.String()
+	}
 
 	results := orderResults(summary.Results, opts.ShowPasses)
 	for _, r := range results {

@@ -22,10 +22,13 @@ type checkOptions struct {
 	Stdin       bool
 	Base        string
 	Head        string
+	StrictInput bool
 	Cwd         string
 	Format      string
 	FailOn      string
 	FailOnEmpty bool
+	SummaryOnly bool
+	DryRun      bool
 	ShowPasses  bool
 	Verbose     bool
 }
