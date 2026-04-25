@@ -178,6 +178,7 @@ kyn check
 --cwd <path>            Working directory; defaults to current directory
 --format <format>       Output format: text | json; default text
 --fail-on <level>       Minimum severity that fails the command: error | warn; default error
+--fail-on-empty         Fail when no family instances match; default false
 --verbose               Print diagnostic information
 ```
 
@@ -215,14 +216,17 @@ kyn check --config kyn.config.yaml --base origin/main --head HEAD --fail-on warn
 
 ---
 
-# Input Priority
+# Input Mode Rules
 
-When determining changed files, use this priority order:
+Exactly one change input mode must be selected:
 
 1. `--files`
 2. `--files-from`
 3. `--base` and `--head` using git diff
-4. error if no change input is provided
+
+Invalid combinations are CLI usage errors (exit code `2`).
+
+If git mode is used, both `--base` and `--head` are required.
 
 For MVP, do not silently infer default git refs unless explicitly configured later.
 
@@ -309,7 +313,7 @@ rules:
       kinExists:
         - figma
     require:
-      flag: figmaPublishRequired
+      emitFlag: figmaPublishRequired
     message: "Component changed and has a Figma config. Figma publish may be required."
 ```
 
@@ -438,7 +442,7 @@ rules:
       kinUnchanged?: string[]
       kinExists?: string[]
       kinMissing?: string[]
-      flag?: string
+      emitFlag?: string
     message: string
 ```
 
@@ -454,6 +458,13 @@ A rule has two phases:
 If `when` is omitted, the rule runs for every family instance.
 
 If `require` is omitted, the rule should emit an informational result if the `when` block matches.
+
+Predicate semantics for MVP:
+
+- `when` keys are evaluated with `AND` semantics.
+- `require` keys are evaluated with `AND` semantics.
+- list predicates require all listed kin names unless documented otherwise.
+- `changedAny` is `ANY` across listed groups.
 
 ---
 
@@ -523,7 +534,7 @@ require:
     - generated
 ```
 
-## `flag`
+## `emitFlag`
 
 Emits a named output flag instead of validating a file condition.
 
@@ -531,10 +542,10 @@ Example:
 
 ```yaml
 require:
-  flag: figmaPublishRequired
+  emitFlag: figmaPublishRequired
 ```
 
-This should not fail by default unless the rule severity and `fail-on` threshold require it.
+This is informational and does not fail by itself.
 
 ---
 
@@ -655,16 +666,16 @@ Expected files:
 
 # Git Diff Provider
 
-For MVP, implement a simple git provider using:
+For MVP, implement a git provider using:
 
 ```bash
-git diff --name-only <base>...<head>
+git diff --name-status -M <base>...<head>
 ```
 
 If `--base` and `--head` are provided, run:
 
 ```bash
-git -C <cwd> diff --name-only <base>...<head>
+git -C <cwd> diff --name-status -M <base>...<head>
 ```
 
 Normalize output by:
@@ -673,6 +684,12 @@ Normalize output by:
 - dropping empty lines
 - converting Windows path separators to `/`
 - removing leading `./`
+
+MVP flattening behavior:
+
+- include `A` and `M` paths in changed-set evaluation
+- include rename destination path for `R*` statuses
+- exclude `D` paths from changed-set evaluation
 
 If git fails, exit with code `3` and show the git error.
 
@@ -704,6 +721,8 @@ All path checks should be relative to `--cwd`.
 `kinExists` should use the real filesystem, not just changed files.
 
 A kin file is considered changed if its normalized path appears in the changed file set.
+
+Family instances should be deduplicated by default.
 
 ---
 
@@ -816,6 +835,8 @@ For test assertions.
 - JSON output includes `ok`, counts, results, and flags.
 - `--fail-on error` fails only on error results.
 - `--fail-on warn` fails on warn or error results.
+- `--fail-on-empty` fails when no family instances matched.
+- Output ordering for results/files/flags is deterministic.
 
 ---
 

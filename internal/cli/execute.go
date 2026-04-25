@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
-	"io"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -26,34 +28,50 @@ type checkOptions struct {
 	Verbose     bool
 }
 
-// Execute is the entrypoint for the `kyn` CLI binary.
-func Execute() int {
-	args := os.Args[1:]
-	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
-		printRootHelp(os.Stdout)
-		return ExitOK
-	}
+type codedError struct {
+	code int
+	err  error
+}
 
-	switch args[0] {
-	case "check":
-		return runCheck(args[1:], os.Stdout, os.Stderr)
-	default:
-		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", args[0])
-		printRootHelp(os.Stderr)
-		return ExitUsage
+func (e codedError) Error() string {
+	return e.err.Error()
+}
+
+func usageError(format string, args ...any) error {
+	return codedError{
+		code: ExitUsage,
+		err:  fmt.Errorf(format, args...),
 	}
 }
 
-func printRootHelp(w io.Writer) {
-	_, _ = io.WriteString(w, `kyn is a CLI for enforcing related-file rules in CI.
+// Execute is the entrypoint for the kyn CLI binary.
+func Execute() int {
+	root := newRootCommand()
+	root.SetOut(os.Stdout)
+	root.SetErr(os.Stderr)
 
-Usage:
-  kyn <command> [flags]
+	if err := root.Execute(); err != nil {
+		var coded codedError
+		if errors.As(err, &coded) {
+			_, _ = fmt.Fprintln(os.Stderr, coded.Error())
+			return coded.code
+		}
+		_, _ = fmt.Fprintln(os.Stderr, err.Error())
+		return ExitRuntime
+	}
 
-Commands:
-  check    Evaluate changed files against configured family/rule relationships
-  help     Show help
+	return ExitOK
+}
 
-Run "kyn check --help" for command details.
-`)
+func newRootCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "kyn",
+		Short: "Evaluate changed files against related-file rules in CI",
+		Long:  "Kyn is a CLI for enforcing related-file relationship rules in CI.",
+	}
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+
+	cmd.AddCommand(newCheckCommand())
+	return cmd
 }
