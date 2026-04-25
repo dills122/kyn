@@ -289,6 +289,39 @@ rules: []
 	}
 }
 
+func TestExecuteInitCreatesConfig(t *testing.T) {
+	dir := t.TempDir()
+
+	code := runWithArgs(t, []string{
+		"kyn", "init",
+		"--cwd", dir,
+	})
+	if code != ExitOK {
+		t.Fatalf("expected exit %d, got %d", ExitOK, code)
+	}
+
+	target := filepath.Join(dir, "kyn.config.yaml")
+	if _, err := os.Stat(target); err != nil {
+		t.Fatalf("expected config file to exist: %v", err)
+	}
+}
+
+func TestExecuteInitExistingWithoutForceFails(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "kyn.config.yaml")
+	if err := os.WriteFile(target, []byte("version: 2\n"), 0o600); err != nil {
+		t.Fatalf("write existing config: %v", err)
+	}
+
+	code := runWithArgs(t, []string{
+		"kyn", "init",
+		"--cwd", dir,
+	})
+	if code != ExitUsage {
+		t.Fatalf("expected exit %d, got %d", ExitUsage, code)
+	}
+}
+
 func runWithArgs(t *testing.T, args []string) int {
 	t.Helper()
 	prev := os.Args

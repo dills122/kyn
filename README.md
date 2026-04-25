@@ -77,6 +77,7 @@ Web/frontend is a strong fit, but the pattern applies broadly:
 
 - `kyn check` command for policy evaluation
 - `kyn explain` command for per-rule diagnostics
+- `kyn init` command for starter config generation
 - YAML config with schema validation
 - Multiple change input modes: `--files`
 - Multiple change input modes: `--files-from`
@@ -151,6 +152,9 @@ kyn check -c kyn.config.yaml --dry-run-resolve
 
 # Detailed per-rule reasoning (never exits 1 for rule failures)
 kyn explain -c kyn.config.yaml --base origin/main --head HEAD
+
+# Bootstrap a starter v2 config
+kyn init
 ```
 
 ## Exit Codes

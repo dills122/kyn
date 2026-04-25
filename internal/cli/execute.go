@@ -92,5 +92,6 @@ func newRootCommand() *cobra.Command {
 
 	cmd.AddCommand(newCheckCommand())
 	cmd.AddCommand(newExplainCommand())
+	cmd.AddCommand(newInitCommand())
 	return cmd
 }
