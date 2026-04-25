@@ -114,3 +114,14 @@ func runWithArgs(t *testing.T, args []string) int {
 	os.Args = args
 	return Execute()
 }
+
+func TestErrorHelpers(t *testing.T) {
+	u := usageError("bad %s", "input")
+	if u.Error() == "" {
+		t.Fatalf("expected usage error message")
+	}
+	r := runtimeError("runtime %s", "issue")
+	if r.Error() == "" {
+		t.Fatalf("expected runtime error message")
+	}
+}

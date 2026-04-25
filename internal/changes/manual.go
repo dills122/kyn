@@ -3,6 +3,7 @@ package changes
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,7 +43,7 @@ func fromFile(cwd string, filePath string) ([]string, error) {
 	return readList(f, "--files-from")
 }
 
-func readList(r *os.File, source string) ([]string, error) {
+func readList(r io.Reader, source string) ([]string, error) {
 	sc := bufio.NewScanner(r)
 	out := make([]string, 0, 64)
 	for sc.Scan() {

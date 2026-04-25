@@ -160,21 +160,9 @@ func validateCheckOptions(opts checkOptions) error {
 		return fmt.Errorf("invalid --fail-on %q; expected error|warn", opts.FailOn)
 	}
 
-	selectedModes := make([]string, 0, 4)
-	if strings.TrimSpace(opts.FilesCSV) != "" {
-		selectedModes = append(selectedModes, "files")
-	}
-	if strings.TrimSpace(opts.FilesFrom) != "" {
-		selectedModes = append(selectedModes, "files-from")
-	}
-	if opts.Stdin {
-		selectedModes = append(selectedModes, "stdin")
-	}
-	if opts.Base != "" || opts.Head != "" {
-		if opts.Base == "" || opts.Head == "" {
-			return errors.New("--base and --head must be provided together")
-		}
-		selectedModes = append(selectedModes, "git")
+	selectedModes, err := selectedInputModes(opts)
+	if err != nil {
+		return err
 	}
 
 	if len(selectedModes) != 1 {
@@ -188,6 +176,26 @@ func validateCheckOptions(opts checkOptions) error {
 	}
 
 	return nil
+}
+
+func selectedInputModes(opts checkOptions) ([]string, error) {
+	selectedModes := make([]string, 0, 4)
+	if strings.TrimSpace(opts.FilesCSV) != "" {
+		selectedModes = append(selectedModes, "files")
+	}
+	if strings.TrimSpace(opts.FilesFrom) != "" {
+		selectedModes = append(selectedModes, "files-from")
+	}
+	if opts.Stdin {
+		selectedModes = append(selectedModes, "stdin")
+	}
+	if opts.Base != "" || opts.Head != "" {
+		if opts.Base == "" || opts.Head == "" {
+			return nil, errors.New("--base and --head must be provided together")
+		}
+		selectedModes = append(selectedModes, "git")
+	}
+	return selectedModes, nil
 }
 
 func resolveCWD(cwd string) (string, error) {

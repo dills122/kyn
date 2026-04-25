@@ -78,6 +78,27 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "invalid severity",
+			modify: func(cfg *Config) {
+				cfg.Rules[0].Severity = "fatal"
+			},
+			wantErr: true,
+		},
+		{
+			name: "empty include pattern",
+			modify: func(cfg *Config) {
+				cfg.Families[0].Include = []string{"", "libs/**/*.component.ts"}
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing kin template",
+			modify: func(cfg *Config) {
+				cfg.Families[0].Kin = KinMap{}
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

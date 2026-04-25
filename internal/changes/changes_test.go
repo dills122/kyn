@@ -116,7 +116,8 @@ func write(t *testing.T, path string, content string) {
 
 func runGit(t *testing.T, cwd string, args ...string) string {
 	t.Helper()
-	cmd := exec.Command("git", append([]string{"-C", cwd}, args...)...)
+	prefix := []string{"-C", cwd, "-c", "commit.gpgsign=false"}
+	cmd := exec.Command("git", append(prefix, args...)...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git %v failed: %v\n%s", args, err, string(out))

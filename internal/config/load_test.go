@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,6 +29,32 @@ func TestLoadDefaultDiscovery(t *testing.T) {
 func TestLoadExplicitNotFound(t *testing.T) {
 	dir := t.TempDir()
 	_, _, err := Load(dir, "missing.yaml")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, ErrConfigNotFound) {
+		t.Fatalf("expected ErrConfigNotFound, got %v", err)
+	}
+}
+
+func TestLoadInvalidYAMLKnownField(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "kyn.config.yaml")
+	bad := `version: 1
+families:
+  - id: angular-component
+    include:
+      - "libs/**/*.component.ts"
+    kin:
+      story: "{dir}/{base}.stories.ts"
+    unknown: true
+rules: []
+`
+	if err := os.WriteFile(path, []byte(bad), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	_, _, err := Load(dir, "")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

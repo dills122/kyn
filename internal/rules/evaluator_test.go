@@ -108,6 +108,100 @@ func TestEvaluateFailOnEmpty(t *testing.T) {
 	}
 }
 
+func TestEvaluate_KinUnchangedAndMissing(t *testing.T) {
+	cwd := t.TempDir()
+	mustWrite(t, filepath.Join(cwd, "libs/ui/button/button.spec.ts"))
+
+	inst := family.Instance{
+		FamilyID:    "angular-component",
+		Name:        "libs/ui/button/button",
+		SourceFiles: []string{"libs/ui/button/button.component.ts"},
+		Kin: map[string]string{
+			"spec":      "libs/ui/button/button.spec.ts",
+			"generated": "libs/ui/button/button.generated.ts",
+		},
+	}
+	changed := map[string]struct{}{
+		"libs/ui/button/button.component.ts": {},
+		"libs/ui/button/button.spec.ts":      {},
+	}
+
+	summary, err := Evaluate(EvalInput{
+		Cwd:       cwd,
+		FailOn:    "error",
+		Changed:   changed,
+		Instances: []family.Instance{inst},
+		Rules: []config.Rule{
+			{
+				ID:       "kin-unchanged",
+				Family:   "angular-component",
+				Severity: "error",
+				Require: config.RuleClauses{
+					KinUnchanged: []string{"spec"},
+				},
+				Message: "spec must remain unchanged",
+			},
+			{
+				ID:       "kin-missing",
+				Family:   "angular-component",
+				Severity: "warn",
+				Require: config.RuleClauses{
+					KinMissing: []string{"generated"},
+				},
+				Message: "generated must be absent",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if len(summary.Results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(summary.Results))
+	}
+	statusByRule := map[string]ResultStatus{}
+	for _, r := range summary.Results {
+		statusByRule[r.RuleID] = r.Status
+	}
+	if statusByRule["kin-unchanged"] != StatusFail {
+		t.Fatalf("expected kin-unchanged fail, got %s", statusByRule["kin-unchanged"])
+	}
+	if statusByRule["kin-missing"] != StatusPass {
+		t.Fatalf("expected kin-missing pass, got %s", statusByRule["kin-missing"])
+	}
+}
+
+func TestEvaluate_KinExistenceErrorPath(t *testing.T) {
+	inst := family.Instance{
+		FamilyID:    "angular-component",
+		Name:        "libs/ui/button/button",
+		SourceFiles: []string{"libs/ui/button/button.component.ts"},
+		Kin: map[string]string{
+			"story": "bad\x00path",
+		},
+	}
+
+	_, err := Evaluate(EvalInput{
+		Cwd:       t.TempDir(),
+		FailOn:    "error",
+		Changed:   map[string]struct{}{},
+		Instances: []family.Instance{inst},
+		Rules: []config.Rule{
+			{
+				ID:       "when-kin-exists",
+				Family:   "angular-component",
+				Severity: "error",
+				When: config.RuleClauses{
+					KinExists: []string{"story"},
+				},
+				Message: "test",
+			},
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected error for invalid kin path")
+	}
+}
+
 func mustWrite(t *testing.T, path string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
