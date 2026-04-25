@@ -4,7 +4,7 @@
 
 | ID | Task | Est. | Depends On |
 |---|---|---:|---|
-| MVP-001 | Create `DECISIONS.md` with locked MVP rules (input modes, git handling, dedupe, fail semantics) | 0.5d | - |
+| MVP-001 | Create `docs/decisions.md` with locked MVP rules (input modes, git handling, dedupe, fail semantics) | 0.5d | - |
 | MVP-002 | Patch spec: rename `require.flag` -> `require.emitFlag` and define evaluator semantics | 0.5d | MVP-001 |
 | MVP-003 | Define CLI validation matrix (all valid/invalid flag combinations) in docs | 0.5d | MVP-001 |
 | MVP-004 | Initialize Go module + baseline folder structure | 0.5d | - |

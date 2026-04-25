@@ -1,37 +1,53 @@
 # Kyn
 
-Kyn is a lightweight CLI for detecting related file changes and enforcing file relationship rules in CI.
+Kyn is a stateless Go CLI that enforces related-file rules for changed files in CI and local workflows.
 
-## Current Status
+## Why Kyn
 
-MVP foundation is implemented:
+Kyn answers policy questions like:
 
-- `kyn check` command
-- YAML config loading and validation
-- changed-file providers (`--files`, `--files-from`, git diff)
-- family resolution and kin template expansion
-- rule evaluation (`when`, `require`, `emitFlag`)
-- text and JSON reporting
-- deterministic output ordering
-- stable exit code behavior
+- If a component changed, did its Storybook story change?
+- If a component has a Figma sidecar, should a publish flag be emitted?
+- If required sibling files exist, were they updated when source changed?
+
+## Features
+
+- `kyn check` command for policy evaluation
+- YAML config with schema validation
+- Multiple change input modes:
+  - `--files`
+  - `--files-from`
+  - `--stdin` (alias for `--files-from -`)
+  - `--base` + `--head` (git diff)
+- Family/kin resolution via glob + templates
+- Rule evaluation with `when` and `require` clauses
+- Deterministic text and JSON output
+- Stable exit codes for CI integration
+
+## Install / Build
+
+```bash
+go build -o ./bin/kyn ./cmd/kyn
+```
+
+Run help:
+
+```bash
+./bin/kyn check --help
+```
 
 ## Quick Start
 
-```bash
-go build ./cmd/kyn
-./kyn check -c testdata/angular/kyn.config.yaml -f libs/ui/button/button.component.ts,libs/ui/button/button.component.html --cwd testdata/angular
-```
-
-## Development
+Run against included fixture data:
 
 ```bash
-make fmt
-make test
-make vet
-make build
+./bin/kyn check \
+  --cwd testdata/angular \
+  -c kyn.config.yaml \
+  -f libs/ui/button/button.component.ts,libs/ui/button/button.component.html
 ```
 
-## CLI
+## CLI Usage
 
 ```bash
 kyn check \
@@ -45,58 +61,86 @@ kyn check \
   [--verbose]
 ```
 
-Exactly one change input mode is allowed.
+Exactly one change input mode is required.
+
+### Common commands
+
+```bash
+# CI happy path (git refs)
+kyn check -c kyn.config.yaml --base origin/main --head HEAD -o json
+
+# Piped changed-file list
+git diff --name-only origin/main...HEAD | kyn check -c kyn.config.yaml --stdin
+
+# Explicit files
+kyn check -c kyn.config.yaml -f path/a.ts,path/b.ts
+```
 
 ## Exit Codes
 
-- `0`: success
-- `1`: one or more rule failures
+- `0`: policy passed
+- `1`: one or more rules failed
 - `2`: invalid CLI usage or invalid config
-- `3`: runtime/provider error (for example git execution failure)
+- `3`: runtime/provider error (for example git failure)
 
-## Example Commands
+## Configuration Model
+
+Kyn config defines:
+
+- `families`: related file groups detected by glob patterns
+- `kin`: template-resolved sibling paths
+- `rules`: policies bound to a family
+  - `when`: gate for whether rule runs
+  - `require`: pass/fail checks or `emitFlag`
+
+Example config and full schema details are in [docs/spec.md](docs/spec.md).
+
+## Output
+
+Formats:
+
+- `text`: human-readable summary
+- `json`: machine-readable CI parsing
+
+Behavior:
+
+- Results and file lists are deterministic.
+- Text output shows failures first.
+- Passing rows are hidden by default; show with `--show-passes`.
+
+## CI Integration
+
+Default CI command:
 
 ```bash
-# explicit files
-go run ./cmd/kyn check \
-  --cwd testdata/angular \
-  -c kyn.config.yaml \
-  -f libs/ui/button/button.component.ts,libs/ui/button/button.component.html
-
-# files-from input
-go run ./cmd/kyn check \
-  --cwd testdata/angular \
-  -c kyn.config.yaml \
-  --files-from changed-files.txt
-
-# stdin input (for piped changed file lists)
-git diff --name-only origin/main...HEAD | go run ./cmd/kyn check \
-  --cwd . \
-  -c kyn.config.yaml \
-  --stdin
-
-# json output
-go run ./cmd/kyn check \
-  --cwd testdata/angular \
-  -c kyn.config.yaml \
-  -f libs/ui/button/button.component.ts,libs/ui/button/button.component.html \
-  -o json
+./bin/kyn check -c kyn.config.yaml --base origin/main --head HEAD -o json
 ```
 
-## Project Layout
+Detailed provider examples: [docs/ci.md](docs/ci.md)
+
+## Documentation
+
+- [docs/spec.md](docs/spec.md): full product + CLI spec
+- [docs/decisions.md](docs/decisions.md): locked MVP decisions
+- [docs/cli-validation-matrix.md](docs/cli-validation-matrix.md): valid/invalid flag combinations
+- [docs/ci.md](docs/ci.md): DevOps and CI usage guide
+- [docs/mvp-tasks.md](docs/mvp-tasks.md): original MVP backlog
+- [docs/README.md](docs/README.md): docs index
+
+## Development
+
+```bash
+make fmt
+make test
+make vet
+make build
+```
+
+Project layout:
 
 ```txt
-cmd/kyn            CLI binary entrypoint
-internal/cli       Command parsing and validation
-internal/*         Reserved packages for MVP engine components
-testdata/          Fixture test inputs
+cmd/kyn         binary entrypoint
+internal/       core implementation packages
+testdata/       fixture inputs
+docs/           project documentation
 ```
-
-## CI Example
-
-```bash
-go build -o ./bin/kyn ./cmd/kyn
-./bin/kyn check -c ./kyn.config.yaml --base origin/main --head HEAD -o json
-```
-
-See DevOps-focused guidance: [CI Guide](/Users/dsteele/go/src/kyn/docs/ci.md)
