@@ -3,7 +3,12 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+
+	"kyn/internal/changes"
+	"kyn/internal/config"
 
 	"github.com/spf13/cobra"
 )
@@ -19,7 +24,38 @@ func newCheckCommand() *cobra.Command {
 				return usageError("invalid options: %v", err)
 			}
 
-			_, _ = cmd.OutOrStdout().Write([]byte("kyn check: scaffold ready\n"))
+			cwd, err := resolveCWD(opts.Cwd)
+			if err != nil {
+				return usageError("invalid --cwd: %v", err)
+			}
+
+			cfg, cfgPath, err := config.Load(cwd, opts.ConfigPath)
+			if err != nil {
+				return usageError("invalid config: %v", err)
+			}
+
+			changedFiles, err := changes.Collect(changes.Input{
+				Cwd:       cwd,
+				FilesCSV:  opts.FilesCSV,
+				FilesFrom: opts.FilesFrom,
+				Base:      opts.Base,
+				Head:      opts.Head,
+			})
+			if err != nil {
+				if errors.Is(err, changes.ErrGitFailure) {
+					return runtimeError("git change detection failed: %v", err)
+				}
+				return usageError("invalid change input: %v", err)
+			}
+
+			_, _ = fmt.Fprintf(
+				cmd.OutOrStdout(),
+				"kyn check: scaffold ready (config=%s families=%d rules=%d changed=%d)\n",
+				cfgPath,
+				len(cfg.Families),
+				len(cfg.Rules),
+				len(changedFiles),
+			)
 			return nil
 		},
 	}
@@ -71,4 +107,22 @@ func validateCheckOptions(opts checkOptions) error {
 	}
 
 	return nil
+}
+
+func resolveCWD(cwd string) (string, error) {
+	if strings.TrimSpace(cwd) == "" {
+		cwd = "."
+	}
+	abs, err := filepath.Abs(cwd)
+	if err != nil {
+		return "", err
+	}
+	stat, err := os.Stat(abs)
+	if err != nil {
+		return "", err
+	}
+	if !stat.IsDir() {
+		return "", fmt.Errorf("%s is not a directory", abs)
+	}
+	return abs, nil
 }

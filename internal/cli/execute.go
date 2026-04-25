@@ -44,6 +44,13 @@ func usageError(format string, args ...any) error {
 	}
 }
 
+func runtimeError(format string, args ...any) error {
+	return codedError{
+		code: ExitRuntime,
+		err:  fmt.Errorf(format, args...),
+	}
+}
+
 // Execute is the entrypoint for the kyn CLI binary.
 func Execute() int {
 	root := newRootCommand()
