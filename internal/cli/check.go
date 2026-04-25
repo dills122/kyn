@@ -25,18 +25,38 @@ func newCheckCommand() *cobra.Command {
 		Long: strings.TrimSpace(`
 Evaluate changed files against configured family/rule relationships.
 
-Choose one change input mode, or rely on auto git mode:
+Happy path:
+  kyn check -c kyn.config.yaml
+
+Core flags:
+  -c, --config
+  -o, --format
+  --fail-on
+
+Input mode flags:
   --files
   --files-from (use '-' to read from stdin)
   --stdin
   --base + --head
+  --strict-input-mode
 
 Auto mode (default unless --strict-input-mode):
   - If no input mode is selected and --cwd is a git repo, Kyn uses git diff
     with default refs: base=origin/main, head=HEAD.
   - Override defaults with env vars KYN_BASE_REF and KYN_HEAD_REF.
+
+Advanced flags:
+  --summary-only
+  --dry-run-resolve
+  --show-passes
+  --fail-on-empty
+  --verbose
+  --cwd
 `),
 		Example: strings.TrimSpace(`
+  # Fastest happy path
+  kyn check -c kyn.config.yaml
+
   # CI happy path (git refs)
   kyn check -c kyn.config.yaml --base origin/main --head HEAD
 
@@ -57,7 +77,7 @@ Auto mode (default unless --strict-input-mode):
 			if err != nil {
 				return usageError("invalid options: %v", err)
 			}
-			if err := validateCheckOptions(effectiveOpts); err != nil {
+			if err := validateCheckOptions(effectiveOpts, "check"); err != nil {
 				return usageError("invalid options: %v", err)
 			}
 
@@ -203,7 +223,7 @@ Auto mode (default unless --strict-input-mode):
 	return cmd
 }
 
-func validateCheckOptions(opts checkOptions) error {
+func validateCheckOptions(opts checkOptions, command string) error {
 	switch opts.Format {
 	case "text", "json":
 	default:
@@ -226,11 +246,19 @@ func validateCheckOptions(opts checkOptions) error {
 			if !opts.StrictInput {
 				return nil
 			}
-			return errors.New("exactly one input mode is required: --files | --files-from | --stdin | --base+--head (selected: none)")
+			return fmt.Errorf(
+				"invalid input mode: expected exactly one mode, observed none.\n"+
+					"Choose one: --files | --files-from | --stdin | --base+--head.\n"+
+					"Try: kyn %s --strict-input-mode --base origin/main --head HEAD",
+				command,
+			)
 		}
 		return fmt.Errorf(
-			"exactly one input mode is required: --files | --files-from | --stdin | --base+--head (selected: %s)",
-			strings.Join(selectedModes, ", "),
+			"invalid input mode: expected exactly one mode, observed multiple (%s).\n"+
+				"Choose one: --files | --files-from | --stdin | --base+--head.\n"+
+				"Try: kyn %s --base origin/main --head HEAD",
+			strings.Join(selectedModes, " + "),
+			command,
 		)
 	}
 
@@ -250,7 +278,12 @@ func selectedInputModes(opts checkOptions) ([]string, error) {
 	}
 	if opts.Base != "" || opts.Head != "" {
 		if opts.Base == "" || opts.Head == "" {
-			return nil, errors.New("--base and --head must be provided together")
+			return nil, fmt.Errorf(
+				"invalid git input mode: expected both --base and --head, observed base=%q head=%q.\n"+
+					"Try: provide both --base <ref> and --head <ref> together",
+				opts.Base,
+				opts.Head,
+			)
 		}
 		selectedModes = append(selectedModes, "git")
 	}
@@ -268,8 +301,9 @@ func applyAutoInputMode(opts checkOptions, cwd string) (checkOptions, bool, erro
 
 	if !isGitRepo(cwd) {
 		return opts, false, errors.New(
-			"no input mode selected and auto git mode is unavailable (cwd is not a git repository); " +
-				"provide one mode: --files | --files-from | --stdin | --base+--head",
+			"auto input mode unavailable: no explicit mode provided and --cwd is not a git repository.\n" +
+				"Choose one: --files | --files-from | --stdin | --base+--head.\n" +
+				"Try: kyn check --files-from -",
 		)
 	}
 

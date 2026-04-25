@@ -22,11 +22,29 @@ func newExplainCommand() *cobra.Command {
 		Long: strings.TrimSpace(`
 Show per-rule diagnostics for changed files and family instances.
 
+Happy path:
+  kyn explain -c kyn.config.yaml
+
+Core flags:
+  -c, --config
+  -o, --format
+  --summary-only
+
 Input behavior matches 'kyn check':
   - explicit mode: --files | --files-from | --stdin | --base + --head
   - auto mode: if none selected and --cwd is a git repo, use origin/main...HEAD
+
+Advanced flags:
+  --strict-input-mode
+  --fail-on
+  --fail-on-empty
+  --verbose
+  --cwd
 `),
 		Example: strings.TrimSpace(`
+  # Fastest happy path
+  kyn explain -c kyn.config.yaml
+
   # Explain with explicit git refs
   kyn explain -c kyn.config.yaml --base origin/main --head HEAD
 
@@ -47,7 +65,7 @@ Input behavior matches 'kyn check':
 			if err != nil {
 				return usageError("invalid options: %v", err)
 			}
-			if err := validateCheckOptions(effectiveOpts); err != nil {
+			if err := validateCheckOptions(effectiveOpts, "explain"); err != nil {
 				return usageError("invalid options: %v", err)
 			}
 

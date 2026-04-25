@@ -112,7 +112,7 @@ func TestValidateCheckOptions(t *testing.T) {
 				tt.modify(&o)
 			}
 
-			err := validateCheckOptions(o)
+			err := validateCheckOptions(o, "check")
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -120,8 +120,13 @@ func TestValidateCheckOptions(t *testing.T) {
 				t.Fatalf("expected no error, got %v", err)
 			}
 			if tt.name == "invalid mixed files and git includes selected modes" && err != nil {
-				if !strings.Contains(err.Error(), "selected: files, git") {
+				if !strings.Contains(err.Error(), "files + git") {
 					t.Fatalf("expected selected mode details, got %v", err)
+				}
+			}
+			if tt.name == "invalid partial git mode" && err != nil {
+				if !strings.Contains(err.Error(), "expected both --base and --head") {
+					t.Fatalf("expected expected-vs-observed message, got %v", err)
 				}
 			}
 		})
