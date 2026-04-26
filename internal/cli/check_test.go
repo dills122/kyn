@@ -39,6 +39,13 @@ func TestValidateCheckOptions(t *testing.T) {
 			},
 		},
 		{
+			name: "valid sarif format for check",
+			modify: func(o *checkOptions) {
+				o.FilesCSV = "a.ts"
+				o.Format = "sarif"
+			},
+		},
+		{
 			name: "valid stdin mode",
 			modify: func(o *checkOptions) {
 				o.Stdin = true
@@ -88,6 +95,14 @@ func TestValidateCheckOptions(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "invalid sarif format for explain",
+			modify: func(o *checkOptions) {
+				o.FilesCSV = "a.ts"
+				o.Format = "sarif"
+			},
+			wantErr: true,
+		},
+		{
 			name: "invalid format",
 			modify: func(o *checkOptions) {
 				o.FilesCSV = "a.ts"
@@ -112,7 +127,14 @@ func TestValidateCheckOptions(t *testing.T) {
 				tt.modify(&o)
 			}
 
-			err := validateCheckOptions(o, "check")
+			command := "check"
+			allowSARIF := true
+			if tt.name == "invalid sarif format for explain" {
+				command = "explain"
+				allowSARIF = false
+			}
+
+			err := validateCheckOptions(o, command, allowSARIF)
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -127,6 +149,11 @@ func TestValidateCheckOptions(t *testing.T) {
 			if tt.name == "invalid partial git mode" && err != nil {
 				if !strings.Contains(err.Error(), "expected both --base and --head") {
 					t.Fatalf("expected expected-vs-observed message, got %v", err)
+				}
+			}
+			if tt.name == "invalid sarif format for explain" && err != nil {
+				if !strings.Contains(err.Error(), "explain supports text|json") {
+					t.Fatalf("expected explain format restriction, got %v", err)
 				}
 			}
 		})

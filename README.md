@@ -121,7 +121,7 @@ kyn check \
   [-f, --files <csv> | --files-from <path> | --stdin | --base <ref> --head <ref>] \
   [--strict-input-mode] \
   [--cwd <path>] \
-  [-o, --format text|json] \
+  [-o, --format text|json|sarif] \
   [--fail-on error|warn] \
   [--summary-only] \
   [--dry-run-resolve] \
@@ -186,6 +186,7 @@ Formats:
 
 - `text`: human-readable summary
 - `json`: machine-readable CI parsing
+- `sarif`: static-analysis interchange for code scanning integrations
 
 Behavior:
 

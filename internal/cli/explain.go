@@ -65,7 +65,7 @@ Advanced flags:
 			if err != nil {
 				return usageError("invalid options: %v", err)
 			}
-			if err := validateCheckOptions(effectiveOpts, "explain"); err != nil {
+			if err := validateCheckOptions(effectiveOpts, "explain", false); err != nil {
 				return usageError("invalid options: %v", err)
 			}
 

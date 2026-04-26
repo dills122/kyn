@@ -77,7 +77,7 @@ Advanced flags:
 			if err != nil {
 				return usageError("invalid options: %v", err)
 			}
-			if err := validateCheckOptions(effectiveOpts, "check"); err != nil {
+			if err := validateCheckOptions(effectiveOpts, "check", true); err != nil {
 				return usageError("invalid options: %v", err)
 			}
 
@@ -188,6 +188,13 @@ Advanced flags:
 				}
 				_, _ = cmd.OutOrStdout().Write(out)
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
+			} else if effectiveOpts.Format == "sarif" {
+				out, err := report.RenderSARIF(summary)
+				if err != nil {
+					return runtimeError("sarif render failed: %v", err)
+				}
+				_, _ = cmd.OutOrStdout().Write(out)
+				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 			} else {
 				_, _ = cmd.OutOrStdout().Write([]byte(report.RenderText(summary, report.TextOptions{
 					ShowPasses:  effectiveOpts.ShowPasses,
@@ -212,7 +219,7 @@ Advanced flags:
 	cmd.Flags().StringVar(&opts.Head, "head", "", "Git head ref/SHA for diff detection")
 	cmd.Flags().BoolVar(&opts.StrictInput, "strict-input-mode", false, "Require an explicit single input mode; disable auto git mode")
 	cmd.Flags().StringVar(&opts.Cwd, "cwd", ".", "Working directory")
-	cmd.Flags().StringVarP(&opts.Format, "format", "o", "text", "Output format: text|json")
+	cmd.Flags().StringVarP(&opts.Format, "format", "o", "text", "Output format: text|json|sarif")
 	cmd.Flags().StringVar(&opts.FailOn, "fail-on", "error", "Minimum severity that fails command: error|warn")
 	cmd.Flags().BoolVar(&opts.FailOnEmpty, "fail-on-empty", false, "Fail if no family instances match")
 	cmd.Flags().BoolVar(&opts.SummaryOnly, "summary-only", false, "Print only aggregate results")
@@ -223,10 +230,17 @@ Advanced flags:
 	return cmd
 }
 
-func validateCheckOptions(opts checkOptions, command string) error {
+func validateCheckOptions(opts checkOptions, command string, allowSARIF bool) error {
 	switch opts.Format {
 	case "text", "json":
+	case "sarif":
+		if !allowSARIF {
+			return fmt.Errorf("invalid --format %q; %s supports text|json", opts.Format, command)
+		}
 	default:
+		if allowSARIF {
+			return fmt.Errorf("invalid --format %q; expected text|json|sarif", opts.Format)
+		}
 		return fmt.Errorf("invalid --format %q; expected text|json", opts.Format)
 	}
 
@@ -234,6 +248,10 @@ func validateCheckOptions(opts checkOptions, command string) error {
 	case "error", "warn":
 	default:
 		return fmt.Errorf("invalid --fail-on %q; expected error|warn", opts.FailOn)
+	}
+
+	if opts.DryRun && opts.Format == "sarif" {
+		return fmt.Errorf("--dry-run-resolve does not support --format sarif; use text or json")
 	}
 
 	selectedModes, err := selectedInputModes(opts)

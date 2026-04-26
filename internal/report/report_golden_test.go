@@ -48,6 +48,15 @@ func TestRenderJSONSummary(t *testing.T) {
 	assertGolden(t, "json_summary_only.golden", string(out)+"\n")
 }
 
+func TestRenderSARIF(t *testing.T) {
+	summary := sampleSummary()
+	out, err := RenderSARIF(summary)
+	if err != nil {
+		t.Fatalf("RenderSARIF returned error: %v", err)
+	}
+	assertGolden(t, "sarif.golden", string(out)+"\n")
+}
+
 func TestRenderResolveText(t *testing.T) {
 	resolve := sampleResolveReport()
 	got := RenderResolveText(resolve)
