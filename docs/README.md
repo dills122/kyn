@@ -7,4 +7,6 @@
 - [decisions.md](decisions.md): locked MVP implementation decisions
 - [cli-validation-matrix.md](cli-validation-matrix.md): valid/invalid CLI mode combinations
 - [ci.md](ci.md): DevOps-focused CI integration guide
+- [migration-v1-to-v2.md](migration-v1-to-v2.md): safe migration guide from the v1 schema to v2
+- [troubleshooting.md](troubleshooting.md): common CI, git, and config troubleshooting notes
 - [mvp-tasks.md](mvp-tasks.md): MVP ticket/backlog breakdown

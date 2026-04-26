@@ -1,0 +1,5 @@
+.git
+.github
+coverage.out
+coverage-internal.out
+bin

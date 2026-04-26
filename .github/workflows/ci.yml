@@ -82,6 +82,14 @@ jobs:
           echo "Total coverage: ${TOTAL}%"
           awk "BEGIN {exit !(${TOTAL} >= 80.0)}"
 
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage.out
+            coverage.txt
+
   build-matrix:
     runs-on: ubuntu-latest
     strategy:
@@ -113,3 +121,31 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: go build ./cmd/kyn
+
+  linux-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build static binary
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./bin/kyn ./cmd/kyn
+
+      - name: Smoke on Debian
+        run: |
+          docker run --rm \
+            -v "$PWD/bin/kyn:/usr/local/bin/kyn:ro" \
+            debian:stable-slim \
+            /usr/local/bin/kyn --help
+
+      - name: Smoke on Alpine
+        run: |
+          docker run --rm \
+            -v "$PWD/bin/kyn:/usr/local/bin/kyn:ro" \
+            alpine:3.20 \
+            /usr/local/bin/kyn --help

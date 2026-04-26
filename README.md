@@ -96,6 +96,13 @@ Web/frontend is a strong fit, but the pattern applies broadly:
 go build -o ./bin/kyn ./cmd/kyn
 ```
 
+Release automation includes:
+
+- GitHub release archives for Linux, macOS, and Windows
+- SHA256 checksum publication
+- GHCR container image publishing
+- static Linux binaries suitable for Debian/Ubuntu and Alpine smoke targets
+
 Run help:
 
 ```bash
@@ -212,6 +219,8 @@ Detailed provider examples: [docs/ci.md](docs/ci.md)
 - [docs/decisions.md](docs/decisions.md): locked MVP decisions
 - [docs/cli-validation-matrix.md](docs/cli-validation-matrix.md): valid/invalid flag combinations
 - [docs/ci.md](docs/ci.md): DevOps and CI usage guide
+- [docs/migration-v1-to-v2.md](docs/migration-v1-to-v2.md): v1 to v2 migration guide
+- [docs/troubleshooting.md](docs/troubleshooting.md): common CI/runtime troubleshooting
 - [docs/mvp-tasks.md](docs/mvp-tasks.md): original MVP backlog
 - [docs/README.md](docs/README.md): docs index
 
