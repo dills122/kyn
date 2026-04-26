@@ -5,17 +5,19 @@ import (
 	"path/filepath"
 	"sort"
 
+	"kyn/internal/changes"
 	"kyn/internal/config"
 	"kyn/internal/family"
 )
 
 type EvalInput struct {
-	Cwd         string
-	FailOn      string
-	FailOnEmpty bool
-	Changed     map[string]struct{}
-	Rules       []config.Rule
-	Instances   []family.Instance
+	Cwd          string
+	FailOn       string
+	FailOnEmpty  bool
+	Changed      map[string]struct{}
+	StatusByFile map[string]changes.Status
+	Rules        []config.Rule
+	Instances    []family.Instance
 }
 
 func Evaluate(in EvalInput) (Summary, error) {
@@ -28,7 +30,10 @@ func Evaluate(in EvalInput) (Summary, error) {
 				continue
 			}
 
-			whenOK, err := evalWhen(in.Cwd, rule.When, inst)
+			ifClauses := rule.IfClauses()
+			assertClauses := rule.AssertClauses()
+
+			whenOK, err := evalWhen(in.Cwd, ifClauses, inst, in.StatusByFile)
 			if err != nil {
 				return Summary{}, err
 			}
@@ -37,12 +42,14 @@ func Evaluate(in EvalInput) (Summary, error) {
 			}
 
 			expectedSet := map[string]struct{}{}
-			failed, emitted, err := evalRequire(in.Cwd, in.Changed, rule.Require, inst, expectedSet)
+			failed, emitted, err := evalRequire(in.Cwd, in.Changed, assertClauses, rule.EmitFlags(), inst, expectedSet)
 			if err != nil {
 				return Summary{}, err
 			}
-			if emitted != "" {
-				flagSet[emitted] = struct{}{}
+			for _, e := range emitted {
+				if e != "" {
+					flagSet[e] = struct{}{}
+				}
 			}
 
 			result := RuleResult{
@@ -60,7 +67,7 @@ func Evaluate(in EvalInput) (Summary, error) {
 
 			if failed {
 				result.Status = StatusFail
-			} else if hasRequireChecks(rule.Require) {
+			} else if hasRequireChecks(assertClauses) {
 				result.Status = StatusPass
 			} else {
 				result.Status = StatusInfo
@@ -98,9 +105,14 @@ func Evaluate(in EvalInput) (Summary, error) {
 	return summary, nil
 }
 
-func evalWhen(cwd string, when config.RuleClauses, inst family.Instance) (bool, error) {
+func evalWhen(cwd string, when config.RuleClauses, inst family.Instance, statusByFile map[string]changes.Status) (bool, error) {
 	if len(when.ChangedAny) > 0 {
 		if len(inst.SourceFiles) == 0 {
+			return false, nil
+		}
+	}
+	if len(when.ChangedStatusAny) > 0 {
+		if !matchesAnyChangedStatus(inst.SourceFiles, statusByFile, when.ChangedStatusAny) {
 			return false, nil
 		}
 	}
@@ -119,7 +131,27 @@ func evalWhen(cwd string, when config.RuleClauses, inst family.Instance) (bool, 
 	return true, nil
 }
 
-func evalRequire(cwd string, changed map[string]struct{}, req config.RuleClauses, inst family.Instance, expected map[string]struct{}) (bool, string, error) {
+func matchesAnyChangedStatus(sourceFiles []string, statusByFile map[string]changes.Status, allowed []string) bool {
+	if len(sourceFiles) == 0 {
+		return false
+	}
+	allowedSet := make(map[changes.Status]struct{}, len(allowed))
+	for _, a := range allowed {
+		allowedSet[changes.Status(a)] = struct{}{}
+	}
+	for _, f := range sourceFiles {
+		status, ok := statusByFile[f]
+		if !ok {
+			continue
+		}
+		if _, ok := allowedSet[status]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func evalRequire(cwd string, changed map[string]struct{}, req config.RuleClauses, emitFlags []string, inst family.Instance, expected map[string]struct{}) (bool, []string, error) {
 	failed := false
 	if len(req.KinChanged) > 0 {
 		for _, name := range req.KinChanged {
@@ -142,7 +174,7 @@ func evalRequire(cwd string, changed map[string]struct{}, req config.RuleClauses
 	if len(req.KinExists) > 0 {
 		ok, err := kinExistence(cwd, inst, req.KinExists, true)
 		if err != nil {
-			return false, "", err
+			return false, nil, err
 		}
 		if !ok {
 			for _, name := range req.KinExists {
@@ -154,7 +186,7 @@ func evalRequire(cwd string, changed map[string]struct{}, req config.RuleClauses
 	if len(req.KinMissing) > 0 {
 		ok, err := kinExistence(cwd, inst, req.KinMissing, false)
 		if err != nil {
-			return false, "", err
+			return false, nil, err
 		}
 		if !ok {
 			for _, name := range req.KinMissing {
@@ -164,7 +196,7 @@ func evalRequire(cwd string, changed map[string]struct{}, req config.RuleClauses
 		}
 	}
 
-	return failed, req.EmitFlag, nil
+	return failed, emitFlags, nil
 }
 
 func kinExistence(cwd string, inst family.Instance, kinNames []string, shouldExist bool) (bool, error) {

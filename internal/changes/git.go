@@ -9,7 +9,7 @@ import (
 	"kyn/internal/matcher"
 )
 
-func fromGitDiff(cwd string, base string, head string) ([]string, error) {
+func fromGitDiff(cwd string, base string, head string) ([]Change, error) {
 	rangeSpec := fmt.Sprintf("%s...%s", base, head)
 	cmd := exec.Command("git", "-C", cwd, "diff", "--name-status", "-M", rangeSpec)
 	out, err := cmd.CombinedOutput()
@@ -18,7 +18,7 @@ func fromGitDiff(cwd string, base string, head string) ([]string, error) {
 	}
 
 	lines := strings.Split(string(out), "\n")
-	paths := make([]string, 0, len(lines))
+	outChanges := make([]Change, 0, len(lines))
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -32,23 +32,59 @@ func fromGitDiff(cwd string, base string, head string) ([]string, error) {
 		status := fields[0]
 		switch {
 		case strings.HasPrefix(status, "A"), strings.HasPrefix(status, "M"):
-			paths = append(paths, matcher.NormalizePath(fields[1]))
+			normalized := matcher.NormalizePath(fields[1])
+			if normalized == "" {
+				continue
+			}
+			outChanges = append(outChanges, Change{
+				Path:   normalized,
+				Status: mapStatus(status),
+			})
 		case strings.HasPrefix(status, "R"):
 			if len(fields) < 3 {
 				continue
 			}
-			paths = append(paths, matcher.NormalizePath(fields[2]))
+			normalized := matcher.NormalizePath(fields[2])
+			if normalized == "" {
+				continue
+			}
+			outChanges = append(outChanges, Change{
+				Path:   normalized,
+				Status: StatusRenamed,
+			})
 		case strings.HasPrefix(status, "D"):
 			// Deleted files are intentionally excluded for MVP evaluation.
 		default:
 			// Keep behavior resilient for unexpected statuses by treating final path as changed.
-			paths = append(paths, matcher.NormalizePath(fields[len(fields)-1]))
+			normalized := matcher.NormalizePath(fields[len(fields)-1])
+			if normalized == "" {
+				continue
+			}
+			outChanges = append(outChanges, Change{
+				Path:   normalized,
+				Status: StatusModified,
+			})
 		}
 	}
 
-	if len(paths) == 0 {
+	if len(outChanges) == 0 {
 		return nil, errors.New("git diff produced no changed files")
 	}
 
-	return paths, nil
+	return outChanges, nil
+}
+
+func mapStatus(raw string) Status {
+	switch {
+	case strings.HasPrefix(raw, "A"):
+		return StatusAdded
+	case strings.HasPrefix(raw, "M"):
+		return StatusModified
+	case strings.HasPrefix(raw, "R"):
+		return StatusRenamed
+	case strings.HasPrefix(raw, "D"):
+		return StatusDeleted
+	default:
+		return StatusModified
+	}
 }

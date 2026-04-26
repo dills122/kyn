@@ -39,7 +39,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "invalid version",
 			modify: func(cfg *Config) {
-				cfg.Version = 2
+				cfg.Version = 3
 			},
 			wantErr: true,
 		},
@@ -99,11 +99,43 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "valid v2 if/assert/actions with groups",
+			modify: func(cfg *Config) {
+				cfg.Version = 2
+				cfg.Families[0].Include = nil
+				cfg.Families[0].Groups = GroupMap{
+					"source": {
+						Include: []string{"libs/**/*.component.ts"},
+					},
+				}
+				cfg.Rules[0].When = RuleClauses{}
+				cfg.Rules[0].Require = RuleClauses{}
+				cfg.Rules[0].If = RuleClauses{ChangedAny: []string{"source"}}
+				cfg.Rules[0].Assert = RuleClauses{KinChanged: []string{"story"}}
+				cfg.Rules[0].Actions = RuleActions{Emit: []string{"storybook-sync-required"}}
+			},
+		},
+		{
+			name: "invalid changed status",
+			modify: func(cfg *Config) {
+				cfg.Version = 2
+				cfg.Families[0].Groups = GroupMap{
+					"source": {Include: []string{"libs/**/*.component.ts"}},
+				}
+				cfg.Families[0].Include = nil
+				cfg.Rules[0].If = RuleClauses{
+					ChangedAny:       []string{"source"},
+					ChangedStatusAny: []string{"moved"},
+				}
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := valid
+			cfg := cloneConfig(valid)
 			if tt.modify != nil {
 				tt.modify(&cfg)
 			}
@@ -116,5 +148,47 @@ func TestValidate(t *testing.T) {
 				t.Fatalf("expected no error, got %v", err)
 			}
 		})
+	}
+}
+
+func cloneConfig(in Config) Config {
+	out := in
+	out.Families = append([]Family(nil), in.Families...)
+	for i := range out.Families {
+		out.Families[i].Include = append([]string(nil), in.Families[i].Include...)
+		out.Families[i].Exclude = append([]string(nil), in.Families[i].Exclude...)
+		out.Families[i].BaseName.StripSuffixes = append([]string(nil), in.Families[i].BaseName.StripSuffixes...)
+		out.Families[i].Kin = make(KinMap, len(in.Families[i].Kin))
+		for k, v := range in.Families[i].Kin {
+			out.Families[i].Kin[k] = v
+		}
+		out.Families[i].Groups = make(GroupMap, len(in.Families[i].Groups))
+		for k, v := range in.Families[i].Groups {
+			out.Families[i].Groups[k] = GroupDef{
+				Include: append([]string(nil), v.Include...),
+				Exclude: append([]string(nil), v.Exclude...),
+			}
+		}
+	}
+	out.Rules = append([]Rule(nil), in.Rules...)
+	for i := range out.Rules {
+		out.Rules[i].When = cloneClauses(in.Rules[i].When)
+		out.Rules[i].Require = cloneClauses(in.Rules[i].Require)
+		out.Rules[i].If = cloneClauses(in.Rules[i].If)
+		out.Rules[i].Assert = cloneClauses(in.Rules[i].Assert)
+		out.Rules[i].Actions.Emit = append([]string(nil), in.Rules[i].Actions.Emit...)
+	}
+	return out
+}
+
+func cloneClauses(in RuleClauses) RuleClauses {
+	return RuleClauses{
+		ChangedAny:       append([]string(nil), in.ChangedAny...),
+		ChangedStatusAny: append([]string(nil), in.ChangedStatusAny...),
+		KinExists:        append([]string(nil), in.KinExists...),
+		KinMissing:       append([]string(nil), in.KinMissing...),
+		KinChanged:       append([]string(nil), in.KinChanged...),
+		KinUnchanged:     append([]string(nil), in.KinUnchanged...),
+		EmitFlag:         in.EmitFlag,
 	}
 }

@@ -1,0 +1,41 @@
+{
+  "source": {
+    "name": "kyn"
+  },
+  "diagnostics": [
+    {
+      "message": "Story was not updated. (family instance: libs/ui/button/button)",
+      "location": {
+        "path": "libs/ui/button/button.component.ts",
+        "range": {
+          "start": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      },
+      "severity": "ERROR",
+      "source": {
+        "name": "kyn"
+      },
+      "code": {
+        "value": "story-sync"
+      },
+      "originalOutput": "libs/ui/button/button.component.ts:1:1: [story-sync] Story was not updated.",
+      "relatedLocations": [
+        {
+          "message": "expected related file",
+          "location": {
+            "path": "libs/ui/button/button.stories.ts",
+            "range": {
+              "start": {
+                "line": 1,
+                "column": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -10,6 +10,12 @@ Use this as the default gate in CI:
 kyn check -c kyn.config.yaml --base origin/main --head HEAD --format json
 ```
 
+Alternative machine formats:
+
+- `--format sarif` for code scanning pipelines
+- `--format rdjson` for reviewdog PR annotations
+- `--format checkstyle` for CI parsers that ingest checkstyle XML
+
 ## Failure Semantics
 
 - `0`: policy passed
@@ -71,6 +77,61 @@ stage('Kyn Check') {
 
 - script: ./bin/kyn check -c kyn.config.yaml --base origin/main --head HEAD --format json
   displayName: Kyn Check
+```
+
+### CircleCI
+
+```yaml
+version: 2.1
+jobs:
+  kyn_check:
+    docker:
+      - image: cimg/go:1.23
+    steps:
+      - checkout
+      - run: go build -o ./bin/kyn ./cmd/kyn
+      - run: ./bin/kyn check -c kyn.config.yaml --base origin/main --head HEAD --format json
+workflows:
+  main:
+    jobs:
+      - kyn_check
+```
+
+### Buildkite
+
+```yaml
+steps:
+  - label: ":go: kyn check"
+    commands:
+      - go build -o ./bin/kyn ./cmd/kyn
+      - ./bin/kyn check -c kyn.config.yaml --base origin/main --head HEAD --format json
+```
+
+## Reviewdog / Code Scanning Examples
+
+Reviewdog with rdjson:
+
+```bash
+kyn check -c kyn.config.yaml --base origin/main --head HEAD --format rdjson \
+  | reviewdog -f=rdjson -reporter=github-pr-review
+```
+
+GitHub SARIF upload:
+
+```yaml
+- name: Run Kyn SARIF
+  run: ./bin/kyn check -c kyn.config.yaml --base origin/main --head HEAD --format sarif > kyn.sarif
+
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: kyn.sarif
+```
+
+Checkstyle artifact:
+
+```bash
+kyn check -c kyn.config.yaml --base origin/main --head HEAD --format checkstyle > kyn-checkstyle.xml
 ```
 
 ## Provider-Agnostic Piped Mode

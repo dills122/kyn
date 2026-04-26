@@ -6,6 +6,9 @@ import (
 	"kyn/internal/cli"
 )
 
+var execute = cli.Execute
+var exit = os.Exit
+
 func main() {
-	os.Exit(cli.Execute())
+	exit(execute())
 }

@@ -76,13 +76,17 @@ Web/frontend is a strong fit, but the pattern applies broadly:
 ## Features
 
 - `kyn check` command for policy evaluation
+- `kyn explain` command for per-rule diagnostics
+- `kyn init` command for starter config generation
+- `kyn config migrate` command for safe v1 -> v2 schema migration
 - YAML config with schema validation
 - Multiple change input modes: `--files`
 - Multiple change input modes: `--files-from`
 - Multiple change input modes: `--stdin` (alias for `--files-from -`)
 - Multiple change input modes: `--base` + `--head` (git diff)
+- Auto git mode when no input mode is selected (defaults: `origin/main...HEAD`)
 - Family/kin resolution via glob + templates
-- Rule evaluation with `when` and `require` clauses
+- Rule evaluation with v1 (`when`/`require`) and v2 (`if`/`assert`/`actions`) compatibility
 - Deterministic text and JSON output
 - Stable exit codes for CI integration
 
@@ -91,6 +95,13 @@ Web/frontend is a strong fit, but the pattern applies broadly:
 ```bash
 go build -o ./bin/kyn ./cmd/kyn
 ```
+
+Release automation includes:
+
+- GitHub release archives for Linux, macOS, and Windows
+- SHA256 checksum publication
+- GHCR container image publishing
+- static Linux binaries suitable for Debian/Ubuntu and Alpine smoke targets
 
 Run help:
 
@@ -115,15 +126,19 @@ Run against included fixture data:
 kyn check \
   -c, --config <path> \
   [-f, --files <csv> | --files-from <path> | --stdin | --base <ref> --head <ref>] \
+  [--strict-input-mode] \
   [--cwd <path>] \
-  [-o, --format text|json] \
+  [-o, --format text|json|sarif|rdjson|checkstyle] \
   [--fail-on error|warn] \
+  [--summary-only] \
+  [--dry-run-resolve] \
   [--fail-on-empty] \
   [--show-passes] \
   [--verbose]
 ```
 
-Exactly one change input mode is required.
+Default behavior: if no input mode is provided and `--cwd` is a git repo, Kyn auto-selects git mode.
+Use `--strict-input-mode` to require exactly one explicit mode.
 
 ### Common commands
 
@@ -131,11 +146,29 @@ Exactly one change input mode is required.
 # CI happy path (git refs)
 kyn check -c kyn.config.yaml --base origin/main --head HEAD -o json
 
+# CI happy path with auto mode
+kyn check -c kyn.config.yaml -o json
+
 # Piped changed-file list
 git diff --name-only origin/main...HEAD | kyn check -c kyn.config.yaml --stdin
 
 # Explicit files
 kyn check -c kyn.config.yaml -f path/a.ts,path/b.ts
+
+# Resolve families/kin only (no policy evaluation)
+kyn check -c kyn.config.yaml --dry-run-resolve
+
+# Detailed per-rule reasoning (never exits 1 for rule failures)
+kyn explain -c kyn.config.yaml --base origin/main --head HEAD
+
+# Bootstrap a starter v2 config
+kyn init
+
+# Bootstrap an API preset
+kyn init --preset api
+
+# Safely migrate v1 config to v2 side-by-side output
+kyn config migrate -c kyn.config.yaml --from v1 --to v2
 ```
 
 ## Exit Codes
@@ -163,6 +196,9 @@ Formats:
 
 - `text`: human-readable summary
 - `json`: machine-readable CI parsing
+- `sarif`: static-analysis interchange for code scanning integrations
+- `rdjson`: reviewdog diagnostic format for PR annotation workflows
+- `checkstyle`: XML output for CI parsers that consume checkstyle reports
 
 Behavior:
 
@@ -180,12 +216,18 @@ Default CI command:
 
 Detailed provider examples: [docs/ci.md](docs/ci.md)
 
+Release/install details: [docs/release.md](docs/release.md)
+
 ## Documentation
 
 - [docs/spec.md](docs/spec.md): full product + CLI spec
 - [docs/decisions.md](docs/decisions.md): locked MVP decisions
 - [docs/cli-validation-matrix.md](docs/cli-validation-matrix.md): valid/invalid flag combinations
 - [docs/ci.md](docs/ci.md): DevOps and CI usage guide
+- [docs/release.md](docs/release.md): release artifacts and installation guide
+- [docs/presets.md](docs/presets.md): starter presets and adoption examples
+- [docs/migration-v1-to-v2.md](docs/migration-v1-to-v2.md): v1 to v2 migration guide
+- [docs/troubleshooting.md](docs/troubleshooting.md): common CI/runtime troubleshooting
 - [docs/mvp-tasks.md](docs/mvp-tasks.md): original MVP backlog
 - [docs/README.md](docs/README.md): docs index
 

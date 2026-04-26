@@ -1,0 +1,24 @@
+{
+  "mode": "git",
+  "base": "origin/main",
+  "head": "HEAD",
+  "changedCount": 2,
+  "matchedInstances": 1,
+  "changedFiles": [
+    "libs/ui/button/button.component.ts",
+    "libs/ui/button/button.stories.ts"
+  ],
+  "instances": [
+    {
+      "familyId": "angular-component",
+      "name": "libs/ui/button/button",
+      "sourceFiles": [
+        "libs/ui/button/button.component.ts"
+      ],
+      "kin": {
+        "spec": "libs/ui/button/button.spec.ts",
+        "story": "libs/ui/button/button.stories.ts"
+      }
+    }
+  ]
+}

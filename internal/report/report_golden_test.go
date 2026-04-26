@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"kyn/internal/family"
 	"kyn/internal/rules"
 )
 
@@ -24,6 +25,12 @@ func TestRenderText_ShowPasses(t *testing.T) {
 	assertGolden(t, "text_show_passes.golden", got)
 }
 
+func TestRenderText_SummaryOnly(t *testing.T) {
+	summary := sampleSummary()
+	got := RenderText(summary, TextOptions{SummaryOnly: true})
+	assertGolden(t, "text_summary_only.golden", got)
+}
+
 func TestRenderJSON(t *testing.T) {
 	summary := sampleSummary()
 	out, err := RenderJSON(summary)
@@ -31,6 +38,167 @@ func TestRenderJSON(t *testing.T) {
 		t.Fatalf("RenderJSON returned error: %v", err)
 	}
 	assertGolden(t, "json.golden", string(out)+"\n")
+}
+
+func TestRenderJSONSummary(t *testing.T) {
+	summary := sampleSummary()
+	out, err := RenderJSONSummary(summary)
+	if err != nil {
+		t.Fatalf("RenderJSONSummary returned error: %v", err)
+	}
+	assertGolden(t, "json_summary_only.golden", string(out)+"\n")
+}
+
+func TestRenderSARIF(t *testing.T) {
+	summary := sampleSummary()
+	out, err := RenderSARIF(summary)
+	if err != nil {
+		t.Fatalf("RenderSARIF returned error: %v", err)
+	}
+	assertGolden(t, "sarif.golden", string(out)+"\n")
+}
+
+func TestRenderRDJSON(t *testing.T) {
+	summary := sampleSummary()
+	out, err := RenderRDJSON(summary)
+	if err != nil {
+		t.Fatalf("RenderRDJSON returned error: %v", err)
+	}
+	assertGolden(t, "rdjson.golden", string(out)+"\n")
+}
+
+func TestRenderCheckstyle(t *testing.T) {
+	summary := sampleSummary()
+	out, err := RenderCheckstyle(summary)
+	if err != nil {
+		t.Fatalf("RenderCheckstyle returned error: %v", err)
+	}
+	assertGolden(t, "checkstyle.golden", string(out)+"\n")
+}
+
+func TestRenderResolveText(t *testing.T) {
+	resolve := sampleResolveReport()
+	got := RenderResolveText(resolve)
+	assertGolden(t, "dry_run_text.golden", got)
+}
+
+func TestNewResolveReportSummaryOnly(t *testing.T) {
+	resolve := NewResolveReport(
+		"git",
+		"origin/main",
+		"HEAD",
+		[]string{"a.ts"},
+		sampleFamilyInstances(),
+		true,
+	)
+	if len(resolve.ChangedFiles) != 0 {
+		t.Fatalf("expected no changed files in summary-only report, got %v", resolve.ChangedFiles)
+	}
+	if len(resolve.Instances) != 0 {
+		t.Fatalf("expected no instances in summary-only report, got %v", resolve.Instances)
+	}
+}
+
+func TestRenderResolveJSON(t *testing.T) {
+	resolve := sampleResolveReport()
+	out, err := RenderResolveJSON(resolve)
+	if err != nil {
+		t.Fatalf("RenderResolveJSON returned error: %v", err)
+	}
+	assertGolden(t, "dry_run_json.golden", string(out)+"\n")
+}
+
+func TestRenderExplainText(t *testing.T) {
+	summary := sampleExplainSummary()
+	got := RenderExplainText(summary, false)
+	assertGolden(t, "explain_text.golden", got)
+}
+
+func TestRenderExplainTextSummaryOnly(t *testing.T) {
+	summary := sampleExplainSummary()
+	got := RenderExplainText(summary, true)
+	assertGolden(t, "explain_text_summary_only.golden", got)
+}
+
+func TestRenderExplainJSON(t *testing.T) {
+	summary := sampleExplainSummary()
+	out, err := RenderExplainJSON(summary)
+	if err != nil {
+		t.Fatalf("RenderExplainJSON returned error: %v", err)
+	}
+	assertGolden(t, "explain_json.golden", string(out)+"\n")
+}
+
+func TestRDJSONHelpers(t *testing.T) {
+	result := rules.RuleResult{
+		RuleID:        "story-sync",
+		Message:       "Story missing.",
+		ChangedFiles:  []string{"a.ts"},
+		ExpectedFiles: []string{"b.ts"},
+	}
+	if got := primaryLocationPath(result); got != "a.ts" {
+		t.Fatalf("primaryLocationPath changed file = %q", got)
+	}
+	result.ChangedFiles = nil
+	if got := primaryLocationPath(result); got != "b.ts" {
+		t.Fatalf("primaryLocationPath expected file = %q", got)
+	}
+	result.ExpectedFiles = nil
+	result.FamilyName = "pkg/button"
+	if got := primaryLocationPath(result); got != "pkg/button" {
+		t.Fatalf("primaryLocationPath family name = %q", got)
+	}
+	result.FamilyName = ""
+	if got := renderRDJSONMessage(result); got != "Story missing." {
+		t.Fatalf("renderRDJSONMessage = %q", got)
+	}
+	if got := renderSARIFMessage(result); got != "Story missing." {
+		t.Fatalf("renderSARIFMessage = %q", got)
+	}
+}
+
+func TestMachineReportersOmitPassAndInfo(t *testing.T) {
+	summary := rules.Summary{
+		Results: []rules.RuleResult{
+			{
+				RuleID:       "pass-rule",
+				Severity:     rules.SeverityWarn,
+				Status:       rules.StatusPass,
+				Message:      "pass",
+				ChangedFiles: []string{"a.ts"},
+			},
+			{
+				RuleID:       "info-rule",
+				Severity:     rules.SeverityInfo,
+				Status:       rules.StatusInfo,
+				Message:      "info",
+				ChangedFiles: []string{"b.ts"},
+			},
+		},
+	}
+
+	sarifOut, err := RenderSARIF(summary)
+	if err != nil {
+		t.Fatalf("RenderSARIF returned error: %v", err)
+	}
+	rdjsonOut, err := RenderRDJSON(summary)
+	if err != nil {
+		t.Fatalf("RenderRDJSON returned error: %v", err)
+	}
+	checkstyleOut, err := RenderCheckstyle(summary)
+	if err != nil {
+		t.Fatalf("RenderCheckstyle returned error: %v", err)
+	}
+
+	if strings.Contains(string(sarifOut), "pass-rule") || strings.Contains(string(sarifOut), "info-rule") {
+		t.Fatalf("sarif should omit pass/info results: %s", string(sarifOut))
+	}
+	if strings.Contains(string(rdjsonOut), "pass-rule") || strings.Contains(string(rdjsonOut), "info-rule") {
+		t.Fatalf("rdjson should omit pass/info results: %s", string(rdjsonOut))
+	}
+	if strings.Contains(string(checkstyleOut), "pass-rule") || strings.Contains(string(checkstyleOut), "info-rule") {
+		t.Fatalf("checkstyle should omit pass/info results: %s", string(checkstyleOut))
+	}
 }
 
 func sampleSummary() rules.Summary {
@@ -72,6 +240,119 @@ func sampleSummary() rules.Summary {
 				Status:       rules.StatusPass,
 				Message:      "Docs updated.",
 				ChangedFiles: []string{"libs/ui/button/button.docs.md"},
+			},
+		},
+	}
+}
+
+func sampleResolveReport() ResolveReport {
+	return ResolveReport{
+		Mode:             "git",
+		Base:             "origin/main",
+		Head:             "HEAD",
+		ChangedCount:     2,
+		MatchedInstances: 1,
+		ChangedFiles: []string{
+			"libs/ui/button/button.component.ts",
+			"libs/ui/button/button.stories.ts",
+		},
+		Instances: []ResolveInstance{
+			{
+				FamilyID:    "angular-component",
+				Name:        "libs/ui/button/button",
+				SourceFiles: []string{"libs/ui/button/button.component.ts"},
+				Kin: map[string]string{
+					"spec":  "libs/ui/button/button.spec.ts",
+					"story": "libs/ui/button/button.stories.ts",
+				},
+			},
+		},
+	}
+}
+
+func sampleFamilyInstances() []family.Instance {
+	return []family.Instance{
+		{
+			FamilyID:    "angular-component",
+			Name:        "libs/ui/button/button",
+			SourceFiles: []string{"libs/ui/button/button.component.ts"},
+			Kin: map[string]string{
+				"spec":  "libs/ui/button/button.spec.ts",
+				"story": "libs/ui/button/button.stories.ts",
+			},
+		},
+	}
+}
+
+func sampleExplainSummary() rules.ExplainSummary {
+	return rules.ExplainSummary{
+		OK:       false,
+		Passed:   1,
+		Failed:   1,
+		Infos:    1,
+		Skipped:  1,
+		Warnings: 2,
+		Errors:   1,
+		Flags:    []string{"figmaPublishRequired"},
+		Results: []rules.ExplainResult{
+			{
+				RuleID:        "story-sync",
+				FamilyID:      "angular-component",
+				FamilyName:    "libs/ui/button/button",
+				Severity:      rules.SeverityError,
+				Status:        rules.ExplainStatusFail,
+				Message:       "Story was not updated.",
+				ChangedFiles:  []string{"libs/ui/button/button.component.ts"},
+				ExpectedFiles: []string{"libs/ui/button/button.stories.ts"},
+				IfTrace: []rules.ClauseTrace{
+					{Clause: "if.changedAny", Result: rules.ClauseResultPass, Detail: "1 source files changed"},
+				},
+				AssertTrace: []rules.ClauseTrace{
+					{Clause: "assert.kinChanged", Result: rules.ClauseResultFail, Detail: "story was not changed (libs/ui/button/button.stories.ts)"},
+				},
+			},
+			{
+				RuleID:       "figma-flag",
+				FamilyID:     "angular-component",
+				FamilyName:   "libs/ui/button/button",
+				Severity:     rules.SeverityWarn,
+				Status:       rules.ExplainStatusInfo,
+				Message:      "Figma publish may be required.",
+				ChangedFiles: []string{"libs/ui/button/button.component.ts"},
+				EmittedFlags: []string{"figmaPublishRequired"},
+				IfTrace: []rules.ClauseTrace{
+					{Clause: "if.changedStatusAny", Result: rules.ClauseResultPass, Detail: "matched one of [modified]"},
+				},
+				AssertTrace: []rules.ClauseTrace{
+					{Clause: "actions.emit", Result: rules.ClauseResultPass, Detail: "emit flag figmaPublishRequired"},
+				},
+			},
+			{
+				RuleID:       "docs-sync",
+				FamilyID:     "angular-component",
+				FamilyName:   "libs/ui/button/button",
+				Severity:     rules.SeverityWarn,
+				Status:       rules.ExplainStatusPass,
+				Message:      "Docs were updated.",
+				ChangedFiles: []string{"libs/ui/button/button.component.ts"},
+				IfTrace: []rules.ClauseTrace{
+					{Clause: "if.changedAny", Result: rules.ClauseResultPass, Detail: "1 source files changed"},
+				},
+				AssertTrace: []rules.ClauseTrace{
+					{Clause: "assert.kinChanged", Result: rules.ClauseResultPass, Detail: "docs changed (libs/ui/button/button.docs.md)"},
+				},
+			},
+			{
+				RuleID:       "rename-only",
+				FamilyID:     "angular-component",
+				FamilyName:   "libs/ui/button/button",
+				Severity:     rules.SeverityWarn,
+				Status:       rules.ExplainStatusSkipped,
+				Message:      "Only for renamed changes.",
+				ChangedFiles: []string{"libs/ui/button/button.component.ts"},
+				IfTrace: []rules.ClauseTrace{
+					{Clause: "if.changedStatusAny", Result: rules.ClauseResultFail, Detail: "no source file status matched allowed set [renamed]"},
+				},
 			},
 		},
 	}

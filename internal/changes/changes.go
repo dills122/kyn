@@ -8,6 +8,25 @@ import (
 
 var ErrGitFailure = errors.New("git provider failure")
 
+type Status string
+
+const (
+	StatusAdded    Status = "added"
+	StatusModified Status = "modified"
+	StatusDeleted  Status = "deleted"
+	StatusRenamed  Status = "renamed"
+)
+
+type Change struct {
+	Path   string
+	Status Status
+}
+
+type Result struct {
+	Files        []string
+	StatusByFile map[string]Status
+}
+
 type Input struct {
 	Cwd       string
 	FilesCSV  string
@@ -17,38 +36,49 @@ type Input struct {
 }
 
 func Collect(in Input) ([]string, error) {
-	var files []string
+	result, err := CollectDetailed(in)
+	if err != nil {
+		return nil, err
+	}
+	return result.Files, nil
+}
+
+func CollectDetailed(in Input) (Result, error) {
+	var changes []Change
 	var err error
 
 	switch {
 	case in.FilesCSV != "":
-		files, err = fromCSV(in.FilesCSV)
+		changes, err = fromCSV(in.FilesCSV)
 	case in.FilesFrom != "":
-		files, err = fromFile(in.Cwd, in.FilesFrom)
+		changes, err = fromFile(in.Cwd, in.FilesFrom)
 	default:
-		files, err = fromGitDiff(in.Cwd, in.Base, in.Head)
+		changes, err = fromGitDiff(in.Cwd, in.Base, in.Head)
 	}
 	if err != nil {
-		return nil, err
+		return Result{}, err
 	}
 
-	uniq := make(map[string]struct{}, len(files))
-	out := make([]string, 0, len(files))
-	for _, f := range files {
-		if f == "" {
+	statusByFile := make(map[string]Status, len(changes))
+	out := make([]string, 0, len(changes))
+	for _, c := range changes {
+		if c.Path == "" {
 			continue
 		}
-		if _, exists := uniq[f]; exists {
+		if _, exists := statusByFile[c.Path]; exists {
 			continue
 		}
-		uniq[f] = struct{}{}
-		out = append(out, f)
+		statusByFile[c.Path] = c.Status
+		out = append(out, c.Path)
 	}
 
 	sort.Strings(out)
 	if len(out) == 0 {
-		return nil, fmt.Errorf("no changed files were collected")
+		return Result{}, fmt.Errorf("no changed files were collected")
 	}
 
-	return out, nil
+	return Result{
+		Files:        out,
+		StatusByFile: statusByFile,
+	}, nil
 }

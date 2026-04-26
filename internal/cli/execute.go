@@ -22,10 +22,13 @@ type checkOptions struct {
 	Stdin       bool
 	Base        string
 	Head        string
+	StrictInput bool
 	Cwd         string
 	Format      string
 	FailOn      string
 	FailOnEmpty bool
+	SummaryOnly bool
+	DryRun      bool
 	ShowPasses  bool
 	Verbose     bool
 }
@@ -88,5 +91,8 @@ func newRootCommand() *cobra.Command {
 	cmd.SilenceErrors = true
 
 	cmd.AddCommand(newCheckCommand())
+	cmd.AddCommand(newExplainCommand())
+	cmd.AddCommand(newInitCommand())
+	cmd.AddCommand(newConfigCommand())
 	return cmd
 }

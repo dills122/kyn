@@ -11,20 +11,23 @@ import (
 	"kyn/internal/matcher"
 )
 
-func fromCSV(csv string) ([]string, error) {
+func fromCSV(csv string) ([]Change, error) {
 	parts := strings.Split(csv, ",")
-	out := make([]string, 0, len(parts))
+	out := make([]Change, 0, len(parts))
 	for _, p := range parts {
 		normalized := matcher.NormalizePath(p)
 		if normalized == "" {
 			continue
 		}
-		out = append(out, normalized)
+		out = append(out, Change{
+			Path:   normalized,
+			Status: StatusModified,
+		})
 	}
 	return out, nil
 }
 
-func fromFile(cwd string, filePath string) ([]string, error) {
+func fromFile(cwd string, filePath string) ([]Change, error) {
 	if filePath == "-" {
 		return readList(os.Stdin, "stdin")
 	}
@@ -45,16 +48,19 @@ func fromFile(cwd string, filePath string) ([]string, error) {
 	return readList(f, "--files-from")
 }
 
-func readList(r io.Reader, source string) ([]string, error) {
+func readList(r io.Reader, source string) ([]Change, error) {
 	sc := bufio.NewScanner(r)
-	out := make([]string, 0, 64)
+	out := make([]Change, 0, 64)
 	for sc.Scan() {
 		line := sc.Text()
 		normalized := matcher.NormalizePath(line)
 		if normalized == "" {
 			continue
 		}
-		out = append(out, normalized)
+		out = append(out, Change{
+			Path:   normalized,
+			Status: StatusModified,
+		})
 	}
 	if err := sc.Err(); err != nil {
 		return nil, fmt.Errorf("read %s: %w", source, err)

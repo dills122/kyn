@@ -18,10 +18,16 @@ var allowedTemplateVars = map[string]struct{}{
 }
 
 var allowedSeverities = []string{"info", "warn", "error"}
+var allowedChangedStatuses = map[string]struct{}{
+	"added":    {},
+	"modified": {},
+	"deleted":  {},
+	"renamed":  {},
+}
 
 func Validate(cfg Config) error {
-	if cfg.Version != 1 {
-		return fmt.Errorf("unsupported config version %d; expected version 1", cfg.Version)
+	if cfg.Version != 1 && cfg.Version != 2 {
+		return fmt.Errorf("unsupported config version %d; expected version 1 or 2", cfg.Version)
 	}
 
 	familyIDs := make(map[string]struct{}, len(cfg.Families))
@@ -36,12 +42,28 @@ func Validate(cfg Config) error {
 		familyIDs[fam.ID] = struct{}{}
 		familyByID[fam.ID] = fam
 
-		if len(fam.Include) == 0 {
-			return fmt.Errorf("family %q include must contain at least one glob pattern", fam.ID)
-		}
-		for j, pattern := range fam.Include {
-			if strings.TrimSpace(pattern) == "" {
-				return fmt.Errorf("family %q include[%d] must not be empty", fam.ID, j)
+		if cfg.Version == 1 || len(fam.Groups) == 0 {
+			if len(fam.Include) == 0 {
+				return fmt.Errorf("family %q include must contain at least one glob pattern", fam.ID)
+			}
+			for j, pattern := range fam.Include {
+				if strings.TrimSpace(pattern) == "" {
+					return fmt.Errorf("family %q include[%d] must not be empty", fam.ID, j)
+				}
+			}
+		} else {
+			for groupName, group := range fam.Groups {
+				if strings.TrimSpace(groupName) == "" {
+					return fmt.Errorf("family %q has empty group name", fam.ID)
+				}
+				if len(group.Include) == 0 {
+					return fmt.Errorf("family %q group %q include must contain at least one glob pattern", fam.ID, groupName)
+				}
+				for j, pattern := range group.Include {
+					if strings.TrimSpace(pattern) == "" {
+						return fmt.Errorf("family %q group %q include[%d] must not be empty", fam.ID, groupName, j)
+					}
+				}
 			}
 		}
 
@@ -83,34 +105,54 @@ func Validate(cfg Config) error {
 		if strings.TrimSpace(rule.Message) == "" {
 			return fmt.Errorf("rule %q message is required", rule.ID)
 		}
-
-		if err := validateChangedAny(rule.ID, "when", rule.When.ChangedAny); err != nil {
-			return err
-		}
-		if err := validateChangedAny(rule.ID, "require", rule.Require.ChangedAny); err != nil {
-			return err
-		}
 		fam := familyByID[rule.Family]
-		if err := validateKinRefs(rule.ID, "when.kinExists", rule.When.KinExists, fam.Kin); err != nil {
+
+		if err := validateChangedAny(cfg, fam, rule.ID, "if", rule.IfClauses().ChangedAny); err != nil {
 			return err
 		}
-		if err := validateKinRefs(rule.ID, "when.kinMissing", rule.When.KinMissing, fam.Kin); err != nil {
+		if err := validateChangedStatuses(rule.ID, "if", rule.IfClauses().ChangedStatusAny); err != nil {
 			return err
 		}
-		if err := validateKinRefs(rule.ID, "require.kinChanged", rule.Require.KinChanged, fam.Kin); err != nil {
+		if err := validateChangedAny(cfg, fam, rule.ID, "assert", rule.AssertClauses().ChangedAny); err != nil {
 			return err
 		}
-		if err := validateKinRefs(rule.ID, "require.kinUnchanged", rule.Require.KinUnchanged, fam.Kin); err != nil {
+		if err := validateChangedStatuses(rule.ID, "assert", rule.AssertClauses().ChangedStatusAny); err != nil {
 			return err
 		}
-		if err := validateKinRefs(rule.ID, "require.kinExists", rule.Require.KinExists, fam.Kin); err != nil {
+		if err := validateKinRefs(rule.ID, "if.kinExists", rule.IfClauses().KinExists, fam.Kin); err != nil {
 			return err
 		}
-		if err := validateKinRefs(rule.ID, "require.kinMissing", rule.Require.KinMissing, fam.Kin); err != nil {
+		if err := validateKinRefs(rule.ID, "if.kinMissing", rule.IfClauses().KinMissing, fam.Kin); err != nil {
 			return err
+		}
+		if err := validateKinRefs(rule.ID, "assert.kinChanged", rule.AssertClauses().KinChanged, fam.Kin); err != nil {
+			return err
+		}
+		if err := validateKinRefs(rule.ID, "assert.kinUnchanged", rule.AssertClauses().KinUnchanged, fam.Kin); err != nil {
+			return err
+		}
+		if err := validateKinRefs(rule.ID, "assert.kinExists", rule.AssertClauses().KinExists, fam.Kin); err != nil {
+			return err
+		}
+		if err := validateKinRefs(rule.ID, "assert.kinMissing", rule.AssertClauses().KinMissing, fam.Kin); err != nil {
+			return err
+		}
+		for j, emit := range rule.EmitFlags() {
+			if strings.TrimSpace(emit) == "" {
+				return fmt.Errorf("rule %q actions.emit[%d] must not be empty", rule.ID, j)
+			}
 		}
 	}
 
+	return nil
+}
+
+func validateChangedStatuses(ruleID string, clause string, statuses []string) error {
+	for i, status := range statuses {
+		if _, ok := allowedChangedStatuses[status]; !ok {
+			return fmt.Errorf("rule %q %s.changedStatusAny[%d] invalid status %q", ruleID, clause, i, status)
+		}
+	}
 	return nil
 }
 
@@ -125,10 +167,20 @@ func validateTemplateVars(template string) error {
 	return nil
 }
 
-func validateChangedAny(ruleID string, clause string, groups []string) error {
+func validateChangedAny(cfg Config, fam Family, ruleID string, clause string, groups []string) error {
+	allowed := map[string]struct{}{"source": {}}
+	if cfg.Version == 2 {
+		allowed = map[string]struct{}{}
+		for groupName := range fam.Groups {
+			allowed[groupName] = struct{}{}
+		}
+		if len(allowed) == 0 {
+			allowed["source"] = struct{}{}
+		}
+	}
 	for i, g := range groups {
-		if g != "source" {
-			return fmt.Errorf("rule %q %s.changedAny[%d] invalid group %q; only \"source\" is supported in MVP", ruleID, clause, i, g)
+		if _, ok := allowed[g]; !ok {
+			return fmt.Errorf("rule %q %s.changedAny[%d] invalid group %q", ruleID, clause, i, g)
 		}
 	}
 	return nil

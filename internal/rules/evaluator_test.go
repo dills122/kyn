@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"kyn/internal/changes"
 	"kyn/internal/config"
 	"kyn/internal/family"
 )
@@ -108,6 +109,59 @@ func TestEvaluateFailOnEmpty(t *testing.T) {
 	}
 }
 
+func TestEvaluateV2ActionsEmit(t *testing.T) {
+	cwd := t.TempDir()
+	mustWrite(t, filepath.Join(cwd, "libs/ui/button/figma.button.json"))
+
+	cfg := config.Config{
+		Version: 2,
+		Rules: []config.Rule{
+			{
+				ID:       "figma-publish-signal",
+				Family:   "angular-component",
+				Severity: "warn",
+				If: config.RuleClauses{
+					ChangedAny: []string{"source"},
+					KinExists:  []string{"figma"},
+				},
+				Actions: config.RuleActions{
+					Emit: []string{"figmaPublishRequired", "designReviewRequired"},
+				},
+				Message: "Signals follow-up actions.",
+			},
+		},
+	}
+
+	inst := family.Instance{
+		FamilyID:    "angular-component",
+		Name:        "libs/ui/button/button",
+		SourceFiles: []string{"libs/ui/button/button.component.ts"},
+		Kin: map[string]string{
+			"figma": "libs/ui/button/figma.button.json",
+		},
+	}
+	changed := map[string]struct{}{
+		"libs/ui/button/button.component.ts": {},
+	}
+
+	summary, err := Evaluate(EvalInput{
+		Cwd:       cwd,
+		FailOn:    "error",
+		Changed:   changed,
+		Rules:     cfg.Rules,
+		Instances: []family.Instance{inst},
+	})
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if !summary.OK {
+		t.Fatalf("expected summary to pass")
+	}
+	if len(summary.Flags) != 2 {
+		t.Fatalf("expected two flags, got %v", summary.Flags)
+	}
+}
+
 func TestEvaluate_KinUnchangedAndMissing(t *testing.T) {
 	cwd := t.TempDir()
 	mustWrite(t, filepath.Join(cwd, "libs/ui/button/button.spec.ts"))
@@ -199,6 +253,124 @@ func TestEvaluate_KinExistenceErrorPath(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected error for invalid kin path")
+	}
+}
+
+func TestEvaluate_ChangedStatusAny(t *testing.T) {
+	cfg := config.Config{
+		Version: 2,
+		Rules: []config.Rule{
+			{
+				ID:       "renamed-only",
+				Family:   "angular-component",
+				Severity: "error",
+				If: config.RuleClauses{
+					ChangedAny:       []string{"source"},
+					ChangedStatusAny: []string{"renamed"},
+				},
+				Assert: config.RuleClauses{
+					KinChanged: []string{"story"},
+				},
+				Message: "Renamed source requires story update.",
+			},
+		},
+	}
+
+	inst := family.Instance{
+		FamilyID:    "angular-component",
+		Name:        "libs/ui/button/button",
+		SourceFiles: []string{"libs/ui/button/button.component.ts"},
+		Kin: map[string]string{
+			"story": "libs/ui/button/button.stories.ts",
+		},
+	}
+	changed := map[string]struct{}{
+		"libs/ui/button/button.component.ts": {},
+	}
+
+	summary, err := Evaluate(EvalInput{
+		Cwd:     t.TempDir(),
+		FailOn:  "error",
+		Changed: changed,
+		StatusByFile: map[string]changes.Status{
+			"libs/ui/button/button.component.ts": changes.StatusModified,
+		},
+		Rules:     cfg.Rules,
+		Instances: []family.Instance{inst},
+	})
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if len(summary.Results) != 0 {
+		t.Fatalf("expected rule to be skipped for modified status, got %d results", len(summary.Results))
+	}
+
+	summary, err = Evaluate(EvalInput{
+		Cwd:     t.TempDir(),
+		FailOn:  "error",
+		Changed: changed,
+		StatusByFile: map[string]changes.Status{
+			"libs/ui/button/button.component.ts": changes.StatusRenamed,
+		},
+		Rules:     cfg.Rules,
+		Instances: []family.Instance{inst},
+	})
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if len(summary.Results) != 1 {
+		t.Fatalf("expected rule to run for renamed status, got %d results", len(summary.Results))
+	}
+}
+
+func TestEvaluate_KinExistsAndMissingFailures(t *testing.T) {
+	cwd := t.TempDir()
+	mustWrite(t, filepath.Join(cwd, "libs/ui/button/button.exists.ts"))
+
+	inst := family.Instance{
+		FamilyID:    "angular-component",
+		Name:        "libs/ui/button/button",
+		SourceFiles: []string{"libs/ui/button/button.component.ts"},
+		Kin: map[string]string{
+			"missing": "libs/ui/button/button.missing.ts",
+			"exists":  "libs/ui/button/button.exists.ts",
+		},
+	}
+
+	summary, err := Evaluate(EvalInput{
+		Cwd:       cwd,
+		FailOn:    "warn",
+		Changed:   map[string]struct{}{},
+		Instances: []family.Instance{inst},
+		Rules: []config.Rule{
+			{
+				ID:       "must-exist",
+				Family:   "angular-component",
+				Severity: "warn",
+				Require: config.RuleClauses{
+					KinExists: []string{"missing"},
+				},
+				Message: "missing file must exist",
+			},
+			{
+				ID:       "must-be-missing",
+				Family:   "angular-component",
+				Severity: "warn",
+				Require: config.RuleClauses{
+					KinMissing: []string{"exists"},
+				},
+				Message: "existing file must be absent",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if summary.OK {
+		t.Fatal("expected warn-level failures to fail when fail-on=warn")
+	}
+	if len(summary.Results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(summary.Results))
 	}
 }
 

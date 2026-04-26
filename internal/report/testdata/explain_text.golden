@@ -1,0 +1,63 @@
+kyn explain
+
+FAIL
+
+Rules failed: 1
+Rules passed: 1
+Rules info: 1
+Rules skipped: 1
+Warnings: 2
+Errors: 1
+
+[ERROR] story-sync
+Family: angular-component
+Instance: libs/ui/button/button
+Status: fail
+Message: Story was not updated.
+If:
+  - if.changedAny: pass (1 source files changed)
+Assert:
+  - assert.kinChanged: fail (story was not changed (libs/ui/button/button.stories.ts))
+Changed files:
+  - libs/ui/button/button.component.ts
+Expected files:
+  - libs/ui/button/button.stories.ts
+
+[WARN] figma-flag
+Family: angular-component
+Instance: libs/ui/button/button
+Status: info
+Message: Figma publish may be required.
+If:
+  - if.changedStatusAny: pass (matched one of [modified])
+Assert:
+  - actions.emit: pass (emit flag figmaPublishRequired)
+Changed files:
+  - libs/ui/button/button.component.ts
+Emitted flags:
+  - figmaPublishRequired
+
+[WARN] docs-sync
+Family: angular-component
+Instance: libs/ui/button/button
+Status: pass
+Message: Docs were updated.
+If:
+  - if.changedAny: pass (1 source files changed)
+Assert:
+  - assert.kinChanged: pass (docs changed (libs/ui/button/button.docs.md))
+Changed files:
+  - libs/ui/button/button.component.ts
+
+[WARN] rename-only
+Family: angular-component
+Instance: libs/ui/button/button
+Status: skipped
+Message: Only for renamed changes.
+If:
+  - if.changedStatusAny: fail (no source file status matched allowed set [renamed])
+Changed files:
+  - libs/ui/button/button.component.ts
+
+Flags:
+  - figmaPublishRequired

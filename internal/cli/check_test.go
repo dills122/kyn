@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -38,6 +39,27 @@ func TestValidateCheckOptions(t *testing.T) {
 			},
 		},
 		{
+			name: "valid sarif format for check",
+			modify: func(o *checkOptions) {
+				o.FilesCSV = "a.ts"
+				o.Format = "sarif"
+			},
+		},
+		{
+			name: "valid rdjson format for check",
+			modify: func(o *checkOptions) {
+				o.FilesCSV = "a.ts"
+				o.Format = "rdjson"
+			},
+		},
+		{
+			name: "valid checkstyle format for check",
+			modify: func(o *checkOptions) {
+				o.FilesCSV = "a.ts"
+				o.Format = "checkstyle"
+			},
+		},
+		{
 			name: "valid stdin mode",
 			modify: func(o *checkOptions) {
 				o.Stdin = true
@@ -45,6 +67,13 @@ func TestValidateCheckOptions(t *testing.T) {
 		},
 		{
 			name:    "invalid no mode",
+			wantErr: false,
+		},
+		{
+			name: "invalid no mode when strict",
+			modify: func(o *checkOptions) {
+				o.StrictInput = true
+			},
 			wantErr: true,
 		},
 		{
@@ -80,6 +109,30 @@ func TestValidateCheckOptions(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "invalid sarif format for explain",
+			modify: func(o *checkOptions) {
+				o.FilesCSV = "a.ts"
+				o.Format = "sarif"
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid rdjson format for explain",
+			modify: func(o *checkOptions) {
+				o.FilesCSV = "a.ts"
+				o.Format = "rdjson"
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid checkstyle format for explain",
+			modify: func(o *checkOptions) {
+				o.FilesCSV = "a.ts"
+				o.Format = "checkstyle"
+			},
+			wantErr: true,
+		},
+		{
 			name: "invalid format",
 			modify: func(o *checkOptions) {
 				o.FilesCSV = "a.ts"
@@ -104,7 +157,14 @@ func TestValidateCheckOptions(t *testing.T) {
 				tt.modify(&o)
 			}
 
-			err := validateCheckOptions(o)
+			command := "check"
+			allowMachineFormats := true
+			if tt.name == "invalid sarif format for explain" || tt.name == "invalid rdjson format for explain" || tt.name == "invalid checkstyle format for explain" {
+				command = "explain"
+				allowMachineFormats = false
+			}
+
+			err := validateCheckOptions(o, command, allowMachineFormats)
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -112,8 +172,18 @@ func TestValidateCheckOptions(t *testing.T) {
 				t.Fatalf("expected no error, got %v", err)
 			}
 			if tt.name == "invalid mixed files and git includes selected modes" && err != nil {
-				if !strings.Contains(err.Error(), "selected: files, git") {
+				if !strings.Contains(err.Error(), "files + git") {
 					t.Fatalf("expected selected mode details, got %v", err)
+				}
+			}
+			if tt.name == "invalid partial git mode" && err != nil {
+				if !strings.Contains(err.Error(), "expected both --base and --head") {
+					t.Fatalf("expected expected-vs-observed message, got %v", err)
+				}
+			}
+			if (tt.name == "invalid sarif format for explain" || tt.name == "invalid rdjson format for explain" || tt.name == "invalid checkstyle format for explain") && err != nil {
+				if !strings.Contains(err.Error(), "explain supports text|json") {
+					t.Fatalf("expected explain format restriction, got %v", err)
 				}
 			}
 		})
@@ -143,4 +213,72 @@ func TestResolveCWD(t *testing.T) {
 			t.Fatal("expected error, got nil")
 		}
 	})
+}
+
+func TestApplyAutoInputMode(t *testing.T) {
+	t.Run("non-git cwd with no mode errors", func(t *testing.T) {
+		dir := t.TempDir()
+		_, _, err := applyAutoInputMode(checkOptions{}, dir)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("strict mode skips auto", func(t *testing.T) {
+		dir := t.TempDir()
+		got, auto, err := applyAutoInputMode(checkOptions{StrictInput: true}, dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if auto {
+			t.Fatal("expected auto=false, got true")
+		}
+		if got.Base != "" || got.Head != "" {
+			t.Fatalf("expected empty base/head, got %q/%q", got.Base, got.Head)
+		}
+	})
+
+	t.Run("git cwd with no mode uses defaults", func(t *testing.T) {
+		dir := t.TempDir()
+		runGitCheck(t, dir, "init")
+
+		got, auto, err := applyAutoInputMode(checkOptions{}, dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !auto {
+			t.Fatal("expected auto=true, got false")
+		}
+		if got.Base != "origin/main" || got.Head != "HEAD" {
+			t.Fatalf("unexpected refs %q/%q", got.Base, got.Head)
+		}
+	})
+
+	t.Run("env overrides defaults", func(t *testing.T) {
+		dir := t.TempDir()
+		runGitCheck(t, dir, "init")
+		t.Setenv("KYN_BASE_REF", "upstream/trunk")
+		t.Setenv("KYN_HEAD_REF", "feature-branch")
+
+		got, auto, err := applyAutoInputMode(checkOptions{}, dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !auto {
+			t.Fatal("expected auto=true, got false")
+		}
+		if got.Base != "upstream/trunk" || got.Head != "feature-branch" {
+			t.Fatalf("unexpected refs %q/%q", got.Base, got.Head)
+		}
+	})
+}
+
+func runGitCheck(t *testing.T, cwd string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", cwd}, args...)...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, string(out))
+	}
+	return string(out)
 }
