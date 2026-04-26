@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"kyn/internal/family"
 	"kyn/internal/rules"
 )
 
@@ -81,6 +82,23 @@ func TestRenderResolveText(t *testing.T) {
 	assertGolden(t, "dry_run_text.golden", got)
 }
 
+func TestNewResolveReportSummaryOnly(t *testing.T) {
+	resolve := NewResolveReport(
+		"git",
+		"origin/main",
+		"HEAD",
+		[]string{"a.ts"},
+		sampleFamilyInstances(),
+		true,
+	)
+	if len(resolve.ChangedFiles) != 0 {
+		t.Fatalf("expected no changed files in summary-only report, got %v", resolve.ChangedFiles)
+	}
+	if len(resolve.Instances) != 0 {
+		t.Fatalf("expected no instances in summary-only report, got %v", resolve.Instances)
+	}
+}
+
 func TestRenderResolveJSON(t *testing.T) {
 	resolve := sampleResolveReport()
 	out, err := RenderResolveJSON(resolve)
@@ -109,6 +127,34 @@ func TestRenderExplainJSON(t *testing.T) {
 		t.Fatalf("RenderExplainJSON returned error: %v", err)
 	}
 	assertGolden(t, "explain_json.golden", string(out)+"\n")
+}
+
+func TestRDJSONHelpers(t *testing.T) {
+	result := rules.RuleResult{
+		RuleID:        "story-sync",
+		Message:       "Story missing.",
+		ChangedFiles:  []string{"a.ts"},
+		ExpectedFiles: []string{"b.ts"},
+	}
+	if got := primaryLocationPath(result); got != "a.ts" {
+		t.Fatalf("primaryLocationPath changed file = %q", got)
+	}
+	result.ChangedFiles = nil
+	if got := primaryLocationPath(result); got != "b.ts" {
+		t.Fatalf("primaryLocationPath expected file = %q", got)
+	}
+	result.ExpectedFiles = nil
+	result.FamilyName = "pkg/button"
+	if got := primaryLocationPath(result); got != "pkg/button" {
+		t.Fatalf("primaryLocationPath family name = %q", got)
+	}
+	result.FamilyName = ""
+	if got := renderRDJSONMessage(result); got != "Story missing." {
+		t.Fatalf("renderRDJSONMessage = %q", got)
+	}
+	if got := renderSARIFMessage(result); got != "Story missing." {
+		t.Fatalf("renderSARIFMessage = %q", got)
+	}
 }
 
 func sampleSummary() rules.Summary {
@@ -175,6 +221,20 @@ func sampleResolveReport() ResolveReport {
 					"spec":  "libs/ui/button/button.spec.ts",
 					"story": "libs/ui/button/button.stories.ts",
 				},
+			},
+		},
+	}
+}
+
+func sampleFamilyInstances() []family.Instance {
+	return []family.Instance{
+		{
+			FamilyID:    "angular-component",
+			Name:        "libs/ui/button/button",
+			SourceFiles: []string{"libs/ui/button/button.component.ts"},
+			Kin: map[string]string{
+				"spec":  "libs/ui/button/button.spec.ts",
+				"story": "libs/ui/button/button.stories.ts",
 			},
 		},
 	}

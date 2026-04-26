@@ -323,6 +323,57 @@ func TestEvaluate_ChangedStatusAny(t *testing.T) {
 	}
 }
 
+func TestEvaluate_KinExistsAndMissingFailures(t *testing.T) {
+	cwd := t.TempDir()
+	mustWrite(t, filepath.Join(cwd, "libs/ui/button/button.exists.ts"))
+
+	inst := family.Instance{
+		FamilyID:    "angular-component",
+		Name:        "libs/ui/button/button",
+		SourceFiles: []string{"libs/ui/button/button.component.ts"},
+		Kin: map[string]string{
+			"missing": "libs/ui/button/button.missing.ts",
+			"exists":  "libs/ui/button/button.exists.ts",
+		},
+	}
+
+	summary, err := Evaluate(EvalInput{
+		Cwd:       cwd,
+		FailOn:    "warn",
+		Changed:   map[string]struct{}{},
+		Instances: []family.Instance{inst},
+		Rules: []config.Rule{
+			{
+				ID:       "must-exist",
+				Family:   "angular-component",
+				Severity: "warn",
+				Require: config.RuleClauses{
+					KinExists: []string{"missing"},
+				},
+				Message: "missing file must exist",
+			},
+			{
+				ID:       "must-be-missing",
+				Family:   "angular-component",
+				Severity: "warn",
+				Require: config.RuleClauses{
+					KinMissing: []string{"exists"},
+				},
+				Message: "existing file must be absent",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if summary.OK {
+		t.Fatal("expected warn-level failures to fail when fail-on=warn")
+	}
+	if len(summary.Results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(summary.Results))
+	}
+}
+
 func mustWrite(t *testing.T, path string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

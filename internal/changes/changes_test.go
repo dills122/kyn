@@ -160,6 +160,21 @@ func TestCollectDetailedFromGitDiffStatuses(t *testing.T) {
 	}
 }
 
+func TestMapStatus(t *testing.T) {
+	tests := map[string]Status{
+		"A":   StatusAdded,
+		"M":   StatusModified,
+		"R88": StatusRenamed,
+		"D":   StatusDeleted,
+		"X":   StatusModified,
+	}
+	for raw, want := range tests {
+		if got := mapStatus(raw); got != want {
+			t.Fatalf("mapStatus(%q) = %s, want %s", raw, got, want)
+		}
+	}
+}
+
 func write(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
