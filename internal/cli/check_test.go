@@ -46,6 +46,20 @@ func TestValidateCheckOptions(t *testing.T) {
 			},
 		},
 		{
+			name: "valid rdjson format for check",
+			modify: func(o *checkOptions) {
+				o.FilesCSV = "a.ts"
+				o.Format = "rdjson"
+			},
+		},
+		{
+			name: "valid checkstyle format for check",
+			modify: func(o *checkOptions) {
+				o.FilesCSV = "a.ts"
+				o.Format = "checkstyle"
+			},
+		},
+		{
 			name: "valid stdin mode",
 			modify: func(o *checkOptions) {
 				o.Stdin = true
@@ -103,6 +117,22 @@ func TestValidateCheckOptions(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "invalid rdjson format for explain",
+			modify: func(o *checkOptions) {
+				o.FilesCSV = "a.ts"
+				o.Format = "rdjson"
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid checkstyle format for explain",
+			modify: func(o *checkOptions) {
+				o.FilesCSV = "a.ts"
+				o.Format = "checkstyle"
+			},
+			wantErr: true,
+		},
+		{
 			name: "invalid format",
 			modify: func(o *checkOptions) {
 				o.FilesCSV = "a.ts"
@@ -128,13 +158,13 @@ func TestValidateCheckOptions(t *testing.T) {
 			}
 
 			command := "check"
-			allowSARIF := true
-			if tt.name == "invalid sarif format for explain" {
+			allowMachineFormats := true
+			if tt.name == "invalid sarif format for explain" || tt.name == "invalid rdjson format for explain" || tt.name == "invalid checkstyle format for explain" {
 				command = "explain"
-				allowSARIF = false
+				allowMachineFormats = false
 			}
 
-			err := validateCheckOptions(o, command, allowSARIF)
+			err := validateCheckOptions(o, command, allowMachineFormats)
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -151,7 +181,7 @@ func TestValidateCheckOptions(t *testing.T) {
 					t.Fatalf("expected expected-vs-observed message, got %v", err)
 				}
 			}
-			if tt.name == "invalid sarif format for explain" && err != nil {
+			if (tt.name == "invalid sarif format for explain" || tt.name == "invalid rdjson format for explain" || tt.name == "invalid checkstyle format for explain") && err != nil {
 				if !strings.Contains(err.Error(), "explain supports text|json") {
 					t.Fatalf("expected explain format restriction, got %v", err)
 				}

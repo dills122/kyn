@@ -121,7 +121,7 @@ kyn check \
   [-f, --files <csv> | --files-from <path> | --stdin | --base <ref> --head <ref>] \
   [--strict-input-mode] \
   [--cwd <path>] \
-  [-o, --format text|json|sarif] \
+  [-o, --format text|json|sarif|rdjson|checkstyle] \
   [--fail-on error|warn] \
   [--summary-only] \
   [--dry-run-resolve] \
@@ -187,6 +187,8 @@ Formats:
 - `text`: human-readable summary
 - `json`: machine-readable CI parsing
 - `sarif`: static-analysis interchange for code scanning integrations
+- `rdjson`: reviewdog diagnostic format for PR annotation workflows
+- `checkstyle`: XML output for CI parsers that consume checkstyle reports
 
 Behavior:
 

@@ -57,6 +57,24 @@ func TestRenderSARIF(t *testing.T) {
 	assertGolden(t, "sarif.golden", string(out)+"\n")
 }
 
+func TestRenderRDJSON(t *testing.T) {
+	summary := sampleSummary()
+	out, err := RenderRDJSON(summary)
+	if err != nil {
+		t.Fatalf("RenderRDJSON returned error: %v", err)
+	}
+	assertGolden(t, "rdjson.golden", string(out)+"\n")
+}
+
+func TestRenderCheckstyle(t *testing.T) {
+	summary := sampleSummary()
+	out, err := RenderCheckstyle(summary)
+	if err != nil {
+		t.Fatalf("RenderCheckstyle returned error: %v", err)
+	}
+	assertGolden(t, "checkstyle.golden", string(out)+"\n")
+}
+
 func TestRenderResolveText(t *testing.T) {
 	resolve := sampleResolveReport()
 	got := RenderResolveText(resolve)
