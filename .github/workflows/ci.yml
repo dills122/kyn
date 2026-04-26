@@ -124,6 +124,26 @@ jobs:
 
   linux-smoke:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goarch: amd64
+            platform: linux/amd64
+            image: debian:stable-slim
+            label: debian-amd64
+          - goarch: amd64
+            platform: linux/amd64
+            image: alpine:3.20
+            label: alpine-amd64
+          - goarch: arm64
+            platform: linux/arm64
+            image: debian:stable-slim
+            label: debian-arm64
+          - goarch: arm64
+            platform: linux/arm64
+            image: alpine:3.20
+            label: alpine-arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -133,19 +153,16 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Build static binary
-        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./bin/kyn ./cmd/kyn
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -o ./bin/kyn ./cmd/kyn
 
-      - name: Smoke on Debian
+      - name: Smoke static binary
         run: |
           docker run --rm \
+            --platform=${{ matrix.platform }} \
             -v "$PWD/bin/kyn:/usr/local/bin/kyn:ro" \
-            debian:stable-slim \
-            /usr/local/bin/kyn --help
-
-      - name: Smoke on Alpine
-        run: |
-          docker run --rm \
-            -v "$PWD/bin/kyn:/usr/local/bin/kyn:ro" \
-            alpine:3.20 \
+            ${{ matrix.image }} \
             /usr/local/bin/kyn --help

@@ -12,7 +12,7 @@ Status: completed
 
 ## 2. Distribution Verification and Release Docs
 
-Status: in progress
+Status: completed
 
 - strengthen CI/release coverage for publishable artifacts
 - clarify release/install story across binaries and container image usage
@@ -20,7 +20,7 @@ Status: in progress
 
 ## 3. Presets and Adoption Polish
 
-Status: pending
+Status: in progress
 
 - expand `kyn init --preset` beyond `web-ui`
 - add docs/examples for `web-ui`, `api`, `proto`, and `iac`

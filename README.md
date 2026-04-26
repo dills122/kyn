@@ -213,12 +213,15 @@ Default CI command:
 
 Detailed provider examples: [docs/ci.md](docs/ci.md)
 
+Release/install details: [docs/release.md](docs/release.md)
+
 ## Documentation
 
 - [docs/spec.md](docs/spec.md): full product + CLI spec
 - [docs/decisions.md](docs/decisions.md): locked MVP decisions
 - [docs/cli-validation-matrix.md](docs/cli-validation-matrix.md): valid/invalid flag combinations
 - [docs/ci.md](docs/ci.md): DevOps and CI usage guide
+- [docs/release.md](docs/release.md): release artifacts and installation guide
 - [docs/migration-v1-to-v2.md](docs/migration-v1-to-v2.md): v1 to v2 migration guide
 - [docs/troubleshooting.md](docs/troubleshooting.md): common CI/runtime troubleshooting
 - [docs/mvp-tasks.md](docs/mvp-tasks.md): original MVP backlog
