@@ -220,6 +220,7 @@ Release/install details: [docs/release.md](docs/release.md)
 
 ## Documentation
 
+- [CHANGELOG.md](/Users/dsteele/go/src/kyn/CHANGELOG.md): release history
 - [docs/spec.md](docs/spec.md): full product + CLI spec
 - [docs/decisions.md](docs/decisions.md): locked MVP decisions
 - [docs/cli-validation-matrix.md](docs/cli-validation-matrix.md): valid/invalid flag combinations
