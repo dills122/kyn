@@ -164,6 +164,9 @@ kyn explain -c kyn.config.yaml --base origin/main --head HEAD
 # Bootstrap a starter v2 config
 kyn init
 
+# Bootstrap an API preset
+kyn init --preset api
+
 # Safely migrate v1 config to v2 side-by-side output
 kyn config migrate -c kyn.config.yaml --from v1 --to v2
 ```
@@ -222,6 +225,7 @@ Release/install details: [docs/release.md](docs/release.md)
 - [docs/cli-validation-matrix.md](docs/cli-validation-matrix.md): valid/invalid flag combinations
 - [docs/ci.md](docs/ci.md): DevOps and CI usage guide
 - [docs/release.md](docs/release.md): release artifacts and installation guide
+- [docs/presets.md](docs/presets.md): starter presets and adoption examples
 - [docs/migration-v1-to-v2.md](docs/migration-v1-to-v2.md): v1 to v2 migration guide
 - [docs/troubleshooting.md](docs/troubleshooting.md): common CI/runtime troubleshooting
 - [docs/mvp-tasks.md](docs/mvp-tasks.md): original MVP backlog

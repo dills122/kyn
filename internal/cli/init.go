@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -32,6 +33,9 @@ run 'kyn check' quickly and then adapt rules/families to their repo.
   # Create default config in current directory
   kyn init
 
+  # Generate an API starter config
+  kyn init --preset api
+
   # Write to explicit path
   kyn init --config .kyn/kyn.config.yaml
 
@@ -48,8 +52,9 @@ run 'kyn check' quickly and then adapt rules/families to their repo.
 			if strings.TrimSpace(opts.Preset) == "" {
 				opts.Preset = "web-ui"
 			}
-			if opts.Preset != "web-ui" {
-				return usageError("invalid --preset %q; expected web-ui", opts.Preset)
+			content, err := starterConfig(opts.Preset)
+			if err != nil {
+				return usageError("%v", err)
 			}
 
 			configPath := strings.TrimSpace(opts.ConfigPath)
@@ -70,7 +75,6 @@ run 'kyn check' quickly and then adapt rules/families to their repo.
 				return runtimeError("unable to create config directory: %v", err)
 			}
 
-			content := starterConfigWebUI()
 			if err := os.WriteFile(target, []byte(content), 0o600); err != nil {
 				return runtimeError("unable to write config: %v", err)
 			}
@@ -85,9 +89,30 @@ run 'kyn check' quickly and then adapt rules/families to their repo.
 	cmd.Flags().StringVarP(&opts.ConfigPath, "config", "c", "kyn.config.yaml", "Path to write config file")
 	cmd.Flags().StringVar(&opts.Cwd, "cwd", ".", "Working directory")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "Overwrite config file if it already exists")
-	cmd.Flags().StringVar(&opts.Preset, "preset", "web-ui", "Starter preset template")
+	cmd.Flags().StringVar(&opts.Preset, "preset", "web-ui", "Starter preset template: web-ui|api|proto|iac")
 
 	return cmd
+}
+
+func starterConfig(preset string) (string, error) {
+	switch preset {
+	case "web-ui":
+		return starterConfigWebUI(), nil
+	case "api":
+		return starterConfigAPI(), nil
+	case "proto":
+		return starterConfigProto(), nil
+	case "iac":
+		return starterConfigIAC(), nil
+	default:
+		return "", fmt.Errorf("invalid --preset %q; expected one of %s", preset, strings.Join(validPresets(), ", "))
+	}
+}
+
+func validPresets() []string {
+	presets := []string{"api", "iac", "proto", "web-ui"}
+	sort.Strings(presets)
+	return presets
 }
 
 func starterConfigWebUI() string {
@@ -134,5 +159,97 @@ rules:
     assert:
       kinChanged: [spec]
     message: "Source changed but test did not."
+`) + "\n"
+}
+
+func starterConfigAPI() string {
+	return strings.TrimSpace(`
+version: 2
+
+families:
+  - id: go-api-handler
+    groups:
+      source:
+        include:
+          - "internal/**/*handler.go"
+          - "internal/**/*service.go"
+      tests:
+        include:
+          - "internal/**/*_test.go"
+    baseName:
+      stripSuffixes:
+        - "_handler"
+        - "_service"
+    kin:
+      test: "{dir}/{name}_test.go"
+
+rules:
+  - id: api-tests-sync
+    family: go-api-handler
+    severity: error
+    if:
+      changedAny: [source]
+      kinExists: [test]
+    assert:
+      kinChanged: [test]
+    message: "API source changed but test did not."
+`) + "\n"
+}
+
+func starterConfigProto() string {
+	return strings.TrimSpace(`
+version: 2
+
+families:
+  - id: proto-contract
+    groups:
+      source:
+        include:
+          - "proto/**/*.proto"
+      generated:
+        include:
+          - "gen/**/*.pb.go"
+    kin:
+      generatedGo: "gen/{dir}/{name}.pb.go"
+
+rules:
+  - id: proto-generated-sync
+    family: proto-contract
+    severity: error
+    if:
+      changedAny: [source]
+      kinExists: [generatedGo]
+    assert:
+      kinChanged: [generatedGo]
+    message: "Proto contract changed but generated Go output did not."
+`) + "\n"
+}
+
+func starterConfigIAC() string {
+	return strings.TrimSpace(`
+version: 2
+
+families:
+  - id: terraform-module
+    groups:
+      source:
+        include:
+          - "terraform/**/*.tf"
+      docs:
+        include:
+          - "terraform/**/README.md"
+    kin:
+      readme: "{dir}/README.md"
+
+rules:
+  - id: terraform-docs-sync
+    family: terraform-module
+    severity: warn
+    if:
+      changedAny: [source]
+      kinExists: [readme]
+    assert:
+      kinChanged: [readme]
+    message: "Terraform module changed but module README did not."
 `) + "\n"
 }

@@ -324,6 +324,50 @@ func TestExecuteInitExistingWithoutForceFails(t *testing.T) {
 	}
 }
 
+func TestExecuteInitSupportedPresets(t *testing.T) {
+	presets := []string{"web-ui", "api", "proto", "iac"}
+	for _, preset := range presets {
+		t.Run(preset, func(t *testing.T) {
+			dir := t.TempDir()
+			target := preset + ".yaml"
+
+			code := runWithArgs(t, []string{
+				"kyn", "init",
+				"--cwd", dir,
+				"--config", target,
+				"--preset", preset,
+			})
+			if code != ExitOK {
+				t.Fatalf("expected exit %d, got %d", ExitOK, code)
+			}
+
+			cfg, _, err := config.Load(dir, target)
+			if err != nil {
+				t.Fatalf("load generated config: %v", err)
+			}
+			if cfg.Version != 2 {
+				t.Fatalf("expected version 2, got %d", cfg.Version)
+			}
+			if len(cfg.Families) == 0 || len(cfg.Rules) == 0 {
+				t.Fatalf("expected non-empty generated config for preset %s", preset)
+			}
+		})
+	}
+}
+
+func TestExecuteInitInvalidPresetFails(t *testing.T) {
+	dir := t.TempDir()
+
+	code := runWithArgs(t, []string{
+		"kyn", "init",
+		"--cwd", dir,
+		"--preset", "unknown",
+	})
+	if code != ExitUsage {
+		t.Fatalf("expected exit %d, got %d", ExitUsage, code)
+	}
+}
+
 func TestExecuteConfigMigrateWritesOutput(t *testing.T) {
 	dir := t.TempDir()
 	cfg := `version: 1

@@ -20,7 +20,7 @@ Status: completed
 
 ## 3. Presets and Adoption Polish
 
-Status: in progress
+Status: completed
 
 - expand `kyn init --preset` beyond `web-ui`
 - add docs/examples for `web-ui`, `api`, `proto`, and `iac`
