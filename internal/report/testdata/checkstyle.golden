@@ -2,9 +2,5 @@
 <checkstyle version="10.0">
   <file name="libs/ui/button/button.component.ts">
     <error line="1" column="1" severity="error" message="Story was not updated. (family instance: libs/ui/button/button) Expected: libs/ui/button/button.stories.ts" source="kyn.story-sync"></error>
-    <error line="1" column="1" severity="warning" message="Figma publish may be required. (family instance: libs/ui/button/button)" source="kyn.figma-flag"></error>
-  </file>
-  <file name="libs/ui/button/button.docs.md">
-    <error line="1" column="1" severity="info" message="Docs updated. (family instance: libs/ui/button/button)" source="kyn.docs-sync"></error>
   </file>
 </checkstyle>

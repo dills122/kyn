@@ -9,36 +9,6 @@
           "informationUri": "https://github.com/",
           "rules": [
             {
-              "id": "docs-sync",
-              "shortDescription": {
-                "text": "Docs updated."
-              },
-              "fullDescription": {
-                "text": "Docs updated."
-              },
-              "properties": {
-                "familyId": "angular-component"
-              },
-              "defaultConfiguration": {
-                "level": "note"
-              }
-            },
-            {
-              "id": "figma-flag",
-              "shortDescription": {
-                "text": "Figma publish may be required."
-              },
-              "fullDescription": {
-                "text": "Figma publish may be required."
-              },
-              "properties": {
-                "familyId": "angular-component"
-              },
-              "defaultConfiguration": {
-                "level": "warning"
-              }
-            },
-            {
               "id": "story-sync",
               "shortDescription": {
                 "text": "Story was not updated."
@@ -95,56 +65,6 @@
             "familyName": "libs/ui/button/button",
             "severity": "error",
             "status": "fail"
-          }
-        },
-        {
-          "ruleId": "figma-flag",
-          "level": "warning",
-          "message": {
-            "text": "Figma publish may be required. (family instance: libs/ui/button/button)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "libs/ui/button/button.component.ts"
-                }
-              },
-              "message": {
-                "text": "changed file"
-              }
-            }
-          ],
-          "properties": {
-            "familyId": "angular-component",
-            "familyName": "libs/ui/button/button",
-            "severity": "warn",
-            "status": "info"
-          }
-        },
-        {
-          "ruleId": "docs-sync",
-          "level": "note",
-          "message": {
-            "text": "Docs updated. (family instance: libs/ui/button/button)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "libs/ui/button/button.docs.md"
-                }
-              },
-              "message": {
-                "text": "changed file"
-              }
-            }
-          ],
-          "properties": {
-            "familyId": "angular-component",
-            "familyName": "libs/ui/button/button",
-            "severity": "info",
-            "status": "pass"
           }
         }
       ]

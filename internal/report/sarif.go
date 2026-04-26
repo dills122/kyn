@@ -77,6 +77,9 @@ func RenderSARIF(summary rules.Summary) ([]byte, error) {
 	results := make([]sarifResult, 0, len(summary.Results))
 
 	for _, result := range summary.Results {
+		if result.Status != rules.StatusFail {
+			continue
+		}
 		if _, exists := ruleMap[result.RuleID]; !exists {
 			ruleMap[result.RuleID] = sarifRule{
 				ID:               result.RuleID,

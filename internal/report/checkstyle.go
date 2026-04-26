@@ -29,6 +29,9 @@ type checkstyleError struct {
 func RenderCheckstyle(summary rules.Summary) ([]byte, error) {
 	grouped := make(map[string][]checkstyleError)
 	for _, result := range summary.Results {
+		if result.Status != rules.StatusFail {
+			continue
+		}
 		path := primaryLocationPath(result)
 		if path == "" {
 			path = result.RuleID

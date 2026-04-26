@@ -36,46 +36,6 @@
           }
         }
       ]
-    },
-    {
-      "message": "Figma publish may be required. (family instance: libs/ui/button/button)",
-      "location": {
-        "path": "libs/ui/button/button.component.ts",
-        "range": {
-          "start": {
-            "line": 1,
-            "column": 1
-          }
-        }
-      },
-      "severity": "WARNING",
-      "source": {
-        "name": "kyn"
-      },
-      "code": {
-        "value": "figma-flag"
-      },
-      "originalOutput": "libs/ui/button/button.component.ts:1:1: [figma-flag] Figma publish may be required."
-    },
-    {
-      "message": "Docs updated. (family instance: libs/ui/button/button)",
-      "location": {
-        "path": "libs/ui/button/button.docs.md",
-        "range": {
-          "start": {
-            "line": 1,
-            "column": 1
-          }
-        }
-      },
-      "severity": "INFO",
-      "source": {
-        "name": "kyn"
-      },
-      "code": {
-        "value": "docs-sync"
-      },
-      "originalOutput": "libs/ui/button/button.docs.md:1:1: [docs-sync] Docs updated."
     }
   ]
 }

@@ -52,6 +52,9 @@ type rdjsonPosition struct {
 func RenderRDJSON(summary rules.Summary) ([]byte, error) {
 	diagnostics := make([]rdjsonDiagnostic, 0, len(summary.Results))
 	for _, result := range summary.Results {
+		if result.Status != rules.StatusFail {
+			continue
+		}
 		locationPath := primaryLocationPath(result)
 		diag := rdjsonDiagnostic{
 			Message:  renderRDJSONMessage(result),

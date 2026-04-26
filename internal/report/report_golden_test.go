@@ -157,6 +157,50 @@ func TestRDJSONHelpers(t *testing.T) {
 	}
 }
 
+func TestMachineReportersOmitPassAndInfo(t *testing.T) {
+	summary := rules.Summary{
+		Results: []rules.RuleResult{
+			{
+				RuleID:       "pass-rule",
+				Severity:     rules.SeverityWarn,
+				Status:       rules.StatusPass,
+				Message:      "pass",
+				ChangedFiles: []string{"a.ts"},
+			},
+			{
+				RuleID:       "info-rule",
+				Severity:     rules.SeverityInfo,
+				Status:       rules.StatusInfo,
+				Message:      "info",
+				ChangedFiles: []string{"b.ts"},
+			},
+		},
+	}
+
+	sarifOut, err := RenderSARIF(summary)
+	if err != nil {
+		t.Fatalf("RenderSARIF returned error: %v", err)
+	}
+	rdjsonOut, err := RenderRDJSON(summary)
+	if err != nil {
+		t.Fatalf("RenderRDJSON returned error: %v", err)
+	}
+	checkstyleOut, err := RenderCheckstyle(summary)
+	if err != nil {
+		t.Fatalf("RenderCheckstyle returned error: %v", err)
+	}
+
+	if strings.Contains(string(sarifOut), "pass-rule") || strings.Contains(string(sarifOut), "info-rule") {
+		t.Fatalf("sarif should omit pass/info results: %s", string(sarifOut))
+	}
+	if strings.Contains(string(rdjsonOut), "pass-rule") || strings.Contains(string(rdjsonOut), "info-rule") {
+		t.Fatalf("rdjson should omit pass/info results: %s", string(rdjsonOut))
+	}
+	if strings.Contains(string(checkstyleOut), "pass-rule") || strings.Contains(string(checkstyleOut), "info-rule") {
+		t.Fatalf("checkstyle should omit pass/info results: %s", string(checkstyleOut))
+	}
+}
+
 func sampleSummary() rules.Summary {
 	return rules.Summary{
 		OK:       false,
