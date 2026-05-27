@@ -1,117 +1,33 @@
 # Kyn
 
-Kyn is a stateless Go CLI that helps DevOps and platform teams enforce change policy in CI without custom scripts.
+[![CI](https://github.com/dills122/kyn/actions/workflows/ci.yml/badge.svg)](https://github.com/dills122/kyn/actions/workflows/ci.yml)
+[![Release](https://github.com/dills122/kyn/actions/workflows/release.yml/badge.svg)](https://github.com/dills122/kyn/actions/workflows/release.yml)
+[![Docs](https://img.shields.io/badge/docs-github_pages-0A7EA4.svg)](https://dills122.github.io/kyn/)
+[![Go Version](https://img.shields.io/badge/go-1.22%2B-00ADD8.svg)](https://go.dev/)
+[![License](https://img.shields.io/badge/license-MIT-informational.svg)](LICENSE)
 
-## The Problem Kyn Solves
+Kyn is a stateless Go CLI for enforcing related-file change policy in CI.
 
-Most CI pipelines can tell you what changed, but not whether related updates happened together. That creates policy drift:
+It answers questions like:
+- If source changed, did tests/stories/specs change too?
+- If a sidecar exists, should a CI flag be emitted?
+- Are file-family rules enforced consistently across repos?
 
-- Components change but stories/specs/docs are missed.
-- Release sidecars exist (for example Figma metadata) but follow-up checks are skipped.
-- Teams rely on brittle shell glue that is hard to maintain across repos.
+## Why Teams Use Kyn
 
-Kyn turns those checks into deterministic, config-driven policy with stable exit codes and machine-readable output.
-
-## Why DevOps Teams Use Kyn
-
-Kyn gives you:
-
-- One consistent policy gate across local runs and CI.
-- Explicit failure categories (`1` policy fail, `2` usage/config, `3` runtime/provider).
-- Deterministic output that is safe for CI parsing and diffing.
-- A reusable rules model instead of one-off per-repo scripts.
-
-At runtime, Kyn answers questions like:
-
-- If a component changed, did its Storybook story change?
-- If a component has a Figma sidecar, should a publish flag be emitted?
-- If required sibling files exist, were they updated when source changed?
-
-## Why You Need This
-
-If your repo has "file families" (source + tests + docs + configs + generated artifacts), drift is inevitable without enforcement.
-
-Typical failure pattern:
-
-- Engineers update source files.
-- Related files are forgotten because CI only validates syntax/tests, not relationship policy.
-- Reviewers catch misses inconsistently.
-- Release risk and maintenance burden rise over time.
-
-Kyn closes that gap by making relationship rules explicit and enforceable in every PR.
-
-## Problems Kyn Solves
-
-- Prevents partial changes that break team conventions.
-- Reduces reviewer overhead for repetitive checklist items.
-- Catches policy drift early in CI before release.
-- Standardizes rules across many repos/services.
-- Replaces ad hoc bash logic with a declarative config model.
-
-## Where Kyn Is Useful (Beyond Web UI)
-
-Web/frontend is a strong fit, but the pattern applies broadly:
-
-- React/Angular/Vue/Svelte:
-  component changes should align with stories, tests, styles, snapshots, docs.
-- Node/Go/Java/.NET services:
-  handler/model changes should align with tests, API specs, migration notes, runbooks.
-- API-first teams:
-  OpenAPI/GraphQL/Proto changes should align with generated clients, schema docs, compatibility tests.
-- Data/analytics:
-  SQL/model changes should align with downstream tests, lineage docs, dashboard contract files.
-- IaC/platform:
-  Terraform/Helm/Kubernetes changes should align with policy files, env overlays, or release manifests.
-- Mobile:
-  view-model/component changes should align with UI tests, snapshots, localization/resource files.
-
-## Example Policy Families
-
-- `button.component.ts` + `button.stories.ts` + `button.spec.ts`
-- `user_handler.go` + `user_handler_test.go` + `openapi.yaml`
-- `service.proto` + generated stubs + compatibility tests
-- `deployment.yaml` + `values-prod.yaml` + policy manifest
-- `model.sql` + data quality tests + docs page
-
-## Features
-
-- `kyn check` command for policy evaluation
-- `kyn explain` command for per-rule diagnostics
-- `kyn init` command for starter config generation
-- `kyn config migrate` command for safe v1 -> v2 schema migration
-- YAML config with schema validation
-- Multiple change input modes: `--files`
-- Multiple change input modes: `--files-from`
-- Multiple change input modes: `--stdin` (alias for `--files-from -`)
-- Multiple change input modes: `--base` + `--head` (git diff)
-- Auto git mode when no input mode is selected (defaults: `origin/main...HEAD`)
-- Family/kin resolution via glob + templates
-- Rule evaluation with v1 (`when`/`require`) and v2 (`if`/`assert`/`actions`) compatibility
-- Deterministic text and JSON output
-- Stable exit codes for CI integration
+- Deterministic output suitable for CI parsing and diffing
+- Stable exit codes (`0` pass, `1` policy fail, `2` usage/config, `3` runtime)
+- Fast local and CI runs with no daemon, service, or plugin system
+- Config-driven policy instead of brittle shell glue
 
 ## Install / Build
 
 ```bash
 go build -o ./bin/kyn ./cmd/kyn
-```
-
-Release automation includes:
-
-- GitHub release archives for Linux, macOS, and Windows
-- SHA256 checksum publication
-- GHCR container image publishing
-- static Linux binaries suitable for Debian/Ubuntu and Alpine smoke targets
-
-Run help:
-
-```bash
-./bin/kyn check --help
+./bin/kyn --help
 ```
 
 ## Quick Start
-
-Run against included fixture data:
 
 ```bash
 ./bin/kyn check \
@@ -120,117 +36,51 @@ Run against included fixture data:
   -f libs/ui/button/button.component.ts,libs/ui/button/button.component.html
 ```
 
-## CLI Usage
+## Core Commands
 
 ```bash
-kyn check \
-  -c, --config <path> \
-  [-f, --files <csv> | --files-from <path> | --stdin | --base <ref> --head <ref>] \
-  [--strict-input-mode] \
-  [--cwd <path>] \
-  [-o, --format text|json|sarif|rdjson|checkstyle] \
-  [--fail-on error|warn] \
-  [--summary-only] \
-  [--dry-run-resolve] \
-  [--fail-on-empty] \
-  [--show-passes] \
-  [--verbose]
-```
-
-Default behavior: if no input mode is provided and `--cwd` is a git repo, Kyn auto-selects git mode.
-Use `--strict-input-mode` to require exactly one explicit mode.
-
-### Common commands
-
-```bash
-# CI happy path (git refs)
+# CI baseline
 kyn check -c kyn.config.yaml --base origin/main --head HEAD -o json
 
-# CI happy path with auto mode
+# Auto git mode (default when no input mode is provided)
 kyn check -c kyn.config.yaml -o json
 
-# Piped changed-file list
-git diff --name-only origin/main...HEAD | kyn check -c kyn.config.yaml --stdin
-
-# Explicit files
-kyn check -c kyn.config.yaml -f path/a.ts,path/b.ts
-
-# Resolve families/kin only (no policy evaluation)
-kyn check -c kyn.config.yaml --dry-run-resolve
-
-# Detailed per-rule reasoning (never exits 1 for rule failures)
+# Explain per-rule diagnostics
 kyn explain -c kyn.config.yaml --base origin/main --head HEAD
 
-# Bootstrap a starter v2 config
-kyn init
+# Bootstrap starter config
+kyn init --preset web-ui
 
-# Bootstrap an API preset
-kyn init --preset api
-
-# Safely migrate v1 config to v2 side-by-side output
+# Migrate config v1 -> v2 safely
 kyn config migrate -c kyn.config.yaml --from v1 --to v2
 ```
 
-## Exit Codes
+## Output Formats
 
-- `0`: policy passed
-- `1`: one or more rules failed
-- `2`: invalid CLI usage or invalid config
-- `3`: runtime/provider error (for example git failure)
-
-## Configuration Model
-
-Kyn config defines:
-
-- `families`: related file groups detected by glob patterns
-- `kin`: template-resolved sibling paths
-- `rules`: policies bound to a family
-- `when`: gate for whether a rule runs
-- `require`: pass/fail checks or `emitFlag`
-
-Example config and full schema details are in [docs/spec.md](docs/spec.md).
-
-## Output
-
-Formats:
-
-- `text`: human-readable summary
-- `json`: machine-readable CI parsing
-- `sarif`: static-analysis interchange for code scanning integrations
-- `rdjson`: reviewdog diagnostic format for PR annotation workflows
-- `checkstyle`: XML output for CI parsers that consume checkstyle reports
-
-Behavior:
-
-- Results and file lists are deterministic.
-- Text output shows failures first.
-- Passing rows are hidden by default; show with `--show-passes`.
-
-## CI Integration
-
-Default CI command:
-
-```bash
-./bin/kyn check -c kyn.config.yaml --base origin/main --head HEAD -o json
-```
-
-Detailed provider examples: [docs/ci.md](docs/ci.md)
-
-Release/install details: [docs/release.md](docs/release.md)
+- `text`
+- `json`
+- `sarif`
+- `rdjson`
+- `checkstyle`
 
 ## Documentation
 
-- [CHANGELOG.md](/Users/dsteele/go/src/kyn/CHANGELOG.md): release history
-- [docs/spec.md](docs/spec.md): full product + CLI spec
-- [docs/decisions.md](docs/decisions.md): locked MVP decisions
-- [docs/cli-validation-matrix.md](docs/cli-validation-matrix.md): valid/invalid flag combinations
-- [docs/ci.md](docs/ci.md): DevOps and CI usage guide
-- [docs/release.md](docs/release.md): release artifacts and installation guide
-- [docs/presets.md](docs/presets.md): starter presets and adoption examples
-- [docs/migration-v1-to-v2.md](docs/migration-v1-to-v2.md): v1 to v2 migration guide
-- [docs/troubleshooting.md](docs/troubleshooting.md): common CI/runtime troubleshooting
-- [docs/mvp-tasks.md](docs/mvp-tasks.md): original MVP backlog
-- [docs/README.md](docs/README.md): docs index
+- [Docs Site](https://dills122.github.io/kyn/)
+- [Docs Index](docs/README.md)
+- [Specification](docs/spec.md)
+- [CI Guide](docs/ci.md)
+- [Release Guide](docs/release.md)
+- [Presets](docs/presets.md)
+- [Migration v1 -> v2](docs/migration-v1-to-v2.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Changelog](CHANGELOG.md)
+
+## Project Scope
+
+Kyn intentionally stays focused:
+- Stateless CLI only
+- Deterministic behavior and stable contracts
+- No daemon/watch mode, no plugin system, no PR API integrations
 
 ## Development
 
@@ -241,18 +91,4 @@ make lint
 make test
 make vet
 make build
-```
-
-`make hooks` configures repo-managed git hooks (`.githooks`) for:
-
-- pre-commit: format staged Go files + `go vet ./...`
-- pre-push: `go test ./...`
-
-Project layout:
-
-```txt
-cmd/kyn         binary entrypoint
-internal/       core implementation packages
-testdata/       fixture inputs
-docs/           project documentation
 ```

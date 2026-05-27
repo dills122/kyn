@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.1.1 - Unreleased
+
+### Changed
+
+- improved release-note generation with grouped changelog categories and curated release header/footer
+- refreshed README structure and visual polish, including a dedicated docs-site link
+- added a focused GitHub Pages docs site scaffold for quick-start and CI/reference paths
+
+### CI / Docs
+
+- added GitHub Pages deployment workflow to publish static docs to `gh-pages`
+- added strict docs validation in CI via `mkdocs build --strict`
+- added release-note authoring guidance for consistent, meaningful changelog entries
+
 ## v0.1.0 - 2026-04-26
 
 First public release of Kyn.

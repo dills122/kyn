@@ -1,14 +1,30 @@
-# Documentation Index
+# Kyn Documentation Index
 
-- [spec.md](spec.md): complete CLI and product specification
-- [mvp-v2.md](mvp-v2.md): proposed breaking-change v2 design and roadmap
-- [mvp-v2-tasks.md](mvp-v2-tasks.md): execution backlog for delivering v2
-- [ergonomics.md](ergonomics.md): 10-minute onboarding and CI portability contract
-- [decisions.md](decisions.md): locked MVP implementation decisions
-- [cli-validation-matrix.md](cli-validation-matrix.md): valid/invalid CLI mode combinations
-- [ci.md](ci.md): DevOps-focused CI integration guide
+Primary references for Kyn usage, policy semantics, and release operations.
+
+## Live Docs Site
+
+- GitHub Pages (built from this repo): `https://dills122.github.io/kyn/`
+
+## Core Guides
+
+- [release-notes.md](release-notes.md): commit and PR conventions for meaningful generated release notes
+- [spec.md](spec.md): full CLI + config specification
+- [ci.md](ci.md): CI integration patterns and provider examples
 - [release.md](release.md): release artifacts, container image, and install flow
-- [presets.md](presets.md): starter presets for web-ui, api, proto, and iac
-- [migration-v1-to-v2.md](migration-v1-to-v2.md): safe migration guide from the v1 schema to v2
+- [presets.md](presets.md): starter presets and practical adoption examples
+- [migration-v1-to-v2.md](migration-v1-to-v2.md): migration strategy and command usage
 - [troubleshooting.md](troubleshooting.md): common CI, git, and config troubleshooting notes
-- [mvp-tasks.md](mvp-tasks.md): MVP ticket/backlog breakdown
+
+## Product Decisions and Planning
+
+- [decisions.md](decisions.md): locked MVP decisions
+- [cli-validation-matrix.md](cli-validation-matrix.md): valid and invalid input mode combinations
+- [mvp-tasks.md](mvp-tasks.md): original MVP backlog
+- [mvp-v2.md](mvp-v2.md): v2 proposal and design direction
+- [mvp-v2-tasks.md](mvp-v2-tasks.md): execution backlog for v2
+- [mvp-v2-finish-tasks.md](mvp-v2-finish-tasks.md): final v2 closeout checklist
+
+## Working Norm
+
+Keep Kyn docs focused on deterministic CLI behavior and practical CI adoption.
