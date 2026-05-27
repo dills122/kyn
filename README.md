@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/dills122/kyn/actions/workflows/ci.yml/badge.svg)](https://github.com/dills122/kyn/actions/workflows/ci.yml)
 [![Release](https://github.com/dills122/kyn/actions/workflows/release.yml/badge.svg)](https://github.com/dills122/kyn/actions/workflows/release.yml)
+[![Docs](https://img.shields.io/badge/docs-github_pages-0A7EA4.svg)](https://dills122.github.io/kyn/)
 [![Go Version](https://img.shields.io/badge/go-1.22%2B-00ADD8.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-informational.svg)](LICENSE)
 
@@ -64,6 +65,7 @@ kyn config migrate -c kyn.config.yaml --from v1 --to v2
 
 ## Documentation
 
+- [Docs Site](https://dills122.github.io/kyn/)
 - [Docs Index](docs/README.md)
 - [Specification](docs/spec.md)
 - [CI Guide](docs/ci.md)

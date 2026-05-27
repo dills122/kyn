@@ -8,6 +8,7 @@ Primary references for Kyn usage, policy semantics, and release operations.
 
 ## Core Guides
 
+- [release-notes.md](release-notes.md): commit and PR conventions for meaningful generated release notes
 - [spec.md](spec.md): full CLI + config specification
 - [ci.md](ci.md): CI integration patterns and provider examples
 - [release.md](release.md): release artifacts, container image, and install flow
