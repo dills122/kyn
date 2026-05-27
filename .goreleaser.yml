@@ -40,6 +40,48 @@ checksum:
 changelog:
   use: git
   sort: asc
+  filters:
+    exclude:
+      - '^Merge '
+      - '^test:'
+      - '^chore:'
+  groups:
+    - title: Features
+      regexp: '^feat(\(.+\))?:'
+    - title: Fixes
+      regexp: '^fix(\(.+\))?:'
+    - title: Docs
+      regexp: '^docs(\(.+\))?:'
+    - title: Build and CI
+      regexp: '^(build|ci|refactor)(\(.+\))?:'
+    - title: Other
+      order: 999
+
+release:
+  draft: false
+  replace_existing_draft: true
+  header: |
+    ## Kyn {{ .Tag }}
+
+    Deterministic related-file policy checks for CI.
+
+    ### What to expect in this release
+    - Stable CLI behavior and deterministic outputs
+    - Verified multi-platform binaries and container publishing
+    - Policy/reporting improvements grouped by category below
+
+    ### Quick start
+    ```bash
+    kyn check -c kyn.config.yaml --base origin/main --head HEAD --format json
+    ```
+
+  footer: |
+    ### Install and verify
+    1. Download the archive for your platform from release assets.
+    2. Verify with `checksums.txt`.
+    3. Run `kyn --help`.
+
+    Docs: https://dills122.github.io/kyn/
 
 dockers:
   - image_templates:
