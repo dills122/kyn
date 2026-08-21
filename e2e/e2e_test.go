@@ -41,7 +41,7 @@ func runMain(m *testing.M) int {
 		fmt.Fprintln(os.Stderr, "e2e: create temp dir:", err)
 		return 1
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	binName := "kyn"
 	if runtime.GOOS == "windows" {
