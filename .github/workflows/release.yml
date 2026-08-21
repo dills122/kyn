@@ -44,3 +44,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          # PAT with contents:write on dills122/homebrew-tap and dills122/scoop-bucket.
+          # The default GITHUB_TOKEN is scoped to this repo only and cannot push to
+          # the tap/bucket repos, so homebrew_casks/scoops publishing needs its own token.
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}

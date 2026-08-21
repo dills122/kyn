@@ -20,12 +20,33 @@ It answers questions like:
 - Fast local and CI runs with no daemon, service, or plugin system
 - Config-driven policy instead of brittle shell glue
 
-## Install / Build
+## Install
+
+### Homebrew (macOS/Linux)
+
+```bash
+brew install --cask dills122/tap/kyn
+```
+
+### Scoop (Windows)
+
+```powershell
+scoop bucket add dills122 https://github.com/dills122/scoop-bucket
+scoop install kyn
+```
+
+### From source
 
 ```bash
 go build -o ./bin/kyn ./cmd/kyn
 ./bin/kyn --help
 ```
+
+### Binaries / container
+
+Prebuilt binaries (linux/darwin/windows, amd64/arm64) and checksums are on the
+[Releases page](https://github.com/dills122/kyn/releases). A container image is
+published to `ghcr.io/dills122/kyn`.
 
 ## Quick Start
 

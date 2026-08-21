@@ -88,6 +88,33 @@ release:
 
     Docs: https://dills122.github.io/kyn/
 
+homebrew_casks:
+  - name: kyn
+    repository:
+      owner: dills122
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    homepage: "https://github.com/dills122/kyn"
+    description: "Stateless CLI for enforcing related-file change policy in CI"
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/kyn"]
+          end
+
+scoops:
+  - name: kyn
+    repository:
+      owner: dills122
+      name: scoop-bucket
+      branch: main
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    homepage: "https://github.com/dills122/kyn"
+    description: "Stateless CLI for enforcing related-file change policy in CI"
+    license: MIT
+
 dockers:
   - image_templates:
       - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn:{{ .Version }}-amd64
