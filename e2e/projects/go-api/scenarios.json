@@ -1,0 +1,25 @@
+[
+  {
+    "name": "handler-changed-test-missing-from-changeset",
+    "args": [
+      "check",
+      "-c", "kyn.config.yaml",
+      "--files", "internal/order/order_handler.go",
+      "--format", "sarif"
+    ],
+    "wantExitCode": 1,
+    "golden": "handler-changed-test-missing-from-changeset.golden"
+  },
+  {
+    "name": "handler-and-test-changed",
+    "args": [
+      "check",
+      "-c", "kyn.config.yaml",
+      "--files", "internal/order/order_handler.go,internal/order/order_handler_test.go",
+      "--format", "text",
+      "--show-passes"
+    ],
+    "wantExitCode": 0,
+    "golden": "handler-and-test-changed.golden"
+  }
+]

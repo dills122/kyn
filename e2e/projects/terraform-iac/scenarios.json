@@ -1,0 +1,38 @@
+[
+  {
+    "name": "module-changed-readme-not-updated-warns-only",
+    "args": [
+      "check",
+      "-c", "kyn.config.yaml",
+      "--files", "terraform/network/main.tf",
+      "--format", "text",
+      "--show-passes"
+    ],
+    "wantExitCode": 0,
+    "golden": "module-changed-readme-not-updated-warns-only.golden"
+  },
+  {
+    "name": "strict-warn-policy-blocks",
+    "args": [
+      "check",
+      "-c", "kyn.config.yaml",
+      "--files", "terraform/network/main.tf",
+      "--format", "text",
+      "--fail-on", "warn"
+    ],
+    "wantExitCode": 1,
+    "golden": "strict-warn-policy-blocks.golden"
+  },
+  {
+    "name": "module-and-readme-updated-passes",
+    "args": [
+      "check",
+      "-c", "kyn.config.yaml",
+      "--files", "terraform/network/main.tf,terraform/network/README.md",
+      "--format", "json",
+      "--fail-on", "warn"
+    ],
+    "wantExitCode": 0,
+    "golden": "module-and-readme-updated-passes.golden"
+  }
+]

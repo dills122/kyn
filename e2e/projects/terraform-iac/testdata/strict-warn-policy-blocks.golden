@@ -1,0 +1,18 @@
+kyn check
+
+FAIL
+
+Rules failed: 1
+Warnings: 1
+Infos: 0
+
+[WARN] terraform-docs-sync
+Family: terraform-module
+Instance: terraform/network/main
+Status: fail
+Message: Terraform module changed but module README did not.
+Changed files:
+  - terraform/network/main.tf
+Expected files:
+  - terraform/network/README.md
+

@@ -1,0 +1,29 @@
+version: 2
+
+families:
+  - id: order-handler
+    groups:
+      source:
+        include:
+          - "internal/**/*_handler.go"
+          - "internal/**/*_service.go"
+      tests:
+        include:
+          - "internal/**/*_test.go"
+    baseName:
+      stripSuffixes:
+        - "_handler"
+        - "_service"
+    kin:
+      test: "{dir}/{name}_test.go"
+
+rules:
+  - id: handler-tests-sync
+    family: order-handler
+    severity: error
+    if:
+      changedAny: [source]
+      kinExists: [test]
+    assert:
+      kinChanged: [test]
+    message: "Handler or service changed but its test file did not."

@@ -1,0 +1,37 @@
+{
+  "ok": true,
+  "passed": 1,
+  "failed": 0,
+  "infos": 0,
+  "warnings": 1,
+  "errors": 1,
+  "results": [
+    {
+      "ruleId": "figma-publish-required",
+      "familyId": "angular-component",
+      "familyName": "libs/ui/button/button",
+      "severity": "warn",
+      "status": "info",
+      "message": "Figma publish may be required",
+      "changedFiles": [
+        "libs/ui/button/button.component.html",
+        "libs/ui/button/button.component.ts"
+      ]
+    },
+    {
+      "ruleId": "storybook-sync",
+      "familyId": "angular-component",
+      "familyName": "libs/ui/button/button",
+      "severity": "error",
+      "status": "pass",
+      "message": "Component changed but story did not",
+      "changedFiles": [
+        "libs/ui/button/button.component.html",
+        "libs/ui/button/button.component.ts"
+      ]
+    }
+  ],
+  "flags": [
+    "figmaPublishRequired"
+  ]
+}

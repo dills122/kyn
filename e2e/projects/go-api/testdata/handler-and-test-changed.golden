@@ -1,0 +1,16 @@
+kyn check
+
+PASS
+
+Rules failed: 0
+Warnings: 0
+Infos: 0
+
+[ERROR] handler-tests-sync
+Family: order-handler
+Instance: internal/order/order
+Status: pass
+Message: Handler or service changed but its test file did not.
+Changed files:
+  - internal/order/order_handler.go
+

@@ -91,4 +91,9 @@ make lint
 make test
 make vet
 make build
+make e2e
 ```
+
+`make e2e` builds the real `kyn` binary and runs it against realistic
+example projects under [`e2e/projects`](e2e/projects) — see
+[`e2e/README.md`](e2e/README.md).
