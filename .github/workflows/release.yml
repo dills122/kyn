@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing GitHub release tag whose Linux packages should be pushed to Fury"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -11,6 +17,7 @@ permissions:
 
 jobs:
   goreleaser:
+    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -49,14 +56,47 @@ jobs:
           # the tap/bucket repos, so homebrew_casks/scoops publishing needs its own token.
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
 
-      # Fury.io hosts a real apt/yum/apk repo for free on public packages, but
-      # GoReleaser's native push integration for it is a Pro-only feature. This
-      # step gets the same result for free: push the .deb/.rpm/.apk files that
-      # nfpm just built straight to Fury's plain HTTP push API.
-      # Requires FURY_ACCOUNT and FURY_TOKEN secrets; skipped entirely (not
-      # failed) until those are set, so it won't break releases in the meantime.
+  fury:
+    name: Publish Linux packages to Fury
+    needs: goreleaser
+    if: >-
+      ${{
+        always() &&
+        (
+          (github.event_name == 'push' && needs.goreleaser.result == 'success') ||
+          github.event_name == 'workflow_dispatch'
+        )
+      }}
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - name: Check Fury configuration
+        env:
+          FURY_ACCOUNT: ${{ secrets.FURY_ACCOUNT }}
+          FURY_TOKEN: ${{ secrets.FURY_TOKEN }}
+        run: |
+          if [ -z "$FURY_ACCOUNT" ] || [ -z "$FURY_TOKEN" ]; then
+            echo "::error::Set the FURY_ACCOUNT and FURY_TOKEN repository secrets before publishing to Fury."
+            exit 1
+          fi
+
+      - name: Download Linux packages from the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p dist
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.deb' \
+            --pattern '*.rpm' \
+            --pattern '*.apk' \
+            --dir dist
+
+      # GoReleaser's native Fury integration is a Pro feature, so publish the
+      # nfpm packages through Fury's HTTP push API. Keeping this in a separate
+      # job lets a failed upload be retried without republishing the release.
       - name: Push packages to Fury
-        if: ${{ env.FURY_ACCOUNT != '' && env.FURY_TOKEN != '' }}
         env:
           FURY_ACCOUNT: ${{ secrets.FURY_ACCOUNT }}
           FURY_TOKEN: ${{ secrets.FURY_TOKEN }}
@@ -64,11 +104,14 @@ jobs:
           shopt -s nullglob
           pkgs=(dist/*.deb dist/*.rpm dist/*.apk)
           if [ ${#pkgs[@]} -eq 0 ]; then
-            echo "no .deb/.rpm/.apk packages found in dist/, nothing to push"
-            exit 0
+            echo "::error::No .deb/.rpm/.apk packages were downloaded for $RELEASE_TAG."
+            exit 1
           fi
           for pkg in "${pkgs[@]}"; do
             echo "pushing $pkg to fury.io/$FURY_ACCOUNT"
-            curl -sS -f -F package=@"$pkg" "https://${FURY_TOKEN}@push.fury.io/${FURY_ACCOUNT}/"
+            curl --silent --show-error --fail-with-body \
+              --user "${FURY_ACCOUNT}:${FURY_TOKEN}" \
+              --form package=@"$pkg" \
+              "https://push.fury.io/${FURY_ACCOUNT}/"
             echo
           done
