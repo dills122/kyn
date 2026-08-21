@@ -12,6 +12,11 @@ builds:
     binary: kyn
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X kyn/internal/cli.Version={{ .Version }}
+      - -X kyn/internal/cli.Commit={{ .Commit }}
+      - -X kyn/internal/cli.Date={{ .Date }}
     goos:
       - linux
       - darwin

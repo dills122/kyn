@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## v0.1.1 - Unreleased
 
+### Added
+
+- `kyn version` command and `--version` flag, with version/commit/date stamped via ldflags at build and release time
+- LICENSE file (MIT), matching the license already advertised in the README badge
+
 ### Changed
 
 - improved release-note generation with grouped changelog categories and curated release header/footer
@@ -15,6 +20,8 @@ All notable changes to this project will be documented in this file.
 - added GitHub Pages deployment workflow to publish static docs to `gh-pages`
 - added strict docs validation in CI via `mkdocs build --strict`
 - added release-note authoring guidance for consistent, meaningful changelog entries
+- migrated `golangci-lint` config and CI job to v2
+- updated `docs/decisions.md` to reflect v2 `if`/`assert`/`actions` rule naming
 
 ## v0.1.0 - 2026-04-26
 

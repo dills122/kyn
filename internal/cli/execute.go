@@ -83,16 +83,19 @@ func Execute() int {
 
 func newRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "kyn",
-		Short: "Evaluate changed files against related-file rules in CI",
-		Long:  "Kyn is a CLI for enforcing related-file relationship rules in CI.",
+		Use:     "kyn",
+		Short:   "Evaluate changed files against related-file rules in CI",
+		Long:    "Kyn is a CLI for enforcing related-file relationship rules in CI.",
+		Version: versionString(),
 	}
 	cmd.SilenceUsage = true
 	cmd.SilenceErrors = true
+	cmd.SetVersionTemplate("{{.Version}}\n")
 
 	cmd.AddCommand(newCheckCommand())
 	cmd.AddCommand(newExplainCommand())
 	cmd.AddCommand(newInitCommand())
 	cmd.AddCommand(newConfigCommand())
+	cmd.AddCommand(newVersionCommand())
 	return cmd
 }

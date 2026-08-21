@@ -2,6 +2,11 @@
 
 This file captures product and implementation decisions locked for MVP.
 
+> Rule keys below use v2 naming (`if` / `assert` / `actions`). See
+> [mvp-v2.md](mvp-v2.md) for the v1 -> v2 rename rationale and
+> [migration-v1-to-v2.md](migration-v1-to-v2.md) for migrating existing
+> configs.
+
 ## CLI Input Modes
 
 Exactly one change input mode is allowed per run:
@@ -17,16 +22,16 @@ If git mode is selected, both `--base` and `--head` are required.
 
 ## Rule Semantics
 
-- `when` predicates are `AND` across keys.
-- `require` predicates are `AND` across keys.
+- `if` predicates are `AND` across keys.
+- `assert` predicates are `AND` across keys.
 - For list-based predicates, all listed kin names must satisfy the predicate.
 - `changedAny` is `ANY` across listed change groups.
 
 ## Flags in Rules
 
-`require.emitFlag` is informational and adds a flag string to summary output.
+`actions.emit` is informational and adds a flag string to summary output.
 
-`emitFlag` itself does not introduce a failure condition.
+Emitted flags do not introduce a failure condition themselves.
 
 ## Family Instance Deduplication
 

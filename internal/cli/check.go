@@ -173,7 +173,8 @@ Advanced flags:
 				)
 			}
 
-			if effectiveOpts.Format == "json" {
+			switch effectiveOpts.Format {
+			case "json":
 				var (
 					out []byte
 					err error
@@ -188,28 +189,28 @@ Advanced flags:
 				}
 				_, _ = cmd.OutOrStdout().Write(out)
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
-			} else if effectiveOpts.Format == "sarif" {
+			case "sarif":
 				out, err := report.RenderSARIF(summary)
 				if err != nil {
 					return runtimeError("sarif render failed: %v", err)
 				}
 				_, _ = cmd.OutOrStdout().Write(out)
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
-			} else if effectiveOpts.Format == "rdjson" {
+			case "rdjson":
 				out, err := report.RenderRDJSON(summary)
 				if err != nil {
 					return runtimeError("rdjson render failed: %v", err)
 				}
 				_, _ = cmd.OutOrStdout().Write(out)
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
-			} else if effectiveOpts.Format == "checkstyle" {
+			case "checkstyle":
 				out, err := report.RenderCheckstyle(summary)
 				if err != nil {
 					return runtimeError("checkstyle render failed: %v", err)
 				}
 				_, _ = cmd.OutOrStdout().Write(out)
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
-			} else {
+			default:
 				_, _ = cmd.OutOrStdout().Write([]byte(report.RenderText(summary, report.TextOptions{
 					ShowPasses:  effectiveOpts.ShowPasses,
 					SummaryOnly: effectiveOpts.SummaryOnly,
