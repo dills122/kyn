@@ -20,28 +20,65 @@ It answers questions like:
 - Fast local and CI runs with no daemon, service, or plugin system
 - Config-driven policy instead of brittle shell glue
 
-## Install
+## Install a released version
+
+Release channels last verified: **2026-08-21**.
+
+| Channel | Platforms | Status |
+| --- | --- | --- |
+| [Homebrew tap](https://github.com/dills122/homebrew-tap) | macOS, Linux | Available |
+| [GitHub Releases](https://github.com/dills122/kyn/releases/latest) | macOS, Linux, Windows | Available |
+| [GHCR (GitHub Packages)](https://github.com/dills122/kyn/pkgs/container/kyn) | Linux containers (`amd64`, `arm64`) | Available |
+| [Scoop bucket](https://github.com/dills122/scoop-bucket) | Windows | Available |
+| Fury package repository | Debian, RPM, Alpine | Coming soon |
 
 ### Homebrew (macOS/Linux)
 
+Kyn currently ships through the `dills122/tap` third-party tap:
+
 ```bash
+brew tap dills122/tap
 brew install --cask dills122/tap/kyn
+kyn --version
 ```
 
-### Scoop (Windows)
+### GitHub Releases
 
-```powershell
-scoop bucket add dills122 https://github.com/dills122/scoop-bucket
-scoop install kyn
+Each [GitHub Release](https://github.com/dills122/kyn/releases/latest) includes:
+
+- `.tar.gz` archives for macOS and Linux (`amd64` and `arm64`)
+- `.zip` archives for Windows (`amd64` and `arm64`)
+- `.deb`, `.rpm`, and `.apk` Linux packages
+- `checksums.txt` for SHA-256 verification
+
+Download the archive for your platform and `checksums.txt`, then verify and
+install it. This example uses the `v0.1.1` Apple Silicon archive; change `VERSION`,
+`OS`, and `ARCH` for the release and platform you downloaded:
+
+```bash
+VERSION=0.1.1
+OS=darwin
+ARCH=arm64
+ARCHIVE="kyn_${VERSION}_${OS}_${ARCH}.tar.gz"
+CHECKSUM_LINE="$(grep "  ${ARCHIVE}$" checksums.txt)"
+
+if [ -z "$CHECKSUM_LINE" ]; then
+  echo "checksum not found for $ARCHIVE" >&2
+  exit 1
+fi
+
+if command -v sha256sum >/dev/null 2>&1; then
+  printf '%s\n' "$CHECKSUM_LINE" | sha256sum -c -
+else
+  printf '%s\n' "$CHECKSUM_LINE" | shasum -a 256 -c -
+fi
+
+tar -xzf "$ARCHIVE"
+sudo install -m 0755 kyn /usr/local/bin/kyn
+kyn --version
 ```
 
-### Linux packages (apt / dnf / apk)
-
-<!-- TODO: fill in the Fury account name once FURY_ACCOUNT/FURY_TOKEN are set up (see release.yml) -->
-
-`.deb`, `.rpm`, and `.apk` packages are attached to every
-[GitHub Release](https://github.com/dills122/kyn/releases). Until a hosted
-repo is wired up, install the downloaded file directly:
+Linux users can instead install the downloaded native package:
 
 ```bash
 # Debian/Ubuntu
@@ -51,26 +88,49 @@ sudo dpkg -i kyn_*_linux_amd64.deb
 sudo rpm -i kyn_*_linux_amd64.rpm
 
 # Alpine
-apk add --allow-untrusted kyn_*_linux_amd64.apk
+sudo apk add --allow-untrusted kyn_*_linux_amd64.apk
 ```
 
-### From source
+### Container image (GHCR / GitHub Packages)
+
+Use `latest` for the newest release or a version tag such as `0.1.1` for a
+repeatable installation:
+
+```bash
+docker pull ghcr.io/dills122/kyn:latest
+docker run --rm ghcr.io/dills122/kyn:latest --version
+
+# Pin an exact release for reproducible CI usage.
+docker run --rm ghcr.io/dills122/kyn:0.1.1 --version
+```
+
+### Scoop (Windows)
+
+```powershell
+scoop bucket add dills122 https://github.com/dills122/scoop-bucket
+scoop install kyn
+kyn --version
+```
+
+### Fury Linux repository (coming soon)
+
+Hosted `apt`, `dnf`/`yum`, and `apk` repository instructions will be added after
+the Fury publishing credentials are fixed and the packages are verified. Until
+then, install the `.deb`, `.rpm`, or `.apk` attached to the GitHub Release.
+
+### Build from source
+
+This builds the current checkout rather than installing a published release:
 
 ```bash
 go build -o ./bin/kyn ./cmd/kyn
-./bin/kyn --help
+./bin/kyn --version
 ```
-
-### Binaries / container
-
-Prebuilt binaries (linux/darwin/windows, amd64/arm64) and checksums are on the
-[Releases page](https://github.com/dills122/kyn/releases). A container image is
-published to `ghcr.io/dills122/kyn`.
 
 ## Quick Start
 
 ```bash
-./bin/kyn check \
+kyn check \
   --cwd testdata/angular \
   -c kyn.config.yaml \
   -f libs/ui/button/button.component.ts,libs/ui/button/button.component.html

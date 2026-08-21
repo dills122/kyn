@@ -9,6 +9,8 @@ Tagged releases publish:
 - GitHub release archives for Linux, macOS, and Windows
 - `checksums.txt` with SHA256 sums
 - GHCR container images
+- a Homebrew cask in `dills122/homebrew-tap`
+- `.deb`, `.rpm`, and `.apk` packages to the configured Fury account
 
 ## Linux Compatibility
 
@@ -69,3 +71,46 @@ The release workflow uses GoReleaser to:
 - generate checksums
 - publish GitHub release artifacts
 - publish GHCR images and manifests
+- update the Homebrew tap
+
+After GoReleaser succeeds, a separate job downloads the Linux packages from the
+GitHub release and publishes them to Fury. Keeping Fury separate makes a failed
+upload retryable without rebuilding or republishing an existing release.
+
+## Package Manager Credentials
+
+Configure these repository secrets under **Settings > Secrets and variables >
+Actions**:
+
+- `TAP_GITHUB_TOKEN`: a fine-grained GitHub personal access token with
+  `Contents: Read and write` access to `dills122/homebrew-tap`.
+- `FURY_ACCOUNT`: the exact Fury account username from the account's push URL.
+- `FURY_TOKEN`: an upload-capable token assigned to that Fury account. A
+  read-only deploy token cannot publish packages.
+
+The Fury API authenticates with `FURY_ACCOUNT:FURY_TOKEN` and publishes to the
+account named by `FURY_ACCOUNT`. A `403` response means that token is not allowed
+to upload to that account; recreate an upload-capable token or correct the
+account username.
+
+## Retry a Fury Upload
+
+Do not create a new version tag just to retry Fury. In GitHub:
+
+1. Open **Actions > Release**.
+2. Choose **Run workflow**.
+3. Enter the existing release tag, for example `v0.1.1`.
+4. Run the workflow.
+
+The manual run downloads the existing `.deb`, `.rpm`, and `.apk` release assets
+and publishes only those packages to Fury.
+
+## Verify Homebrew
+
+The Homebrew cask is published independently by GoReleaser. Verify it with:
+
+```bash
+brew tap dills122/tap
+brew install --cask dills122/tap/kyn
+kyn --version
+```
