@@ -1,7 +1,12 @@
 .PHONY: build test e2e vet fmt lint hooks ci
 
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
+DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS := -X kyn/internal/cli.Version=$(VERSION) -X kyn/internal/cli.Commit=$(COMMIT) -X kyn/internal/cli.Date=$(DATE)
+
 build:
-	go build ./cmd/kyn
+	go build -ldflags "$(LDFLAGS)" -o ./bin/kyn ./cmd/kyn
 
 test:
 	go test ./cmd/... ./internal/...
