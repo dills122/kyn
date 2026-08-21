@@ -35,6 +35,25 @@ scoop bucket add dills122 https://github.com/dills122/scoop-bucket
 scoop install kyn
 ```
 
+### Linux packages (apt / dnf / apk)
+
+<!-- TODO: fill in the Fury account name once FURY_ACCOUNT/FURY_TOKEN are set up (see release.yml) -->
+
+`.deb`, `.rpm`, and `.apk` packages are attached to every
+[GitHub Release](https://github.com/dills122/kyn/releases). Until a hosted
+repo is wired up, install the downloaded file directly:
+
+```bash
+# Debian/Ubuntu
+sudo dpkg -i kyn_*_linux_amd64.deb
+
+# Fedora/RHEL
+sudo rpm -i kyn_*_linux_amd64.rpm
+
+# Alpine
+apk add --allow-untrusted kyn_*_linux_amd64.apk
+```
+
 ### From source
 
 ```bash

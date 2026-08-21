@@ -27,7 +27,7 @@ builds:
 
 archives:
   - id: default
-    builds:
+    ids:
       - kyn
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_
@@ -38,6 +38,22 @@ archives:
       - goos: windows
         formats:
           - zip
+
+nfpms:
+  - id: kyn
+    package_name: kyn
+    ids:
+      - kyn
+    vendor: Dylan Steele
+    homepage: "https://github.com/dills122/kyn"
+    maintainer: "Dylan Steele <dylansteele57@gmail.com>"
+    description: "Stateless CLI for enforcing related-file change policy in CI"
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
 
 checksum:
   name_template: checksums.txt
