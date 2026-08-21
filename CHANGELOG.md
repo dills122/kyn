@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - `kyn version` command and `--version` flag, with version/commit/date stamped via ldflags at build and release time
 - LICENSE file (MIT), matching the license already advertised in the README badge
 - Homebrew cask (`dills122/tap/kyn`) and Scoop bucket (`dills122/scoop-bucket`) publishing on release
+- `.deb`/`.rpm`/`.apk` packages built via nfpm and attached to GitHub Releases, plus an optional free push to a Fury.io repo once `FURY_ACCOUNT`/`FURY_TOKEN` secrets are configured
 
 ### Changed
 

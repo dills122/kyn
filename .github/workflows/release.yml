@@ -48,3 +48,27 @@ jobs:
           # The default GITHUB_TOKEN is scoped to this repo only and cannot push to
           # the tap/bucket repos, so homebrew_casks/scoops publishing needs its own token.
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+
+      # Fury.io hosts a real apt/yum/apk repo for free on public packages, but
+      # GoReleaser's native push integration for it is a Pro-only feature. This
+      # step gets the same result for free: push the .deb/.rpm/.apk files that
+      # nfpm just built straight to Fury's plain HTTP push API.
+      # Requires FURY_ACCOUNT and FURY_TOKEN secrets; skipped entirely (not
+      # failed) until those are set, so it won't break releases in the meantime.
+      - name: Push packages to Fury
+        if: ${{ env.FURY_ACCOUNT != '' && env.FURY_TOKEN != '' }}
+        env:
+          FURY_ACCOUNT: ${{ secrets.FURY_ACCOUNT }}
+          FURY_TOKEN: ${{ secrets.FURY_TOKEN }}
+        run: |
+          shopt -s nullglob
+          pkgs=(dist/*.deb dist/*.rpm dist/*.apk)
+          if [ ${#pkgs[@]} -eq 0 ]; then
+            echo "no .deb/.rpm/.apk packages found in dist/, nothing to push"
+            exit 0
+          fi
+          for pkg in "${pkgs[@]}"; do
+            echo "pushing $pkg to fury.io/$FURY_ACCOUNT"
+            curl -sS -f -F package=@"$pkg" "https://${FURY_TOKEN}@push.fury.io/${FURY_ACCOUNT}/"
+            echo
+          done
