@@ -1,10 +1,13 @@
-.PHONY: build test vet fmt lint hooks ci
+.PHONY: build test e2e vet fmt lint hooks ci
 
 build:
 	go build ./cmd/kyn
 
 test:
-	go test ./...
+	go test ./cmd/... ./internal/...
+
+e2e:
+	go test ./e2e/... -v
 
 vet:
 	go vet ./...
@@ -24,4 +27,4 @@ lint:
 hooks:
 	./scripts/setup-git-hooks.sh
 
-ci: lint test build
+ci: lint test build e2e

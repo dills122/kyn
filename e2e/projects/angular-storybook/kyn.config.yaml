@@ -1,0 +1,36 @@
+version: 1
+families:
+  - id: angular-component
+    include:
+      - "libs/**/*.component.ts"
+      - "libs/**/*.component.html"
+    baseName:
+      stripSuffixes:
+        - ".component"
+    kin:
+      story: "{dir}/{base}.stories.ts"
+      figma: "{dir}/figma.{base}.json"
+rules:
+  - id: storybook-sync
+    family: angular-component
+    severity: error
+    when:
+      changedAny:
+        - source
+      kinExists:
+        - story
+    require:
+      kinChanged:
+        - story
+    message: "Component changed but story did not"
+  - id: figma-publish-required
+    family: angular-component
+    severity: warn
+    when:
+      changedAny:
+        - source
+      kinExists:
+        - figma
+    require:
+      emitFlag: figmaPublishRequired
+    message: "Figma publish may be required"

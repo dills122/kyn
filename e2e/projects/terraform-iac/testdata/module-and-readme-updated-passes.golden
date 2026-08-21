@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "passed": 1,
+  "failed": 0,
+  "infos": 0,
+  "warnings": 1,
+  "errors": 0,
+  "results": [
+    {
+      "ruleId": "terraform-docs-sync",
+      "familyId": "terraform-module",
+      "familyName": "terraform/network/main",
+      "severity": "warn",
+      "status": "pass",
+      "message": "Terraform module changed but module README did not.",
+      "changedFiles": [
+        "terraform/network/main.tf"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+[
+  {
+    "name": "story-not-updated-fails",
+    "args": [
+      "check",
+      "-c", "kyn.config.yaml",
+      "--files", "libs/ui/button/button.component.ts,libs/ui/button/button.component.html",
+      "--format", "text",
+      "--show-passes"
+    ],
+    "wantExitCode": 1,
+    "golden": "story-not-updated-fails.golden"
+  },
+  {
+    "name": "story-updated-passes",
+    "args": [
+      "check",
+      "-c", "kyn.config.yaml",
+      "--files", "libs/ui/button/button.component.ts,libs/ui/button/button.component.html,libs/ui/button/button.stories.ts",
+      "--format", "json"
+    ],
+    "wantExitCode": 0,
+    "golden": "story-updated-passes.golden"
+  },
+  {
+    "name": "dry-run-resolve",
+    "args": [
+      "check",
+      "-c", "kyn.config.yaml",
+      "--files", "libs/ui/button/button.component.ts",
+      "--dry-run-resolve",
+      "--format", "json"
+    ],
+    "wantExitCode": 0,
+    "golden": "dry-run-resolve.golden"
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "mode": "files",
+  "changedCount": 1,
+  "matchedInstances": 1,
+  "changedFiles": [
+    "libs/ui/button/button.component.ts"
+  ],
+  "instances": [
+    {
+      "familyId": "angular-component",
+      "name": "libs/ui/button/button",
+      "sourceFiles": [
+        "libs/ui/button/button.component.ts"
+      ],
+      "kin": {
+        "figma": "libs/ui/button/figma.button.json",
+        "story": "libs/ui/button/button.stories.ts"
+      }
+    }
+  ]
+}

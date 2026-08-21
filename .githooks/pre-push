@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Git invokes hooks with GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE pointed at
+# this repo. `go test ./...` spawns kyn's own git-fixture tests, which run
+# `git -C <tmpdir> ...` against throwaway repos; if these vars leak
+# through, git ignores -C and operates on this repo's real .git instead,
+# corrupting it (e.g. writing core.bare=true, stray user.email/name).
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
+
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
