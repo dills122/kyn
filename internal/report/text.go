@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"kyn/internal/rules"
+	"github.com/dills122/kyn/internal/rules"
 )
 
 type TextOptions struct {

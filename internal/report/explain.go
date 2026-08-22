@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"kyn/internal/rules"
+	"github.com/dills122/kyn/internal/rules"
 )
 
 func RenderExplainJSON(summary rules.ExplainSummary) ([]byte, error) {

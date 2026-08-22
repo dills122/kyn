@@ -2,7 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
-## v0.1.1 - Unreleased
+## v0.1.2 - Unreleased
+
+### Added
+
+- native installation through `go install github.com/dills122/kyn/cmd/kyn@latest`
+- a CI release gate that verifies the canonical Go module path
+
+### Fixed
+
+- corrected the module identity and release linker paths so tagged versions can be fetched and installed by the Go toolchain
+- report the embedded module version for binaries installed with `go install`, which do not receive GoReleaser linker metadata
+
+## v0.1.1 - 2026-08-21
 
 ### Added
 

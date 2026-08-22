@@ -3,7 +3,7 @@ package family
 import (
 	"strings"
 
-	"kyn/internal/matcher"
+	"github.com/dills122/kyn/internal/matcher"
 )
 
 type templateContext struct {

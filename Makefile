@@ -1,9 +1,10 @@
-.PHONY: build test e2e vet fmt lint hooks ci
+.PHONY: build test e2e vet fmt lint module-path hooks ci
 
+MODULE_PATH := github.com/dills122/kyn
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-LDFLAGS := -X kyn/internal/cli.Version=$(VERSION) -X kyn/internal/cli.Commit=$(COMMIT) -X kyn/internal/cli.Date=$(DATE)
+LDFLAGS := -X $(MODULE_PATH)/internal/cli.Version=$(VERSION) -X $(MODULE_PATH)/internal/cli.Commit=$(COMMIT) -X $(MODULE_PATH)/internal/cli.Date=$(DATE)
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o ./bin/kyn ./cmd/kyn
@@ -29,7 +30,10 @@ lint:
 	fi
 	go vet ./...
 
+module-path:
+	test "$$(go list -m)" = "$(MODULE_PATH)"
+
 hooks:
 	./scripts/setup-git-hooks.sh
 
-ci: lint test build e2e
+ci: module-path lint test build e2e

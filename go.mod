@@ -1,4 +1,4 @@
-module kyn
+module github.com/dills122/kyn
 
 go 1.22
 

@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"kyn/internal/config"
-	"kyn/internal/matcher"
+	"github.com/dills122/kyn/internal/config"
+	"github.com/dills122/kyn/internal/matcher"
 )
 
 func Resolve(cfg config.Config, changedFiles []string) ([]Instance, error) {

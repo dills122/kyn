@@ -3,7 +3,7 @@ package report
 import (
 	"encoding/json"
 
-	"kyn/internal/rules"
+	"github.com/dills122/kyn/internal/rules"
 )
 
 func RenderJSON(summary rules.Summary) ([]byte, error) {

@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"kyn/internal/matcher"
+	"github.com/dills122/kyn/internal/matcher"
 )
 
 func fromGitDiff(cwd string, base string, head string) ([]Change, error) {

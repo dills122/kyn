@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"kyn/internal/matcher"
+	"github.com/dills122/kyn/internal/matcher"
 )
 
 func fromCSV(csv string) ([]Change, error) {

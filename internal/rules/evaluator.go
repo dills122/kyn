@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"sort"
 
-	"kyn/internal/changes"
-	"kyn/internal/config"
-	"kyn/internal/family"
+	"github.com/dills122/kyn/internal/changes"
+	"github.com/dills122/kyn/internal/config"
+	"github.com/dills122/kyn/internal/family"
 )
 
 type EvalInput struct {

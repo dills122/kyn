@@ -6,6 +6,7 @@ This document describes the v2 distribution story for Kyn.
 
 Tagged releases publish:
 
+- a Go module installable with `go install github.com/dills122/kyn/cmd/kyn@<version>`
 - GitHub release archives for Linux, macOS, and Windows
 - `checksums.txt` with SHA256 sums
 - GHCR container images
@@ -45,6 +46,18 @@ docker run --rm \
 ```
 
 ## Installing a Release Binary
+
+With Go 1.22 or newer, install a released version directly from the module:
+
+```bash
+go install github.com/dills122/kyn/cmd/kyn@latest
+```
+
+Use an explicit tag such as `@v0.1.2` for reproducible installation. This path
+depends on `go.mod` declaring the public repository as the canonical module path;
+the `make module-path` release gate prevents that identity from drifting.
+
+To install a prebuilt archive instead:
 
 Typical manual install flow:
 

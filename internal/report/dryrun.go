@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"kyn/internal/family"
+	"github.com/dills122/kyn/internal/family"
 )
 
 type ResolveReport struct {

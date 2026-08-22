@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"kyn/internal/family"
-	"kyn/internal/rules"
+	"github.com/dills122/kyn/internal/family"
+	"github.com/dills122/kyn/internal/rules"
 )
 
 var updateGolden = flag.Bool("update", false, "update golden files")

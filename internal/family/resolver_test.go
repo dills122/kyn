@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"kyn/internal/config"
+	"github.com/dills122/kyn/internal/config"
 )
 
 func TestResolve(t *testing.T) {
