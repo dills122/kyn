@@ -31,6 +31,7 @@ Release channels last verified: **2026-08-21**.
 | [GitHub Releases](https://github.com/dills122/kyn/releases/latest) | macOS, Linux, Windows | Available |
 | [GHCR (GitHub Packages)](https://github.com/dills122/kyn/pkgs/container/kyn) | Linux containers (`amd64`, `arm64`) | Available |
 | [Scoop bucket](https://github.com/dills122/scoop-bucket) | Windows | Available |
+| [WinGet submission](https://github.com/microsoft/winget-pkgs/pull/422458) (`DylanSteele.Kyn`) | Windows | Catalog review pending |
 | Fury package repository (`dsteele`) | Debian, RPM, Alpine | Available |
 
 ### Go toolchain (macOS/Linux/Windows)
@@ -125,6 +126,21 @@ scoop bucket add dills122 https://github.com/dills122/scoop-bucket
 scoop install kyn
 kyn --version
 ```
+
+### WinGet (Windows)
+
+Kyn's first [community-catalog submission](https://github.com/microsoft/winget-pkgs/pull/422458)
+is under Microsoft review. After it is admitted, install or upgrade it from
+PowerShell with:
+
+```powershell
+winget install --id DylanSteele.Kyn --exact
+winget upgrade --id DylanSteele.Kyn --exact
+kyn --version
+```
+
+Until the catalog entry is available, use Scoop or a Windows archive from the
+GitHub Release.
 
 ### Fury Linux repositories
 

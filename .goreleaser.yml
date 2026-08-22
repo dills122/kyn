@@ -151,7 +151,9 @@ winget:
       - ci
       - golang
       - policy
-    skip_upload: auto
+    # Keep the other release channels working until the one-time WinGet token is
+    # configured. Stable releases open a catalog PR whenever the token is present.
+    skip_upload: '{{ if index .Env "WINGET_GITHUB_TOKEN" }}auto{{ else }}true{{ end }}'
     path: "manifests/d/DylanSteele/Kyn/{{ .Version }}"
     repository:
       owner: dills122

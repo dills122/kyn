@@ -18,7 +18,7 @@ kyn --version
 ```
 
 See the repository [release and installation guide](../release.md) for GitHub
-Release archives, containers, Scoop, checksums, and Linux packages.
+Release archives, containers, Scoop, WinGet, checksums, and Linux packages.
 
 ## Build the current checkout
 

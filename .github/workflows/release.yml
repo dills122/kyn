@@ -55,6 +55,10 @@ jobs:
           # The default GITHUB_TOKEN is scoped to this repo only and cannot push to
           # the tap/bucket repos, so homebrew_casks/scoops publishing needs its own token.
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          # PAT that can push a version branch to dills122/winget-pkgs and open
+          # a pull request against microsoft/winget-pkgs. If unset, GoReleaser
+          # still publishes every other channel and skips the WinGet PR.
+          WINGET_GITHUB_TOKEN: ${{ secrets.WINGET_GITHUB_TOKEN }}
 
   fury:
     name: Publish Linux packages to Fury
