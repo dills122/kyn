@@ -31,7 +31,7 @@ Release channels last verified: **2026-08-21**.
 | [GitHub Releases](https://github.com/dills122/kyn/releases/latest) | macOS, Linux, Windows | Available |
 | [GHCR (GitHub Packages)](https://github.com/dills122/kyn/pkgs/container/kyn) | Linux containers (`amd64`, `arm64`) | Available |
 | [Scoop bucket](https://github.com/dills122/scoop-bucket) | Windows | Available |
-| Fury package repository | Debian, RPM, Alpine | Coming soon |
+| Fury package repository (`dsteele`) | Debian, RPM, Alpine | Available |
 
 ### Go toolchain (macOS/Linux/Windows)
 
@@ -66,11 +66,11 @@ Each [GitHub Release](https://github.com/dills122/kyn/releases/latest) includes:
 - `checksums.txt` for SHA-256 verification
 
 Download the archive for your platform and `checksums.txt`, then verify and
-install it. This example uses the `v0.1.1` Apple Silicon archive; change `VERSION`,
+install it. This example uses the `v0.1.2` Apple Silicon archive; change `VERSION`,
 `OS`, and `ARCH` for the release and platform you downloaded:
 
 ```bash
-VERSION=0.1.1
+VERSION=0.1.2
 OS=darwin
 ARCH=arm64
 ARCHIVE="kyn_${VERSION}_${OS}_${ARCH}.tar.gz"
@@ -107,7 +107,7 @@ sudo apk add --allow-untrusted kyn_*_linux_amd64.apk
 
 ### Container image (GHCR / GitHub Packages)
 
-Use `latest` for the newest release or a version tag such as `0.1.1` for a
+Use `latest` for the newest release or a version tag such as `0.1.2` for a
 repeatable installation:
 
 ```bash
@@ -115,7 +115,7 @@ docker pull ghcr.io/dills122/kyn:latest
 docker run --rm ghcr.io/dills122/kyn:latest --version
 
 # Pin an exact release for reproducible CI usage.
-docker run --rm ghcr.io/dills122/kyn:0.1.1 --version
+docker run --rm ghcr.io/dills122/kyn:0.1.2 --version
 ```
 
 ### Scoop (Windows)
@@ -126,11 +126,47 @@ scoop install kyn
 kyn --version
 ```
 
-### Fury Linux repository (coming soon)
+### Fury Linux repositories
 
-Hosted `apt`, `dnf`/`yum`, and `apk` repository instructions will be added after
-the Fury publishing credentials are fixed and the packages are verified. Until
-then, install the `.deb`, `.rpm`, or `.apk` attached to the GitHub Release.
+The public Fury repositories currently use unsigned metadata/packages. The
+commands below explicitly trust the `dsteele` repository; use the checksummed
+GitHub Release artifacts instead if your environment requires package signing.
+
+Debian/Ubuntu:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates
+echo 'deb [trusted=yes] https://apt.fury.io/dsteele/ * *' \
+  | sudo tee /etc/apt/sources.list.d/kyn-fury.list >/dev/null
+sudo apt-get update
+sudo apt-get install -y kyn
+kyn --version
+```
+
+Fedora/RHEL:
+
+```bash
+sudo tee /etc/yum.repos.d/kyn-fury.repo >/dev/null <<'EOF'
+[fury-kyn]
+name=Gemfury Kyn
+baseurl=https://yum.fury.io/dsteele/
+enabled=1
+gpgcheck=0
+EOF
+sudo dnf install -y kyn
+kyn --version
+```
+
+Alpine:
+
+```bash
+echo 'https://alpine.fury.io/dsteele/' \
+  | sudo tee -a /etc/apk/repositories >/dev/null
+sudo apk update --allow-untrusted
+sudo apk add --allow-untrusted kyn
+kyn --version
+```
 
 ### Build from source
 
