@@ -7,7 +7,7 @@ Releases publish:
 - SHA256 checksums
 - GHCR images
 - A Homebrew cask and Scoop manifest
-- DEB, RPM, and APK packages
+- DEB, RPM, and APK packages in the public `dsteele` Fury repositories
 
 Tag-driven release:
 

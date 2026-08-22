@@ -11,7 +11,7 @@ Tagged releases publish:
 - `checksums.txt` with SHA256 sums
 - GHCR container images
 - a Homebrew cask in `dills122/homebrew-tap`
-- `.deb`, `.rpm`, and `.apk` packages to the configured Fury account
+- `.deb`, `.rpm`, and `.apk` packages to the public `dsteele` Fury account
 
 ## Linux Compatibility
 
@@ -127,3 +127,16 @@ brew tap dills122/tap
 brew install --cask dills122/tap/kyn
 kyn --version
 ```
+
+## Verify Fury
+
+The public repositories are:
+
+- APT: `https://apt.fury.io/dsteele/`
+- YUM/DNF: `https://yum.fury.io/dsteele/`
+- Alpine: `https://alpine.fury.io/dsteele/`
+
+Verify each release by installing `kyn` through real Debian, Fedora, and Alpine
+clients and running `kyn --version`. Repository signing is not configured yet,
+so clients must explicitly trust these repositories. The README contains the
+current commands and calls out that security tradeoff.
