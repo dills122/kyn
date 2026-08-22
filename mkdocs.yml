@@ -1,6 +1,7 @@
 site_name: Kyn
 site_description: Deterministic related-file policy checks for CI
 site_url: https://dills122.github.io/kyn/
+docs_dir: docs/site
 repo_url: https://github.com/dills122/kyn
 repo_name: dills122/kyn
 theme:
@@ -17,9 +18,20 @@ markdown_extensions:
   - toc:
       permalink: true
 nav:
-  - Home: site/index.md
-  - Getting Started: site/getting-started.md
-  - CI Guide: site/ci.md
-  - Config & Rules: site/config.md
-  - Presets: site/presets.md
-  - Release: site/release.md
+  - Home: index.md
+  - Install:
+      - Choose an install method: install.md
+      - Getting started: getting-started.md
+  - Learn:
+      - How Kyn works: concepts.md
+      - Configure families and rules: config.md
+      - Presets: presets.md
+  - Recipes:
+      - Frontend components: recipes/frontend.md
+      - Go API tests: recipes/go-api.md
+      - Terraform module docs: recipes/terraform.md
+      - CI adoption: ci.md
+  - Reference:
+      - CLI and exit codes: reference.md
+      - Troubleshooting: troubleshooting.md
+      - Release operations: release.md

@@ -1,23 +1,26 @@
 # Kyn Documentation Index
 
-Primary references for Kyn usage, policy semantics, and release operations.
+Repository documentation for Kyn users, maintainers, and historical design work.
 
 ## Live Docs Site
 
-- GitHub Pages (built from this repo): `https://dills122.github.io/kyn/`
+- [GitHub Pages](https://dills122.github.io/kyn/) is the canonical user
+  documentation.
+- The published site is built only from [`docs/site/`](site). Keep installation,
+  concepts, recipes, CLI reference, and troubleshooting current there.
 
-## Core Guides
+## Maintainer Guides
 
 - [release-notes.md](release-notes.md): commit and PR conventions for meaningful generated release notes
-- [spec.md](spec.md): full CLI + config specification
-- [ci.md](ci.md): CI integration patterns and provider examples
 - [release.md](release.md): release artifacts, container image, and install flow
-- [presets.md](presets.md): starter presets and practical adoption examples
 - [migration-v1-to-v2.md](migration-v1-to-v2.md): migration strategy and command usage
-- [troubleshooting.md](troubleshooting.md): common CI, git, and config troubleshooting notes
 
-## Product Decisions and Planning
+## Historical Design and Planning
 
+- [spec.md](spec.md): original product specification; not the current CLI reference
+- [ci.md](ci.md): earlier CI examples retained for repository history
+- [presets.md](presets.md): earlier preset adoption notes
+- [troubleshooting.md](troubleshooting.md): earlier troubleshooting notes
 - [decisions.md](decisions.md): locked MVP decisions
 - [cli-validation-matrix.md](cli-validation-matrix.md): valid and invalid input mode combinations
 - [mvp-tasks.md](mvp-tasks.md): original MVP backlog
@@ -25,6 +28,7 @@ Primary references for Kyn usage, policy semantics, and release operations.
 - [mvp-v2-tasks.md](mvp-v2-tasks.md): execution backlog for v2
 - [mvp-v2-finish-tasks.md](mvp-v2-finish-tasks.md): final v2 closeout checklist
 
-## Working Norm
+## Working norm
 
-Keep Kyn docs focused on deterministic CLI behavior and practical CI adoption.
+Update `docs/site/` from executable behavior and tests. Treat design documents
+and completed plans as historical evidence, not shipped behavior.

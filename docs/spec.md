@@ -1,5 +1,10 @@
 # Kyn CLI Specification
 
+> **Historical design document:** This specification records the original MVP
+> direction and contains superseded behavior. Use the
+> [current documentation site](https://dills122.github.io/kyn/) and
+> `kyn <command> --help` for the shipped CLI contract.
+
 ## Working Name
 
 **Kyn**
