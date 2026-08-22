@@ -131,6 +131,42 @@ scoops:
     description: "Stateless CLI for enforcing related-file change policy in CI"
     license: MIT
 
+winget:
+  - name: kyn
+    publisher: Dylan Steele
+    package_identifier: DylanSteele.Kyn
+    package_name: Kyn
+    ids:
+      - default
+    short_description: "Stateless CLI for enforcing related-file change policy in CI"
+    description: "Kyn enforces deterministic related-file change policies in local development and CI."
+    license: MIT
+    license_url: "https://github.com/dills122/kyn/blob/main/LICENSE"
+    publisher_url: "https://github.com/dills122"
+    publisher_support_url: "https://github.com/dills122/kyn/issues"
+    homepage: "https://github.com/dills122/kyn"
+    release_notes_url: "https://github.com/dills122/kyn/releases/tag/{{ .Tag }}"
+    tags:
+      - cli
+      - ci
+      - golang
+      - policy
+    # Keep the other release channels working until the one-time WinGet token is
+    # configured. Stable releases open a catalog PR whenever the token is present.
+    skip_upload: '{{ if index .Env "WINGET_GITHUB_TOKEN" }}auto{{ else }}true{{ end }}'
+    path: "manifests/d/DylanSteele/Kyn/{{ .Version }}"
+    repository:
+      owner: dills122
+      name: winget-pkgs
+      token: "{{ .Env.WINGET_GITHUB_TOKEN }}"
+      pull_request:
+        enabled: true
+        draft: false
+        base:
+          owner: microsoft
+          name: winget-pkgs
+          branch: master
+
 dockers:
   - image_templates:
       - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn:{{ .Version }}-amd64

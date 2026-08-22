@@ -7,6 +7,7 @@ Releases publish:
 - SHA256 checksums
 - GHCR images
 - A Homebrew cask and Scoop manifest
+- A WinGet community-catalog manifest PR
 - DEB, RPM, and APK packages in the public `dsteele` Fury repositories
 
 Tag-driven release:

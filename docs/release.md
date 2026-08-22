@@ -11,6 +11,8 @@ Tagged releases publish:
 - `checksums.txt` with SHA256 sums
 - GHCR container images
 - a Homebrew cask in `dills122/homebrew-tap`
+- a Scoop manifest in `dills122/scoop-bucket`
+- a WinGet manifest PR from `dills122/winget-pkgs` to `microsoft/winget-pkgs`
 - `.deb`, `.rpm`, and `.apk` packages to the public `dsteele` Fury account
 
 ## Linux Compatibility
@@ -85,6 +87,9 @@ The release workflow uses GoReleaser to:
 - publish GitHub release artifacts
 - publish GHCR images and manifests
 - update the Homebrew tap
+- update the Scoop bucket
+- generate WinGet manifests and open a community-catalog pull request when the
+  WinGet token is configured
 
 After GoReleaser succeeds, a separate job downloads the Linux packages from the
 GitHub release and publishes them to Fury. Keeping Fury separate makes a failed
@@ -96,7 +101,12 @@ Configure these repository secrets under **Settings > Secrets and variables >
 Actions**:
 
 - `TAP_GITHUB_TOKEN`: a fine-grained GitHub personal access token with
-  `Contents: Read and write` access to `dills122/homebrew-tap`.
+  `Contents: Read and write` access to `dills122/homebrew-tap` and
+  `dills122/scoop-bucket`.
+- `WINGET_GITHUB_TOKEN`: a GitHub personal access token that can push version
+  branches to the public `dills122/winget-pkgs` fork and open pull requests
+  against `microsoft/winget-pkgs`. Keep this separate from the release
+  repository's default `GITHUB_TOKEN`, which cannot write across repositories.
 - `FURY_ACCOUNT`: the exact Fury account username from the account's push URL.
 - `FURY_TOKEN`: an upload-capable token assigned to that Fury account. A
   read-only deploy token cannot publish packages.
@@ -105,6 +115,30 @@ The Fury API authenticates with `FURY_ACCOUNT:FURY_TOKEN` and publishes to the
 account named by `FURY_ACCOUNT`. A `403` response means that token is not allowed
 to upload to that account; recreate an upload-capable token or correct the
 account username.
+
+## WinGet Publishing
+
+The permanent package identifier is `DylanSteele.Kyn`. The one-time setup is:
+
+1. Fork `microsoft/winget-pkgs` to `dills122/winget-pkgs`.
+2. Add the fork/PR-capable token as the `WINGET_GITHUB_TOKEN` repository secret.
+
+The initial v0.1.2 catalog submission is
+[microsoft/winget-pkgs#422458](https://github.com/microsoft/winget-pkgs/pull/422458).
+
+On each stable tag, GoReleaser generates portable manifests from the Windows
+`amd64` and `arm64` zip archives, pushes a version-specific branch to the fork,
+and opens a pull request against Microsoft's `master` branch. If the secret is
+absent, the other release channels continue and only the WinGet upload is
+skipped. Microsoft validates each manifest and installer and may conduct a
+manual review before the version appears in the community catalog.
+
+After catalog admission, verify a release from Windows PowerShell:
+
+```powershell
+winget install --id DylanSteele.Kyn --exact
+kyn --version
+```
 
 ## Retry a Fury Upload
 
