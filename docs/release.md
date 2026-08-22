@@ -34,18 +34,23 @@ CI currently smoke-tests the Linux binary on:
 The container image is built from a distroless static base and exposes the CLI as the entrypoint:
 
 ```bash
-docker run --rm ghcr.io/<owner>/kyn:latest --help
+docker run --rm ghcr.io/dills122/kyn:0.1.2 --help
 ```
 
 Example CI usage:
 
 ```bash
-docker run --rm \
+git diff --name-only origin/main...HEAD \
+  | docker run --rm -i \
   -v "$PWD:/work" \
   -w /work \
-  ghcr.io/<owner>/kyn:latest \
-  check -c kyn.config.yaml --base origin/main --head HEAD --format json
+  ghcr.io/dills122/kyn:0.1.2 \
+  check -c kyn.config.yaml --stdin --format json
 ```
+
+The distroless image does not include Git. Compute changed paths on the host,
+mount the repository for config and kin existence checks, and use stdin,
+`--files`, or `--files-from`.
 
 ## Installing a Release Binary
 

@@ -1,4 +1,7 @@
-# Release
+# Release Operations
+
+This page is for Kyn maintainers. To install Kyn, use the
+[installation guide](install.md).
 
 Releases publish:
 
@@ -10,11 +13,15 @@ Releases publish:
 - A WinGet community-catalog manifest PR
 - DEB, RPM, and APK packages in the public `dsteele` Fury repositories
 
-Tag-driven release:
+Releases are tag-driven:
 
 ```bash
-git tag v0.1.2
-git push origin v0.1.2
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
-More details: [docs/release.md](../release.md)
+The workflow updates Homebrew and Scoop, opens a WinGet catalog PR when its
+token is configured, publishes GHCR images and GitHub assets, then uploads Linux
+packages to Fury. See the repository
+[release runbook](https://github.com/dills122/kyn/blob/main/docs/release.md) for
+credentials, retry behavior, and channel verification.
