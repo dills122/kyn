@@ -28,7 +28,7 @@ Without this, releases degrade into noisy raw commit lists.
 
 1. Use a commit prefix that matches user impact.
 2. Include at least one user-facing sentence in PR description.
-3. If behavior changed, update `CHANGELOG.md` under `v0.1.1 - Unreleased`.
+3. If behavior changed, update `CHANGELOG.md` under the current unreleased version.
 4. Keep wording concrete: what changed, why it matters.
 
 ## Notes

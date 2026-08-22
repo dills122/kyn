@@ -4,7 +4,7 @@ import (
 	"encoding/xml"
 	"sort"
 
-	"kyn/internal/rules"
+	"github.com/dills122/kyn/internal/rules"
 )
 
 type checkstyleReport struct {

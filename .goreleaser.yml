@@ -14,9 +14,9 @@ builds:
       - CGO_ENABLED=0
     ldflags:
       - -s -w
-      - -X kyn/internal/cli.Version={{ .Version }}
-      - -X kyn/internal/cli.Commit={{ .Commit }}
-      - -X kyn/internal/cli.Date={{ .Date }}
+      - -X github.com/dills122/kyn/internal/cli.Version={{ .Version }}
+      - -X github.com/dills122/kyn/internal/cli.Commit={{ .Commit }}
+      - -X github.com/dills122/kyn/internal/cli.Date={{ .Date }}
     goos:
       - linux
       - darwin
@@ -98,9 +98,9 @@ release:
 
   footer: |
     ### Install and verify
-    1. Download the archive for your platform from release assets.
-    2. Verify with `checksums.txt`.
-    3. Run `kyn --help`.
+    - Go 1.22+: `go install github.com/dills122/kyn/cmd/kyn@{{ .Tag }}`
+    - Or download the archive for your platform and verify it with `checksums.txt`.
+    - Run `kyn --version` and `kyn --help`.
 
     Docs: https://dills122.github.io/kyn/
 

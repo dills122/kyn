@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"kyn/internal/rules"
+	"github.com/dills122/kyn/internal/rules"
 )
 
 type sarifReport struct {

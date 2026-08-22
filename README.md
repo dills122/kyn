@@ -26,11 +26,25 @@ Release channels last verified: **2026-08-21**.
 
 | Channel | Platforms | Status |
 | --- | --- | --- |
+| Native Go (`go install`) | macOS, Linux, Windows | Available in v0.1.2+ |
 | [Homebrew tap](https://github.com/dills122/homebrew-tap) | macOS, Linux | Available |
 | [GitHub Releases](https://github.com/dills122/kyn/releases/latest) | macOS, Linux, Windows | Available |
 | [GHCR (GitHub Packages)](https://github.com/dills122/kyn/pkgs/container/kyn) | Linux containers (`amd64`, `arm64`) | Available |
 | [Scoop bucket](https://github.com/dills122/scoop-bucket) | Windows | Available |
 | Fury package repository | Debian, RPM, Alpine | Coming soon |
+
+### Go toolchain (macOS/Linux/Windows)
+
+With Go 1.22 or newer installed, build and install the latest released version:
+
+```bash
+go install github.com/dills122/kyn/cmd/kyn@latest
+kyn --version
+```
+
+Use a version such as `@v0.1.2` instead of `@latest` when you need a repeatable
+installation. Go installs the binary into `GOBIN`, or into `GOPATH/bin` when
+`GOBIN` is not set; make sure that directory is on your `PATH`.
 
 ### Homebrew (macOS/Linux)
 
@@ -120,7 +134,8 @@ then, install the `.deb`, `.rpm`, or `.apk` attached to the GitHub Release.
 
 ### Build from source
 
-This builds the current checkout rather than installing a published release:
+This builds the current checkout rather than installing a published, immutable
+version:
 
 ```bash
 go build -o ./bin/kyn ./cmd/kyn

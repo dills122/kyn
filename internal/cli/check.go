@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"kyn/internal/changes"
-	"kyn/internal/config"
-	"kyn/internal/family"
-	"kyn/internal/report"
-	"kyn/internal/rules"
+	"github.com/dills122/kyn/internal/changes"
+	"github.com/dills122/kyn/internal/config"
+	"github.com/dills122/kyn/internal/family"
+	"github.com/dills122/kyn/internal/report"
+	"github.com/dills122/kyn/internal/rules"
 
 	"github.com/spf13/cobra"
 )

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"kyn/internal/rules"
+	"github.com/dills122/kyn/internal/rules"
 )
 
 type rdjsonReport struct {

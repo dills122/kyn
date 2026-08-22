@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"kyn/internal/config"
+	"github.com/dills122/kyn/internal/config"
 )
 
 func TestExecuteUnknownCommandReturnsUsage(t *testing.T) {

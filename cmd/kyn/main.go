@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"kyn/internal/cli"
+	"github.com/dills122/kyn/internal/cli"
 )
 
 var execute = cli.Execute

@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"kyn/internal/changes"
-	"kyn/internal/config"
-	"kyn/internal/family"
+	"github.com/dills122/kyn/internal/changes"
+	"github.com/dills122/kyn/internal/config"
+	"github.com/dills122/kyn/internal/family"
 )
 
 func TestExplain_StatusesAndFlags(t *testing.T) {

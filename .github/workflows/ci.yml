@@ -40,6 +40,9 @@ jobs:
       - name: Go version
         run: go version
 
+      - name: Verify canonical module path
+        run: make module-path
+
       - name: Format check
         run: |
           FILES="$(gofmt -l cmd internal)"

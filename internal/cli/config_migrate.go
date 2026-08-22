@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"kyn/internal/config"
+	"github.com/dills122/kyn/internal/config"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
