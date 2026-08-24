@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- documented unapproved candidates for deeper Storybook and related-file policy capabilities
+
 ### Changed
 
 - clarified current named-group and change-status limitations in the live documentation

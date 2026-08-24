@@ -17,6 +17,7 @@ Repository documentation for Kyn users, maintainers, and historical design work.
 
 ## Historical Design and Planning
 
+- [related-file-policy-exploration.md](related-file-policy-exploration.md): unapproved candidates for deeper related-file policy capabilities
 - [spec.md](spec.md): original product specification; not the current CLI reference
 - [ci.md](ci.md): earlier CI examples retained for repository history
 - [presets.md](presets.md): earlier preset adoption notes
