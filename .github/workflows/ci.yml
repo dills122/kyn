@@ -119,6 +119,20 @@ jobs:
       - name: Run e2e project fixtures
         run: go test ./e2e/... -v
 
+  windows-onboarding-e2e:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run PowerShell onboarding guidance E2E
+        run: go test ./e2e -run TestInitGuidanceRunsInDeclaredShell -count=1 -v
+
   coverage:
     runs-on: ubuntu-latest
     steps:
