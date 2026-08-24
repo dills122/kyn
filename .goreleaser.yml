@@ -181,3 +181,31 @@ dockers_v2:
       - linux/amd64
       - linux/arm64
     sbom: false
+  - id: kyn-amd64-aliases
+    ids:
+      - kyn
+    images:
+      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn
+    tags:
+      - "{{ .Version }}-amd64"
+      - latest-amd64
+    dockerfile: Dockerfile
+    platforms:
+      - linux/amd64
+    sbom: false
+    flags:
+      - "--provenance=false"
+  - id: kyn-arm64-aliases
+    ids:
+      - kyn
+    images:
+      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn
+    tags:
+      - "{{ .Version }}-arm64"
+      - latest-arm64
+    dockerfile: Dockerfile
+    platforms:
+      - linux/arm64
+    sbom: false
+    flags:
+      - "--provenance=false"
