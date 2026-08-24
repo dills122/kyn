@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - clarified current named-group and change-status limitations in the live documentation
+- migrated container publishing to GoReleaser's current multi-platform Docker v2 pipeline
 
 ### Fixed
 
