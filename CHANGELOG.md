@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - kept machine-readable stdout valid under `--verbose` by routing execution diagnostics to stderr
-- made root help and post-`init` guidance lead through previewing policy before enforcement
+- made root help and post-`init` guidance lead through previewing policy before enforcement, including copyable commands for custom working directories
 
 ## v0.1.2 - 2026-08-21
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -81,14 +82,17 @@ run 'kyn check' quickly and then adapt rules/families to their repo.
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Created %s\n", target)
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Next steps:\n")
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  1. Review %s and adjust its globs and kin paths.\n", configPath)
+			commandCWD := quoteCommandArg(cwd)
+			commandConfig := quoteCommandArg(configPath)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  1. Review %s and adjust its globs and kin paths.\n", commandConfig)
 			_, _ = fmt.Fprintf(
 				cmd.OutOrStdout(),
-				"  2. Preview: kyn check -c %s --dry-run-resolve -f path/to/source-file\n",
-				configPath,
+				"  2. Preview: kyn check --cwd %s -c %s --dry-run-resolve -f path/to/source-file\n",
+				commandCWD,
+				commandConfig,
 			)
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  3. Enforce: kyn check -c %s\n", configPath)
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  4. Diagnose: kyn explain -c %s\n", configPath)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  3. Enforce: kyn check --cwd %s -c %s\n", commandCWD, commandConfig)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  4. Diagnose: kyn explain --cwd %s -c %s\n", commandCWD, commandConfig)
 			return nil
 		},
 	}
@@ -100,6 +104,18 @@ run 'kyn check' quickly and then adapt rules/families to their repo.
 	cmd.Flags().StringVar(&opts.Preset, "preset", "web-ui", "Starter preset template: web-ui|api|proto|iac")
 
 	return cmd
+}
+
+func quoteCommandArg(value string) string {
+	if value != "" && strings.IndexFunc(value, func(r rune) bool {
+		return !strings.ContainsRune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-", r)
+	}) == -1 {
+		return value
+	}
+	if runtime.GOOS == "windows" {
+		return `"` + strings.ReplaceAll(value, `"`, `\"`) + `"`
+	}
+	return `'` + strings.ReplaceAll(value, `'`, `'"'"'`) + `'`
 }
 
 func starterConfig(preset string) (string, error) {

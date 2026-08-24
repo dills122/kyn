@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -87,21 +88,33 @@ func TestRootHelpShowsGoldenPath(t *testing.T) {
 }
 
 func TestInitSuggestsReviewAndDryRun(t *testing.T) {
-	dir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "repo with spaces")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("create cwd: %v", err)
+	}
+	configPath := "config files/kyn config.yaml"
 	cmd := newInitCommand()
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
-	cmd.SetArgs([]string{"--cwd", dir, "--preset", "web-ui"})
+	cmd.SetArgs([]string{"--cwd", dir, "--config", configPath, "--preset", "web-ui"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
+	quote := func(value string) string {
+		if runtime.GOOS == "windows" {
+			return `"` + value + `"`
+		}
+		return `'` + value + `'`
+	}
+	quotedCWD := quote(dir)
+	quotedConfig := quote(configPath)
 	previous := -1
 	for _, want := range []string{
-		"1. Review kyn.config.yaml",
-		"2. Preview: kyn check -c kyn.config.yaml --dry-run-resolve -f path/to/source-file",
-		"3. Enforce: kyn check -c kyn.config.yaml",
-		"4. Diagnose: kyn explain -c kyn.config.yaml",
+		"1. Review " + quotedConfig,
+		"2. Preview: kyn check --cwd " + quotedCWD + " -c " + quotedConfig + " --dry-run-resolve -f path/to/source-file",
+		"3. Enforce: kyn check --cwd " + quotedCWD + " -c " + quotedConfig,
+		"4. Diagnose: kyn explain --cwd " + quotedCWD + " -c " + quotedConfig,
 	} {
 		position := strings.Index(stdout.String(), want)
 		if position == -1 {
@@ -111,5 +124,27 @@ func TestInitSuggestsReviewAndDryRun(t *testing.T) {
 			t.Fatalf("init output does not present %q in order:\n%s", want, stdout.String())
 		}
 		previous = position
+	}
+
+	for _, newCommand := range []func() *cobra.Command{newCheckCommand, newExplainCommand} {
+		guided := newCommand()
+		guided.SetOut(&bytes.Buffer{})
+		guided.SetErr(&bytes.Buffer{})
+		guided.SetArgs([]string{
+			"--cwd", dir,
+			"--config", configPath,
+			"--files", "src/button.component.ts",
+			"--dry-run-resolve",
+		})
+		if guided.Name() == "explain" {
+			guided.SetArgs([]string{
+				"--cwd", dir,
+				"--config", configPath,
+				"--files", "src/button.component.ts",
+			})
+		}
+		if err := guided.Execute(); err != nil {
+			t.Fatalf("execute guided %s command: %v", guided.Name(), err)
+		}
 	}
 }
