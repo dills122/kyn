@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- clarified current named-group and change-status limitations in the live documentation
+
+### Fixed
+
+- kept machine-readable stdout valid under `--verbose` by routing execution diagnostics to stderr
+- made root help and post-`init` guidance lead through previewing policy before enforcement
+
 ## v0.1.2 - 2026-08-21
 
 ### Added

@@ -30,9 +30,10 @@ Kyn can collect changed files in four ways:
 Only one mode can be active. Automatic mode uses `origin/main...HEAD` inside
 a Git repository. `KYN_BASE_REF` and `KYN_HEAD_REF` override those defaults.
 
-Git diff mode also knows whether each path was added, modified, deleted, or
-renamed. Rules that use `changedStatusAny` should use Git input; explicit path
-lists do not carry status metadata.
+Git diff mode preserves added and modified statuses plus the destination of a
+detected rename. Deleted paths are currently excluded from evaluation. Rules
+that use `changedStatusAny` should use Git input when they need added or renamed
+status; explicit path lists record every supplied path as modified.
 
 ## Families
 
