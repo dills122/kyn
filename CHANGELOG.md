@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 
 - clarified current named-group and change-status limitations in the live documentation
 - migrated container publishing to GoReleaser's current multi-platform Docker v2 pipeline while preserving architecture-specific image aliases
+- pinned release validation and publishing to the same GoReleaser version
 
 ### Fixed
 

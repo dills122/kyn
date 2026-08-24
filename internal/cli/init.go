@@ -81,7 +81,7 @@ run 'kyn check' quickly and then adapt rules/families to their repo.
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Created %s\n", target)
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Next steps:\n")
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Next steps (%s):\n", commandShellName())
 			commandCWD := quoteCommandArg(cwd)
 			commandConfig := quoteCommandArg(configPath)
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  1. Review %s and adjust its globs and kin paths.\n", commandConfig)
@@ -108,14 +108,21 @@ run 'kyn check' quickly and then adapt rules/families to their repo.
 
 func quoteCommandArg(value string) string {
 	if value != "" && strings.IndexFunc(value, func(r rune) bool {
-		return !strings.ContainsRune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-", r)
+		return !strings.ContainsRune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_+=:,./-", r)
 	}) == -1 {
 		return value
 	}
 	if runtime.GOOS == "windows" {
-		return `"` + strings.ReplaceAll(value, `"`, `\"`) + `"`
+		return `'` + strings.ReplaceAll(value, `'`, `''`) + `'`
 	}
 	return `'` + strings.ReplaceAll(value, `'`, `'"'"'`) + `'`
+}
+
+func commandShellName() string {
+	if runtime.GOOS == "windows" {
+		return "PowerShell"
+	}
+	return "POSIX shell"
 }
 
 func starterConfig(preset string) (string, error) {

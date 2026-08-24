@@ -54,14 +54,16 @@ func TestGoReleaserPreservesContainerTagContracts(t *testing.T) {
 		},
 	}
 
-	if len(config.DockersV2) != len(want) {
-		t.Fatalf("dockers_v2 entries = %d, want %d", len(config.DockersV2), len(want))
-	}
+	seen := make(map[string]bool, len(config.DockersV2))
 	for _, got := range config.DockersV2 {
 		expected, ok := want[got.ID]
 		if !ok {
 			t.Fatalf("unexpected dockers_v2 id %q", got.ID)
 		}
+		if seen[got.ID] {
+			t.Fatalf("duplicate dockers_v2 id %q", got.ID)
+		}
+		seen[got.ID] = true
 		if !reflect.DeepEqual(got.IDs, expected.IDs) {
 			t.Errorf("%s build ids = %v, want %v", got.ID, got.IDs, expected.IDs)
 		}
@@ -77,8 +79,13 @@ func TestGoReleaserPreservesContainerTagContracts(t *testing.T) {
 		if !reflect.DeepEqual(got.Flags, expected.Flags) {
 			t.Errorf("%s flags = %v, want %v", got.ID, got.Flags, expected.Flags)
 		}
-		if got.ID != "kyn" && (got.SBOM == nil || *got.SBOM) {
-			t.Errorf("%s must disable SBOMs for a single-platform image", got.ID)
+		if got.SBOM == nil || *got.SBOM {
+			t.Errorf("%s must explicitly disable SBOMs", got.ID)
+		}
+	}
+	for id := range want {
+		if !seen[id] {
+			t.Errorf("missing required dockers_v2 id %q", id)
 		}
 	}
 }

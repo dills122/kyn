@@ -88,11 +88,11 @@ func TestRootHelpShowsGoldenPath(t *testing.T) {
 }
 
 func TestInitSuggestsReviewAndDryRun(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "repo with spaces")
+	dir := filepath.Join(t.TempDir(), "repo $with % and ' quote")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("create cwd: %v", err)
 	}
-	configPath := "config files/kyn config.yaml"
+	configPath := "config files/kyn's $config%.yaml"
 	cmd := newInitCommand()
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
@@ -103,14 +103,15 @@ func TestInitSuggestsReviewAndDryRun(t *testing.T) {
 	}
 	quote := func(value string) string {
 		if runtime.GOOS == "windows" {
-			return `"` + value + `"`
+			return `'` + strings.ReplaceAll(value, `'`, `''`) + `'`
 		}
-		return `'` + value + `'`
+		return `'` + strings.ReplaceAll(value, `'`, `'"'"'`) + `'`
 	}
 	quotedCWD := quote(dir)
 	quotedConfig := quote(configPath)
 	previous := -1
 	for _, want := range []string{
+		"Next steps (" + commandShellName() + "):",
 		"1. Review " + quotedConfig,
 		"2. Preview: kyn check --cwd " + quotedCWD + " -c " + quotedConfig + " --dry-run-resolve -f path/to/source-file",
 		"3. Enforce: kyn check --cwd " + quotedCWD + " -c " + quotedConfig,
