@@ -146,6 +146,11 @@ kin:
 Every kin name must exist in the family's `kin` map. Every group referenced by
 `changedAny` must exist in that family.
 
+!!! warning "Keep change clauses under `if`"
+    The current validator also accepts `changedAny` and `changedStatusAny` under
+    `assert`, but the evaluator does not enforce them there. Treat those
+    assertion-side forms as unsupported and keep both clauses under `if`.
+
 !!! note "Use Git input for status rules"
     Git input preserves `added`, `modified`, and rename-destination status.
     Deleted paths are currently excluded. Explicit `--files`, file, and stdin

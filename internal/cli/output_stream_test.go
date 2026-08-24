@@ -96,12 +96,20 @@ func TestInitSuggestsReviewAndDryRun(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
+	previous := -1
 	for _, want := range []string{
-		"Review kyn.config.yaml",
-		"kyn check -c kyn.config.yaml --dry-run-resolve -f path/to/source-file",
+		"1. Review kyn.config.yaml",
+		"2. Preview: kyn check -c kyn.config.yaml --dry-run-resolve -f path/to/source-file",
+		"3. Enforce: kyn check -c kyn.config.yaml",
+		"4. Diagnose: kyn explain -c kyn.config.yaml",
 	} {
-		if !strings.Contains(stdout.String(), want) {
+		position := strings.Index(stdout.String(), want)
+		if position == -1 {
 			t.Fatalf("init output does not contain %q:\n%s", want, stdout.String())
 		}
+		if position <= previous {
+			t.Fatalf("init output does not present %q in order:\n%s", want, stdout.String())
+		}
+		previous = position
 	}
 }

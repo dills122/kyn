@@ -87,6 +87,8 @@ run 'kyn check' quickly and then adapt rules/families to their repo.
 				"  2. Preview: kyn check -c %s --dry-run-resolve -f path/to/source-file\n",
 				configPath,
 			)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  3. Enforce: kyn check -c %s\n", configPath)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  4. Diagnose: kyn explain -c %s\n", configPath)
 			return nil
 		},
 	}
