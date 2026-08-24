@@ -80,7 +80,13 @@ run 'kyn check' quickly and then adapt rules/families to their repo.
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Created %s\n", target)
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Next step: kyn check -c %s\n", configPath)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Next steps:\n")
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  1. Review %s and adjust its globs and kin paths.\n", configPath)
+			_, _ = fmt.Fprintf(
+				cmd.OutOrStdout(),
+				"  2. Preview: kyn check -c %s --dry-run-resolve -f path/to/source-file\n",
+				configPath,
+			)
 			return nil
 		},
 	}

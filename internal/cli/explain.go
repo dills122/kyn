@@ -127,7 +127,7 @@ Advanced flags:
 
 			if effectiveOpts.Verbose {
 				_, _ = fmt.Fprintf(
-					cmd.OutOrStdout(),
+					cmd.ErrOrStderr(),
 					"config=%s families=%d rules=%d changed=%d instances=%d mode=%s autoMode=%t\n\n",
 					cfgPath,
 					len(cfg.Families),
