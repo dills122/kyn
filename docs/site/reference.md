@@ -46,7 +46,7 @@ automatic behavior.
 | `--show-passes` | false | Include passing rules in text output |
 | `--summary-only` | false | Omit per-rule detail |
 | `--dry-run-resolve` | false | Resolve families and kin without evaluating rules |
-| `--verbose` | false | Print config and input diagnostics |
+| `--verbose` | false | Print config and input diagnostics to standard error |
 
 `explain` shares the input and diagnostic flags but supports only text and JSON.
 
@@ -60,8 +60,9 @@ automatic behavior.
 | `rdjson` | reviewdog |
 | `checkstyle` | CI systems that ingest Checkstyle XML |
 
-Machine outputs go to standard output. Operational and validation errors go to
-standard error.
+Machine outputs go to standard output. Operational errors, validation errors,
+and `--verbose` diagnostics go to standard error, so JSON and other report
+streams remain parseable.
 
 ## Exit codes
 

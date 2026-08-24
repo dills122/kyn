@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -83,9 +84,29 @@ func Execute() int {
 
 func newRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "kyn",
-		Short:   "Evaluate changed files against related-file rules in CI",
-		Long:    "Kyn is a CLI for enforcing related-file relationship rules in CI.",
+		Use:   "kyn",
+		Short: "Evaluate changed files against related-file rules in CI",
+		Long: strings.TrimSpace(`
+Kyn enforces change contracts between source files and related stories, tests,
+documentation, generated artifacts, and configuration.
+
+Start with 'kyn init', preview path resolution with 'kyn check --dry-run-resolve',
+then use 'kyn check' as the policy gate. Use 'kyn explain' to investigate why a
+rule applied, passed, failed, or skipped.
+`),
+		Example: strings.TrimSpace(`
+  # Generate a version 2 starter config
+  kyn init --preset web-ui
+
+  # Preview one changed file while tuning the config
+  kyn check --dry-run-resolve -f src/components/Button.component.ts
+
+  # Check the current Git change set
+  kyn check
+
+  # Diagnose rule decisions without using explain as a policy gate
+  kyn explain
+`),
 		Version: versionString(),
 	}
 	cmd.SilenceUsage = true

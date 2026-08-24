@@ -120,8 +120,9 @@ your-change-detector | kyn check \
   --format json
 ```
 
-Explicit path streams do not contain added/modified/deleted/renamed metadata, so
-rules using `changedStatusAny` should keep Git input mode.
+Explicit path streams record every supplied path as `modified`; they do not
+preserve added or renamed status, and deleted paths are not currently evaluated.
+Rules that depend on added or renamed status should keep Git input mode.
 
 ## Machine-output integrations
 

@@ -78,12 +78,18 @@ rules:
 | `id` | Yes | Unique family identifier |
 | `groups.source.include` | Yes in v2 | Globs that create family instances |
 | `groups.source.exclude` | No | Matching source paths to ignore |
-| Other `groups` | No | Names available to rule configuration and human readers |
+| Other `groups` | No | Accepted names that are not independently evaluated yet |
 | `baseName.stripSuffixes` | No | Normalizes names before resolving `{base}` |
 | `kin` | Yes | Map of related-file names to path templates |
 
 The `source` group is the family entry point. Related files are resolved by
 kin templates and checked against the full change set.
+
+!!! warning "Current named-group limitation"
+    Runtime family resolution is source-anchored, and `changedAny` currently
+    checks whether source files changed rather than selecting changed files by
+    each referenced group. Use `changedAny: [source]` for dependable current
+    behavior. Non-source group evaluation remains future work.
 
 ### Glob behavior
 
@@ -131,7 +137,7 @@ kin:
 | Clause | Allowed in | Meaning |
 | --- | --- | --- |
 | `changedAny` | `if` | A configured source group has changed |
-| `changedStatusAny` | `if` | Git status is added, modified, deleted, or renamed |
+| `changedStatusAny` | `if` | Source status matches an allowed configured value |
 | `kinExists` | `if`, `assert` | Named kin exists on disk |
 | `kinMissing` | `if`, `assert` | Named kin does not exist on disk |
 | `kinChanged` | `assert` | Named kin is in the change set |
@@ -140,9 +146,15 @@ kin:
 Every kin name must exist in the family's `kin` map. Every group referenced by
 `changedAny` must exist in that family.
 
+!!! warning "Keep change clauses under `if`"
+    The current validator also accepts `changedAny` and `changedStatusAny` under
+    `assert`, but the evaluator does not enforce them there. Treat those
+    assertion-side forms as unsupported and keep both clauses under `if`.
+
 !!! note "Use Git input for status rules"
-    `changedStatusAny` relies on status metadata from Git diff mode. Explicit
-    `--files`, file, and stdin lists carry paths but not statuses.
+    Git input preserves `added`, `modified`, and rename-destination status.
+    Deleted paths are currently excluded. Explicit `--files`, file, and stdin
+    lists record supplied paths as `modified`.
 
 ## Design a useful policy
 

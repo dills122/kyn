@@ -167,32 +167,45 @@ winget:
           name: winget-pkgs
           branch: master
 
-dockers:
-  - image_templates:
-      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn:{{ .Version }}-amd64
-      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn:latest-amd64
+dockers_v2:
+  - id: kyn
+    ids:
+      - kyn
+    images:
+      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn
+    tags:
+      - "{{ .Version }}"
+      - latest
     dockerfile: Dockerfile
-    use: buildx
-    goos: linux
-    goarch: amd64
-    build_flag_templates:
-      - "--platform=linux/amd64"
-  - image_templates:
-      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn:{{ .Version }}-arm64
-      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn:latest-arm64
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    sbom: false
+  - id: kyn-amd64-aliases
+    ids:
+      - kyn
+    images:
+      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn
+    tags:
+      - "{{ .Version }}-amd64"
+      - latest-amd64
     dockerfile: Dockerfile
-    use: buildx
-    goos: linux
-    goarch: arm64
-    build_flag_templates:
-      - "--platform=linux/arm64"
-
-docker_manifests:
-  - name_template: ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn:{{ .Version }}
-    image_templates:
-      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn:{{ .Version }}-amd64
-      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn:{{ .Version }}-arm64
-  - name_template: ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn:latest
-    image_templates:
-      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn:latest-amd64
-      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn:latest-arm64
+    platforms:
+      - linux/amd64
+    sbom: false
+    flags:
+      - "--provenance=false"
+  - id: kyn-arm64-aliases
+    ids:
+      - kyn
+    images:
+      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/kyn
+    tags:
+      - "{{ .Version }}-arm64"
+      - latest-arm64
+    dockerfile: Dockerfile
+    platforms:
+      - linux/arm64
+    sbom: false
+    flags:
+      - "--provenance=false"

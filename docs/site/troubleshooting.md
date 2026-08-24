@@ -98,3 +98,16 @@ Match the consumer:
 
 Only `check` supports SARIF, RDJSON, and Checkstyle. `explain` supports text
 and JSON.
+
+When retaining verbose diagnostics with a machine report, redirect the streams
+separately:
+
+```bash
+kyn check --format json --verbose > kyn.json 2> kyn-debug.log
+```
+
+## Explain displays FAIL but exits 0
+
+This is intentional. `kyn explain` is diagnostic and returns success when
+evaluation and rendering complete, even when the policy summary is `FAIL`.
+Run `kyn check` with the same input when policy failure must return exit 1.

@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- documented unapproved candidates for deeper Storybook and related-file policy capabilities
+
+### Changed
+
+- clarified current named-group and change-status limitations in the live documentation
+- migrated container publishing to GoReleaser's current multi-platform Docker v2 pipeline while preserving architecture-specific image aliases
+- pinned release validation and publishing to the same GoReleaser version
+
+### Fixed
+
+- kept machine-readable stdout valid under `--verbose` by routing execution diagnostics to stderr
+- made root help and post-`init` guidance lead through previewing policy before enforcement, including copyable commands for custom working directories
+
 ## v0.1.2 - 2026-08-21
 
 ### Added
