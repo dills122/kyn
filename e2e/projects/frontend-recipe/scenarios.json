@@ -1,0 +1,31 @@
+[
+  {
+    "name": "documented-story-not-updated-command",
+    "args": [
+      "check",
+      "-c", "kyn.config.yaml",
+      "--files", "src/ui/button/button.component.ts,src/ui/button/button.component.html"
+    ],
+    "wantExitCode": 1,
+    "contains": [
+      "[ERROR] story-sync",
+      "src/ui/button/button.stories.ts",
+      "designReviewRequired"
+    ]
+  },
+  {
+    "name": "documented-story-updated-command",
+    "args": [
+      "check",
+      "-c", "kyn.config.yaml",
+      "--files", "src/ui/button/button.component.ts,src/ui/button/button.component.html,src/ui/button/button.stories.ts",
+      "--format", "json"
+    ],
+    "wantExitCode": 0,
+    "contains": [
+      "\"ruleId\": \"story-sync\"",
+      "\"status\": \"pass\"",
+      "\"designReviewRequired\""
+    ]
+  }
+]
