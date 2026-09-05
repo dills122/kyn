@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestValidate(t *testing.T) {
 	valid := Config{
@@ -146,6 +149,82 @@ func TestValidate(t *testing.T) {
 			}
 			if !tt.wantErr && err != nil {
 				t.Fatalf("expected no error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateRejectsUnsupportedV2ChangeClauses(t *testing.T) {
+	base := Config{
+		Version: 2,
+		Families: []Family{{
+			ID: "component",
+			Groups: GroupMap{
+				"source": {Include: []string{"src/**/*.go"}},
+				"docs":   {Include: []string{"docs/**/*.md"}},
+			},
+			Kin: KinMap{"test": "{dir}/{base}_test.go"},
+		}},
+		Rules: []Rule{{
+			ID:       "component-test",
+			Family:   "component",
+			Severity: "error",
+			If:       RuleClauses{ChangedAny: []string{"source"}},
+			Assert:   RuleClauses{KinChanged: []string{"test"}},
+			Message:  "Update the component test.",
+		}},
+	}
+
+	tests := []struct {
+		name    string
+		modify  func(*Config)
+		wantErr string
+	}{
+		{
+			name: "family without source group",
+			modify: func(cfg *Config) {
+				delete(cfg.Families[0].Groups, "source")
+			},
+			wantErr: `family "component" groups.source is required`,
+		},
+		{
+			name: "changedAny references non-source group",
+			modify: func(cfg *Config) {
+				cfg.Rules[0].If.ChangedAny = []string{"docs"}
+			},
+			wantErr: `if.changedAny[0] unsupported group "docs"`,
+		},
+		{
+			name: "changedAny under assert",
+			modify: func(cfg *Config) {
+				cfg.Rules[0].Assert.ChangedAny = []string{"source"}
+			},
+			wantErr: "assert.changedAny is not supported; move it to if.changedAny",
+		},
+		{
+			name: "changedStatusAny under assert",
+			modify: func(cfg *Config) {
+				cfg.Rules[0].Assert.ChangedStatusAny = []string{"modified"}
+			},
+			wantErr: "assert.changedStatusAny is not supported; move it to if.changedStatusAny",
+		},
+		{
+			name: "deleted status",
+			modify: func(cfg *Config) {
+				cfg.Rules[0].If.ChangedStatusAny = []string{"deleted"}
+			},
+			wantErr: `if.changedStatusAny[0] unsupported status "deleted"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := cloneConfig(base)
+			tt.modify(&cfg)
+
+			err := Validate(cfg)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Validate() error = %v, want error containing %q", err, tt.wantErr)
 			}
 		})
 	}

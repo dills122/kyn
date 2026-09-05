@@ -21,7 +21,6 @@ var allowedSeverities = []string{"info", "warn", "error"}
 var allowedChangedStatuses = map[string]struct{}{
 	"added":    {},
 	"modified": {},
-	"deleted":  {},
 	"renamed":  {},
 }
 
@@ -52,6 +51,9 @@ func Validate(cfg Config) error {
 				}
 			}
 		} else {
+			if _, ok := fam.Groups["source"]; !ok {
+				return fmt.Errorf("family %q groups.source is required for version 2", fam.ID)
+			}
 			for groupName, group := range fam.Groups {
 				if strings.TrimSpace(groupName) == "" {
 					return fmt.Errorf("family %q has empty group name", fam.ID)
@@ -107,17 +109,17 @@ func Validate(cfg Config) error {
 		}
 		fam := familyByID[rule.Family]
 
-		if err := validateChangedAny(cfg, fam, rule.ID, "if", rule.IfClauses().ChangedAny); err != nil {
+		if err := validateChangedAny(rule.ID, "if", rule.IfClauses().ChangedAny); err != nil {
 			return err
 		}
 		if err := validateChangedStatuses(rule.ID, "if", rule.IfClauses().ChangedStatusAny); err != nil {
 			return err
 		}
-		if err := validateChangedAny(cfg, fam, rule.ID, "assert", rule.AssertClauses().ChangedAny); err != nil {
-			return err
+		if len(rule.AssertClauses().ChangedAny) > 0 {
+			return fmt.Errorf("rule %q assert.changedAny is not supported; move it to if.changedAny", rule.ID)
 		}
-		if err := validateChangedStatuses(rule.ID, "assert", rule.AssertClauses().ChangedStatusAny); err != nil {
-			return err
+		if len(rule.AssertClauses().ChangedStatusAny) > 0 {
+			return fmt.Errorf("rule %q assert.changedStatusAny is not supported; move it to if.changedStatusAny", rule.ID)
 		}
 		if err := validateKinRefs(rule.ID, "if.kinExists", rule.IfClauses().KinExists, fam.Kin); err != nil {
 			return err
@@ -150,7 +152,7 @@ func Validate(cfg Config) error {
 func validateChangedStatuses(ruleID string, clause string, statuses []string) error {
 	for i, status := range statuses {
 		if _, ok := allowedChangedStatuses[status]; !ok {
-			return fmt.Errorf("rule %q %s.changedStatusAny[%d] invalid status %q", ruleID, clause, i, status)
+			return fmt.Errorf("rule %q %s.changedStatusAny[%d] unsupported status %q; expected added, modified, or renamed", ruleID, clause, i, status)
 		}
 	}
 	return nil
@@ -167,20 +169,10 @@ func validateTemplateVars(template string) error {
 	return nil
 }
 
-func validateChangedAny(cfg Config, fam Family, ruleID string, clause string, groups []string) error {
-	allowed := map[string]struct{}{"source": {}}
-	if cfg.Version == 2 {
-		allowed = map[string]struct{}{}
-		for groupName := range fam.Groups {
-			allowed[groupName] = struct{}{}
-		}
-		if len(allowed) == 0 {
-			allowed["source"] = struct{}{}
-		}
-	}
+func validateChangedAny(ruleID string, clause string, groups []string) error {
 	for i, g := range groups {
-		if _, ok := allowed[g]; !ok {
-			return fmt.Errorf("rule %q %s.changedAny[%d] invalid group %q", ruleID, clause, i, g)
+		if g != "source" {
+			return fmt.Errorf("rule %q %s.changedAny[%d] unsupported group %q; only source is evaluated", ruleID, clause, i, g)
 		}
 	}
 	return nil

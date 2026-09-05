@@ -78,18 +78,17 @@ rules:
 | `id` | Yes | Unique family identifier |
 | `groups.source.include` | Yes in v2 | Globs that create family instances |
 | `groups.source.exclude` | No | Matching source paths to ignore |
-| Other `groups` | No | Accepted names that are not independently evaluated yet |
+| Other `groups` | No | Reserved definitions that current rules cannot reference |
 | `baseName.stripSuffixes` | No | Normalizes names before resolving `{base}` |
 | `kin` | Yes | Map of related-file names to path templates |
 
 The `source` group is the family entry point. Related files are resolved by
 kin templates and checked against the full change set.
 
-!!! warning "Current named-group limitation"
-    Runtime family resolution is source-anchored, and `changedAny` currently
-    checks whether source files changed rather than selecting changed files by
-    each referenced group. Use `changedAny: [source]` for dependable current
-    behavior. Non-source group evaluation remains future work.
+!!! note "Source-anchored evaluation"
+    Runtime family resolution is source-anchored. Rules may reference only
+    `changedAny: [source]`; configuration validation rejects non-source group
+    references until those groups can be evaluated correctly.
 
 ### Glob behavior
 
@@ -143,18 +142,17 @@ kin:
 | `kinChanged` | `assert` | Named kin is in the change set |
 | `kinUnchanged` | `assert` | Named kin is absent from the change set |
 
-Every kin name must exist in the family's `kin` map. Every group referenced by
-`changedAny` must exist in that family.
+Every kin name must exist in the family's `kin` map. `changedAny` currently
+accepts only the required `source` group.
 
-!!! warning "Keep change clauses under `if`"
-    The current validator also accepts `changedAny` and `changedStatusAny` under
-    `assert`, but the evaluator does not enforce them there. Treat those
-    assertion-side forms as unsupported and keep both clauses under `if`.
+Configuration validation rejects `changedAny` and `changedStatusAny` under
+`assert`; keep both change-selection clauses under `if`.
 
 !!! note "Use Git input for status rules"
     Git input preserves `added`, `modified`, and rename-destination status.
-    Deleted paths are currently excluded. Explicit `--files`, file, and stdin
-    lists record supplied paths as `modified`.
+    Deleted paths are excluded, so configuration validation accepts only
+    `added`, `modified`, and `renamed`. Explicit `--files`, file, and stdin lists
+    record supplied paths as `modified`.
 
 ## Design a useful policy
 
