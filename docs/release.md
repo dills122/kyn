@@ -69,12 +69,22 @@ To install a prebuilt archive instead:
 Typical manual install flow:
 
 ```bash
-curl -L -o kyn.tar.gz <release-archive-url>
-curl -L -o checksums.txt <checksums-url>
-sha256sum -c checksums.txt
-tar -xzf kyn.tar.gz
+VERSION=0.1.2
+OS=darwin
+ARCH=arm64
+ARCHIVE="kyn_${VERSION}_${OS}_${ARCH}.tar.gz"
+
+curl -LO "https://github.com/dills122/kyn/releases/download/v${VERSION}/${ARCHIVE}"
+curl -LO "https://github.com/dills122/kyn/releases/download/v${VERSION}/checksums.txt"
+grep "  ${ARCHIVE}$" checksums.txt | shasum -a 256 -c -
+
+tar -xzf "${ARCHIVE}"
 ./kyn --help
 ```
+
+On Linux, replace `shasum -a 256` with `sha256sum`. Filtering the checksum
+manifest to the downloaded archive avoids false failures for release assets
+that are not present locally.
 
 ## Creating a Release
 
