@@ -127,6 +127,15 @@ kin:
 `{base}` becomes `order`, so the resolved kin is
 `internal/order/order_test.go`. Use `{name}` when the suffix should remain.
 
+Kin templates may also use `{file}` (the full changed path) and `{ext}` (the
+file extension, including the dot). Avoid `{ext}`, `{file}`, or `{name}` when
+a family's `source` group matches more than one extension for the same
+`{dir}/{base}` (for example `*.component.ts` and `*.component.html` in the
+same instance) — Kyn resolves each family instance's kin paths once, from one
+of its changed source files, and rejects the config with an error if a
+template would resolve to a different path depending on which source file
+that happened to be.
+
 ## Rule fields
 
 | Field | Required | Purpose |
