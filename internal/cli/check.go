@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -75,6 +74,9 @@ Advanced flags:
 
 			effectiveOpts, autoMode, err := applyAutoInputMode(opts, cwd)
 			if err != nil {
+				if errors.Is(err, changes.ErrGitFailure) {
+					return runtimeError("git repository detection failed: %v", err)
+				}
 				return usageError("invalid options: %v", err)
 			}
 			if err := validateCheckOptions(effectiveOpts, "check", true); err != nil {
@@ -340,7 +342,11 @@ func applyAutoInputMode(opts checkOptions, cwd string) (checkOptions, bool, erro
 		return opts, false, nil
 	}
 
-	if !isGitRepo(cwd) {
+	isRepo, err := changes.IsGitRepository(cwd)
+	if err != nil {
+		return opts, false, err
+	}
+	if !isRepo {
 		return opts, false, errors.New(
 			"auto input mode unavailable: no explicit mode provided and --cwd is not a git repository.\n" +
 				"Choose one: --files | --files-from | --stdin | --base+--head.\n" +
@@ -351,15 +357,6 @@ func applyAutoInputMode(opts checkOptions, cwd string) (checkOptions, bool, erro
 	opts.Base = firstNonEmpty(strings.TrimSpace(os.Getenv("KYN_BASE_REF")), "origin/main")
 	opts.Head = firstNonEmpty(strings.TrimSpace(os.Getenv("KYN_HEAD_REF")), "HEAD")
 	return opts, true, nil
-}
-
-func isGitRepo(cwd string) bool {
-	cmd := exec.Command("git", "-C", cwd, "rev-parse", "--is-inside-work-tree")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return false
-	}
-	return strings.TrimSpace(string(out)) == "true"
 }
 
 func firstNonEmpty(values ...string) string {
