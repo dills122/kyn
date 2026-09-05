@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/dills122/kyn/internal/changes"
 	"github.com/dills122/kyn/internal/config"
@@ -228,7 +229,78 @@ func repositoryPath(cwd string, p string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(cwd, filepath.FromSlash(normalized)), nil
+
+	root, err := filepath.Abs(cwd)
+	if err != nil {
+		return "", fmt.Errorf("resolve repository root: %w", err)
+	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve repository root: %w", err)
+	}
+	if normalized == "" {
+		return root, nil
+	}
+
+	pending := strings.Split(filepath.FromSlash(normalized), string(filepath.Separator))
+	current := root
+	symlinks := 0
+	for len(pending) > 0 {
+		component := pending[0]
+		pending = pending[1:]
+		next := filepath.Join(current, component)
+		info, err := os.Lstat(next)
+		if os.IsNotExist(err) {
+			candidate := filepath.Join(append([]string{next}, pending...)...)
+			if !withinRepository(root, candidate) {
+				return "", fmt.Errorf("path %q escapes repository through symlink", p)
+			}
+			return candidate, nil
+		}
+		if err != nil {
+			return "", fmt.Errorf("inspect path %q: %w", p, err)
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			current = next
+			continue
+		}
+
+		symlinks++
+		if symlinks > 255 {
+			return "", fmt.Errorf("path %q contains too many symlinks", p)
+		}
+		target, err := os.Readlink(next)
+		if err != nil {
+			return "", fmt.Errorf("resolve path %q: %w", p, err)
+		}
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(filepath.Dir(next), target)
+		}
+		target = filepath.Clean(target)
+		if !withinRepository(root, target) {
+			return "", fmt.Errorf("path %q escapes repository through symlink", p)
+		}
+		relTarget, err := filepath.Rel(root, target)
+		if err != nil {
+			return "", fmt.Errorf("resolve path %q: %w", p, err)
+		}
+		targetParts := []string{}
+		if relTarget != "." {
+			targetParts = strings.Split(relTarget, string(filepath.Separator))
+		}
+		pending = append(targetParts, pending...)
+		current = root
+	}
+
+	return current, nil
+}
+
+func withinRepository(root string, candidate string) bool {
+	rel, err := filepath.Rel(root, candidate)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func hasRequireChecks(req config.RuleClauses) bool {

@@ -110,6 +110,63 @@ func TestEvaluateFailOnEmpty(t *testing.T) {
 	}
 }
 
+func TestRepositoryPathRejectsSymlinkEscape(t *testing.T) {
+	cwd := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(cwd, "link")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	_, err := repositoryPath(cwd, "link/secret.txt")
+	if err == nil || !strings.Contains(err.Error(), "escapes repository") {
+		t.Fatalf("repositoryPath() error = %v, want symlink escape error", err)
+	}
+}
+
+func TestRepositoryPathAllowsContainedSymlinks(t *testing.T) {
+	cwd := t.TempDir()
+	realDir := filepath.Join(cwd, "real")
+	if err := os.Mkdir(realDir, 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.Symlink("real", filepath.Join(cwd, "link")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	got, err := repositoryPath(cwd, "link/secret.txt")
+	if err != nil {
+		t.Fatalf("repositoryPath() error = %v", err)
+	}
+	resolvedCwd, err := filepath.EvalSymlinks(cwd)
+	if err != nil {
+		t.Fatalf("EvalSymlinks() error = %v", err)
+	}
+	want := filepath.Join(resolvedCwd, "real", "secret.txt")
+	if got != want {
+		t.Fatalf("repositoryPath() = %q, want %q", got, want)
+	}
+}
+
+func TestRepositoryPathAllowsContainedBrokenSymlink(t *testing.T) {
+	cwd := t.TempDir()
+	if err := os.Symlink("missing", filepath.Join(cwd, "link")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	got, err := repositoryPath(cwd, "link/secret.txt")
+	if err != nil {
+		t.Fatalf("repositoryPath() error = %v", err)
+	}
+	resolvedCwd, err := filepath.EvalSymlinks(cwd)
+	if err != nil {
+		t.Fatalf("EvalSymlinks() error = %v", err)
+	}
+	want := filepath.Join(resolvedCwd, "missing", "secret.txt")
+	if got != want {
+		t.Fatalf("repositoryPath() = %q, want %q", got, want)
+	}
+}
+
 func TestEvaluateV2ActionsEmit(t *testing.T) {
 	cwd := t.TempDir()
 	mustWrite(t, filepath.Join(cwd, "libs/ui/button/figma.button.json"))
