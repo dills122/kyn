@@ -192,6 +192,9 @@ func validateCheckOptions(opts checkOptions, command string, allowMachineFormats
 		}
 		return fmt.Errorf("invalid --format %q; expected text|json", opts.Format)
 	}
+	if opts.SummaryOnly && opts.Format != "text" && opts.Format != "json" {
+		return fmt.Errorf("--summary-only supports only text or json; format %s requires per-rule diagnostics", opts.Format)
+	}
 
 	switch opts.FailOn {
 	case "error", "warn":

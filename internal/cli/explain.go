@@ -64,7 +64,15 @@ Advanced flags:
 			run.writeVerbose(cmd.ErrOrStderr())
 
 			if run.opts.Format == "json" {
-				out, err := report.RenderExplainJSON(summary)
+				var (
+					out []byte
+					err error
+				)
+				if run.opts.SummaryOnly {
+					out, err = report.RenderExplainJSONSummary(summary)
+				} else {
+					out, err = report.RenderExplainJSON(summary)
+				}
 				if err != nil {
 					return runtimeError("json render failed: %v", err)
 				}
