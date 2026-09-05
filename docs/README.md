@@ -26,6 +26,7 @@ Repository documentation for Kyn users, maintainers, and historical design work.
 - [cli-validation-matrix.md](cli-validation-matrix.md): earlier input-mode validation notes, predating auto git mode and the additional output formats
 - [mvp-tasks.md](mvp-tasks.md): original MVP backlog
 - [mvp-v2.md](mvp-v2.md): v2 proposal and design direction
+- [ergonomics.md](ergonomics.md): v2 adoption/ergonomics contract referenced by mvp-v2.md; not all of it shipped (see issue tracker for gaps)
 - [mvp-v2-tasks.md](mvp-v2-tasks.md): execution backlog for v2
 - [mvp-v2-finish-tasks.md](mvp-v2-finish-tasks.md): final v2 closeout checklist
 
