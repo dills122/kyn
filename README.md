@@ -162,8 +162,15 @@ make hooks
 make ci
 ```
 
-`make ci` runs formatting checks, linting, vet, unit tests, builds, and the
-black-box scenarios under [`e2e/projects`](e2e/projects).
+`make ci` runs formatting checks, `golangci-lint`, vet, unit tests, the
+minimum-coverage check, a build, and the black-box scenarios under
+[`e2e/projects`](e2e/projects) — the same checks the GitHub Actions `lint`,
+`test`, and `coverage` jobs enforce, so a passing `make ci` locally means
+those jobs will pass too. It does not cover the release-config, docs-site,
+cross-platform build-matrix, or containerized smoke-test jobs, which need
+`goreleaser`, `mkdocs`, and Docker/QEMU. Install
+[`golangci-lint`](https://golangci-lint.run/welcome/install/) before running
+`make ci` or `make lint`.
 
 ## License
 

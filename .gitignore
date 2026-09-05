@@ -12,6 +12,7 @@ build/
 *.test
 *.out
 coverage.out
+coverage.txt
 coverage.html
 cpu.prof
 mem.prof
