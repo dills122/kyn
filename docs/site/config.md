@@ -101,6 +101,10 @@ exclude:
   - "internal/generated/**"
 ```
 
+Changed-file inputs and resolved kin paths must remain inside `--cwd`. Kyn
+rejects absolute paths, Windows drive paths, NUL bytes, and paths that escape
+through `..`.
+
 All source patterns in the family participate in matching. Excluded paths do
 not create family instances.
 

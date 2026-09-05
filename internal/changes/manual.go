@@ -15,7 +15,10 @@ func fromCSV(csv string) ([]Change, error) {
 	parts := strings.Split(csv, ",")
 	out := make([]Change, 0, len(parts))
 	for _, p := range parts {
-		normalized := matcher.NormalizePath(p)
+		normalized, err := matcher.NormalizeRelativePath(p)
+		if err != nil {
+			return nil, fmt.Errorf("invalid --files path: %w", err)
+		}
 		if normalized == "" {
 			continue
 		}
@@ -51,9 +54,14 @@ func fromFile(cwd string, filePath string) ([]Change, error) {
 func readList(r io.Reader, source string) ([]Change, error) {
 	sc := bufio.NewScanner(r)
 	out := make([]Change, 0, 64)
+	lineNumber := 0
 	for sc.Scan() {
+		lineNumber++
 		line := sc.Text()
-		normalized := matcher.NormalizePath(line)
+		normalized, err := matcher.NormalizeRelativePath(line)
+		if err != nil {
+			return nil, fmt.Errorf("read %s line %d: %w", source, lineNumber, err)
+		}
 		if normalized == "" {
 			continue
 		}

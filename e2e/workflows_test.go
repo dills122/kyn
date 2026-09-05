@@ -76,6 +76,22 @@ func TestE2EEmptyInputUsesFailOnEmptyPolicy(t *testing.T) {
 	}
 }
 
+func TestE2ERejectsChangedPathOutsideCWD(t *testing.T) {
+	dir := t.TempDir()
+	_, stderr, exitCode := runKyn(t, dir, []string{"init", "--preset", "web-ui"})
+	if exitCode != 0 {
+		t.Fatalf("kyn init: exit=%d stderr=%s", exitCode, stderr)
+	}
+
+	_, stderr, exitCode = runKyn(t, dir, []string{"check", "--files", "../outside.ts"})
+	if exitCode != 2 {
+		t.Fatalf("unsafe changed path: exit=%d, want 2\nstderr:\n%s", exitCode, stderr)
+	}
+	if !strings.Contains(stderr, "repository-relative") {
+		t.Fatalf("unsafe changed path error is not actionable:\n%s", stderr)
+	}
+}
+
 // TestE2EMigrateV1ToV2PreservesBehavior copies the angular-storybook v1
 // fixture, records `kyn check` behavior, migrates the config to v2
 // in place, and asserts the exact same check run produces the same exit

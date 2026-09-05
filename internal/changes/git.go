@@ -31,7 +31,10 @@ func fromGitDiff(cwd string, base string, head string) ([]Change, error) {
 		status := fields[0]
 		switch {
 		case strings.HasPrefix(status, "A"), strings.HasPrefix(status, "M"):
-			normalized := matcher.NormalizePath(fields[1])
+			normalized, err := matcher.NormalizeRelativePath(fields[1])
+			if err != nil {
+				return nil, fmt.Errorf("%w: invalid changed path: %v", ErrGitFailure, err)
+			}
 			if normalized == "" {
 				continue
 			}
@@ -43,7 +46,10 @@ func fromGitDiff(cwd string, base string, head string) ([]Change, error) {
 			if len(fields) < 3 {
 				continue
 			}
-			normalized := matcher.NormalizePath(fields[2])
+			normalized, err := matcher.NormalizeRelativePath(fields[2])
+			if err != nil {
+				return nil, fmt.Errorf("%w: invalid renamed path: %v", ErrGitFailure, err)
+			}
 			if normalized == "" {
 				continue
 			}
@@ -55,7 +61,10 @@ func fromGitDiff(cwd string, base string, head string) ([]Change, error) {
 			// Deleted files are intentionally excluded for MVP evaluation.
 		default:
 			// Keep behavior resilient for unexpected statuses by treating final path as changed.
-			normalized := matcher.NormalizePath(fields[len(fields)-1])
+			normalized, err := matcher.NormalizeRelativePath(fields[len(fields)-1])
+			if err != nil {
+				return nil, fmt.Errorf("%w: invalid changed path: %v", ErrGitFailure, err)
+			}
 			if normalized == "" {
 				continue
 			}

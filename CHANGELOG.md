@@ -21,6 +21,7 @@ All notable changes to this project will be documented in this file.
 - reject named-group, assertion-side change, and deleted-status clauses that the current evaluator cannot enforce
 - let empty change sets pass by default and reserve failure for `--fail-on-empty`
 - isolate end-to-end Git fixtures from a developer's commit-signing configuration
+- reject absolute and parent-traversing changed or resolved kin paths outside `--cwd`
 
 ## v0.1.2 - 2026-08-21
 

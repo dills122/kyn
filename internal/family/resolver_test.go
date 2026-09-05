@@ -2,6 +2,7 @@ package family
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/dills122/kyn/internal/config"
@@ -104,4 +105,32 @@ func TestResolveV2SourceGroup(t *testing.T) {
 	if instances[0].Name != "libs/ui/button/button" {
 		t.Fatalf("unexpected instance name %q", instances[0].Name)
 	}
+}
+
+func TestResolveRejectsUnsafePaths(t *testing.T) {
+	base := config.Config{
+		Version: 1,
+		Families: []config.Family{{
+			ID:      "go-source",
+			Include: []string{"**/*.go"},
+			Kin:     config.KinMap{"test": "{dir}/{base}_test.go"},
+		}},
+	}
+
+	t.Run("changed path", func(t *testing.T) {
+		_, err := Resolve(base, []string{"../outside.go"})
+		if err == nil || !strings.Contains(err.Error(), "repository-relative") {
+			t.Fatalf("Resolve() error = %v, want repository-relative path error", err)
+		}
+	})
+
+	t.Run("resolved kin path", func(t *testing.T) {
+		cfg := base
+		cfg.Families = append([]config.Family(nil), base.Families...)
+		cfg.Families[0].Kin = config.KinMap{"test": "../../{base}_test.go"}
+		_, err := Resolve(cfg, []string{"src/button.go"})
+		if err == nil || !strings.Contains(err.Error(), "resolved unsafe path") {
+			t.Fatalf("Resolve() error = %v, want unsafe kin path error", err)
+		}
+	})
 }
