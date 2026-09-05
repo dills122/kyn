@@ -2,7 +2,6 @@ package changes
 
 import (
 	"errors"
-	"fmt"
 	"sort"
 )
 
@@ -73,10 +72,6 @@ func CollectDetailed(in Input) (Result, error) {
 	}
 
 	sort.Strings(out)
-	if len(out) == 0 {
-		return Result{}, fmt.Errorf("no changed files were collected")
-	}
-
 	return Result{
 		Files:        out,
 		StatusByFile: statusByFile,

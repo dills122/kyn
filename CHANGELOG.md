@@ -19,6 +19,8 @@ All notable changes to this project will be documented in this file.
 - kept machine-readable stdout valid under `--verbose` by routing execution diagnostics to stderr
 - made root help and post-`init` guidance lead through previewing policy before enforcement, including copyable commands for custom working directories
 - reject named-group, assertion-side change, and deleted-status clauses that the current evaluator cannot enforce
+- let empty change sets pass by default and reserve failure for `--fail-on-empty`
+- isolate end-to-end Git fixtures from a developer's commit-signing configuration
 
 ## v0.1.2 - 2026-08-21
 

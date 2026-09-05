@@ -1,7 +1,6 @@
 package changes
 
 import (
-	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -65,10 +64,6 @@ func fromGitDiff(cwd string, base string, head string) ([]Change, error) {
 				Status: StatusModified,
 			})
 		}
-	}
-
-	if len(outChanges) == 0 {
-		return nil, errors.New("git diff produced no changed files")
 	}
 
 	return outChanges, nil

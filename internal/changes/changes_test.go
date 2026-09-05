@@ -34,6 +34,19 @@ func TestCollectDetailedStatusesFromCSV(t *testing.T) {
 	}
 }
 
+func TestCollectDetailedAllowsEmptyManualInput(t *testing.T) {
+	result, err := CollectDetailed(Input{FilesCSV: " , ./ , "})
+	if err != nil {
+		t.Fatalf("CollectDetailed returned error: %v", err)
+	}
+	if len(result.Files) != 0 {
+		t.Fatalf("expected no files, got %v", result.Files)
+	}
+	if len(result.StatusByFile) != 0 {
+		t.Fatalf("expected no statuses, got %v", result.StatusByFile)
+	}
+}
+
 func TestCollectFromFile(t *testing.T) {
 	dir := t.TempDir()
 	listPath := filepath.Join(dir, "changed.txt")
@@ -157,6 +170,26 @@ func TestCollectDetailedFromGitDiffStatuses(t *testing.T) {
 	}
 	if result.StatusByFile["new.txt"] != StatusRenamed {
 		t.Fatalf("new.txt expected renamed, got %s", result.StatusByFile["new.txt"])
+	}
+}
+
+func TestCollectDetailedAllowsEmptyGitDiff(t *testing.T) {
+	dir := t.TempDir()
+
+	runGit(t, dir, "init")
+	runGit(t, dir, "config", "user.email", "test@example.com")
+	runGit(t, dir, "config", "user.name", "Test")
+	write(t, filepath.Join(dir, "a.txt"), "unchanged")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "base")
+	head := strings.TrimSpace(runGit(t, dir, "rev-parse", "HEAD"))
+
+	result, err := CollectDetailed(Input{Cwd: dir, Base: head, Head: head})
+	if err != nil {
+		t.Fatalf("CollectDetailed returned error: %v", err)
+	}
+	if len(result.Files) != 0 {
+		t.Fatalf("expected no files, got %v", result.Files)
 	}
 }
 
