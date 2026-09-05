@@ -41,6 +41,22 @@ func Validate(cfg Config) error {
 		familyIDs[fam.ID] = struct{}{}
 		familyByID[fam.ID] = fam
 
+		if src, ok := fam.Groups["source"]; ok {
+			// The legacy top-level include/exclude fields exist only so a
+			// family with no groups map can migrate gradually; once
+			// groups.source is set, it's the only thing SourceInclude()/
+			// SourceExclude() consult, and the legacy fields are silently
+			// discarded. Reject the ambiguous case instead of letting a
+			// family look like it's still matching on `include` when it
+			// isn't.
+			if len(src.Include) > 0 && len(fam.Include) > 0 {
+				return fmt.Errorf("family %q sets both top-level `include` and `groups.source.include`; use only `groups.source` (top-level `include`/`exclude` are for migration compatibility on families with no `groups` map)", fam.ID)
+			}
+			if len(src.Exclude) > 0 && len(fam.Exclude) > 0 {
+				return fmt.Errorf("family %q sets both top-level `exclude` and `groups.source.exclude`; use only `groups.source`", fam.ID)
+			}
+		}
+
 		if cfg.Version == 1 || len(fam.Groups) == 0 {
 			if len(fam.Include) == 0 {
 				return fmt.Errorf("family %q include must contain at least one glob pattern", fam.ID)

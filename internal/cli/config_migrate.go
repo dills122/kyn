@@ -41,7 +41,7 @@ Safety behavior:
   - writes to a separate output file by default
   - when using --in-place, creates a backup by default
 `),
-		Example: strings.TrimSpace(`
+		Example: dedentExample(`
   # Safe default: write side-by-side output
   kyn config migrate --config kyn.config.yaml --from v1 --to v2
 

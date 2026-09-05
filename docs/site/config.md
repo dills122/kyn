@@ -90,6 +90,10 @@ use the legacy top-level `include` and `exclude` fields. Kyn treats those fields
 as the source group. New and edited v2 configs should use `groups.source`; the
 v1-to-v2 migrator emits that native shape.
 
+Configuration validation rejects a family that sets both a `groups.source`
+with `include`/`exclude` values and the legacy top-level `include`/`exclude`
+fields — pick one, since only `groups.source` is consulted once it's set.
+
 !!! note "Source-anchored evaluation"
     Runtime family resolution is source-anchored. Rules may reference only
     `changedAny: [source]`; configuration validation rejects non-source group

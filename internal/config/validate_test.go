@@ -120,6 +120,33 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "family sets both top-level include and groups.source.include",
+			modify: func(cfg *Config) {
+				cfg.Version = 2
+				cfg.Families[0].Groups = GroupMap{
+					"source": {Include: []string{"libs/**/*.component.ts"}},
+				}
+				// cfg.Families[0].Include (from the base config) is left set,
+				// which is the ambiguous case: SourceInclude() would
+				// silently prefer groups.source and discard it.
+			},
+			wantErr: true,
+		},
+		{
+			name: "family sets both top-level exclude and groups.source.exclude",
+			modify: func(cfg *Config) {
+				cfg.Version = 2
+				cfg.Families[0].Exclude = []string{"libs/**/*.spec.ts"}
+				cfg.Families[0].Groups = GroupMap{
+					"source": {
+						Include: []string{"libs/**/*.component.ts"},
+						Exclude: []string{"libs/**/generated/**"},
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
 			name: "both if and when set",
 			modify: func(cfg *Config) {
 				// base config already sets Rules[0].When; adding If on top of
