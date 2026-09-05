@@ -174,27 +174,23 @@ func evalRequire(cwd string, changed map[string]struct{}, req config.RuleClauses
 			}
 		}
 	}
-	if len(req.KinExists) > 0 {
-		ok, err := kinExistence(cwd, inst, req.KinExists, true)
+	for _, name := range req.KinExists {
+		exists, err := kinPathExists(cwd, inst, name)
 		if err != nil {
 			return false, nil, err
 		}
-		if !ok {
-			for _, name := range req.KinExists {
-				expected[inst.Kin[name]] = struct{}{}
-			}
+		if !exists {
+			expected[inst.Kin[name]] = struct{}{}
 			failed = true
 		}
 	}
-	if len(req.KinMissing) > 0 {
-		ok, err := kinExistence(cwd, inst, req.KinMissing, false)
+	for _, name := range req.KinMissing {
+		exists, err := kinPathExists(cwd, inst, name)
 		if err != nil {
 			return false, nil, err
 		}
-		if !ok {
-			for _, name := range req.KinMissing {
-				expected[inst.Kin[name]] = struct{}{}
-			}
+		if exists {
+			expected[inst.Kin[name]] = struct{}{}
 			failed = true
 		}
 	}
@@ -202,22 +198,33 @@ func evalRequire(cwd string, changed map[string]struct{}, req config.RuleClauses
 	return failed, emitFlags, nil
 }
 
-func kinExistence(cwd string, inst family.Instance, kinNames []string, shouldExist bool) (bool, error) {
-	for _, name := range kinNames {
-		p := inst.Kin[name]
-		abs, err := repositoryPath(cwd, p)
-		if err != nil {
-			return false, fmt.Errorf("kin %q: %w", name, err)
-		}
-		_, err = os.Stat(abs)
-		exists := err == nil
-		if !exists && err != nil && !os.IsNotExist(err) {
-			return false, err
-		}
-		if shouldExist && !exists {
+// kinPathExists reports whether the given kin's resolved path exists on disk,
+// relative to cwd. It is the single-name primitive shared by the "if" gate
+// (kinExistence, which needs AND semantics across a list) and the "assert"
+// evaluators, which must attribute a failure to the specific kin that failed
+// rather than the whole requested list.
+func kinPathExists(cwd string, inst family.Instance, kinName string) (bool, error) {
+	p := inst.Kin[kinName]
+	abs, err := repositoryPath(cwd, p)
+	if err != nil {
+		return false, fmt.Errorf("kin %q: %w", kinName, err)
+	}
+	if _, err := os.Stat(abs); err != nil {
+		if os.IsNotExist(err) {
 			return false, nil
 		}
-		if !shouldExist && exists {
+		return false, err
+	}
+	return true, nil
+}
+
+func kinExistence(cwd string, inst family.Instance, kinNames []string, shouldExist bool) (bool, error) {
+	for _, name := range kinNames {
+		exists, err := kinPathExists(cwd, inst, name)
+		if err != nil {
+			return false, err
+		}
+		if exists != shouldExist {
 			return false, nil
 		}
 	}

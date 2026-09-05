@@ -127,6 +127,15 @@ kin:
 `{base}` becomes `order`, so the resolved kin is
 `internal/order/order_test.go`. Use `{name}` when the suffix should remain.
 
+Kin templates may also use `{file}` (the full changed path) and `{ext}` (the
+file extension, including the dot). Avoid `{ext}`, `{file}`, or `{name}` when
+a family's `source` group matches more than one extension for the same
+`{dir}/{base}` (for example `*.component.ts` and `*.component.html` in the
+same instance) — Kyn resolves each family instance's kin paths once, from one
+of its changed source files, and rejects the config with an error if a
+template would resolve to a different path depending on which source file
+that happened to be.
+
 ## Rule fields
 
 | Field | Required | Purpose |
@@ -156,6 +165,11 @@ accepts only the required `source` group.
 
 Configuration validation rejects `changedAny` and `changedStatusAny` under
 `assert`; keep both change-selection clauses under `if`.
+
+Configuration validation also rejects a rule that sets both `if` and the
+legacy v1 `when`, or both `assert` and the legacy v1 `require`. Pick one
+clause pair per rule — mixing them is not allowed to silently resolve in
+`if`/`assert`'s favor.
 
 !!! note "Use Git input for status rules"
     Git input preserves `added`, `modified`, and rename-destination status.

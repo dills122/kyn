@@ -2,7 +2,6 @@ package rules
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -379,20 +378,11 @@ func evalRequireTrace(
 }
 
 func explainKinExistence(cwd string, inst family.Instance, kinName string, shouldExist bool) (bool, error) {
-	p := inst.Kin[kinName]
-	abs, err := repositoryPath(cwd, p)
+	exists, err := kinPathExists(cwd, inst, kinName)
 	if err != nil {
-		return false, fmt.Errorf("kin %q: %w", kinName, err)
-	}
-	_, err = os.Stat(abs)
-	exists := err == nil
-	if !exists && err != nil && !os.IsNotExist(err) {
 		return false, err
 	}
-	if shouldExist {
-		return exists, nil
-	}
-	return !exists, nil
+	return exists == shouldExist, nil
 }
 
 func explainStatusRank(status ExplainStatus) int {

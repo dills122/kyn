@@ -107,6 +107,12 @@ func Validate(cfg Config) error {
 		if strings.TrimSpace(rule.Message) == "" {
 			return fmt.Errorf("rule %q message is required", rule.ID)
 		}
+		if !isEmptyClauses(rule.If) && !isEmptyClauses(rule.When) {
+			return fmt.Errorf("rule %q sets both `if` and `when`; use only `if` (v2) or `when` (v1 legacy), not both", rule.ID)
+		}
+		if !isEmptyClauses(rule.Assert) && !isEmptyClauses(rule.Require) {
+			return fmt.Errorf("rule %q sets both `assert` and `require`; use only `assert` (v2) or `require` (v1 legacy), not both", rule.ID)
+		}
 		fam := familyByID[rule.Family]
 
 		if err := validateChangedAny(rule.ID, "if", rule.IfClauses().ChangedAny); err != nil {

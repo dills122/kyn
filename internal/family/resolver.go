@@ -81,6 +81,8 @@ func Resolve(cfg config.Config, changedFiles []string) ([]Instance, error) {
 					a.kin[kinName] = normalized
 				}
 				instances[key] = a
+			} else if err := checkKinAgreement(fam, ctx, file, instanceName, a.kin); err != nil {
+				return nil, err
 			}
 			a.sources[file] = struct{}{}
 		}
@@ -110,6 +112,33 @@ func Resolve(cfg config.Config, changedFiles []string) ([]Instance, error) {
 	})
 
 	return out, nil
+}
+
+// checkKinAgreement guards against kin templates whose resolved path would
+// depend on which source file happened to be the first one to create this
+// family instance. An instance's dedup key is family+{dir}/{base}, so {dir}
+// and {base} are already guaranteed identical across every source file in
+// the instance — only a template using {ext} (or {file}/{name}, which embed
+// the extension too) can disagree once a second source file with a
+// different extension joins the same instance. Rather than silently keeping
+// whichever file happened to resolve the instance first (order-dependent on
+// the sorted changed-file list), fail with an actionable error.
+func checkKinAgreement(fam config.Family, ctx templateContext, file string, instanceName string, existing map[string]string) error {
+	for kinName, kinTemplate := range fam.Kin {
+		resolved := resolveTemplate(kinTemplate, ctx)
+		normalized, err := matcher.NormalizeRelativePath(resolved)
+		if err != nil {
+			return fmt.Errorf("family %q kin %q resolved unsafe path: %w", fam.ID, kinName, err)
+		}
+		if prior, ok := existing[kinName]; ok && normalized != prior {
+			return fmt.Errorf(
+				"family %q instance %q: kin %q template %q resolves to different paths for different source files in this instance (%q from %q vs %q); "+
+					"this usually means the template uses {ext}, {file}, or {name} and the instance's source files have different extensions",
+				fam.ID, instanceName, kinName, kinTemplate, normalized, file, prior,
+			)
+		}
+	}
+	return nil
 }
 
 func buildTemplateContext(file string, stripSuffixes []string) templateContext {

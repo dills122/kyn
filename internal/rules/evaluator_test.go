@@ -432,6 +432,51 @@ func TestEvaluate_KinExistsAndMissingFailures(t *testing.T) {
 	}
 }
 
+func TestEvaluate_KinExistsPartialFailureOnlyReportsMissingKin(t *testing.T) {
+	cwd := t.TempDir()
+	mustWrite(t, filepath.Join(cwd, "libs/ui/button/button.exists.ts"))
+	// libs/ui/button/button.missing.ts is intentionally not created.
+
+	inst := family.Instance{
+		FamilyID:    "angular-component",
+		Name:        "libs/ui/button/button",
+		SourceFiles: []string{"libs/ui/button/button.component.ts"},
+		Kin: map[string]string{
+			"exists":  "libs/ui/button/button.exists.ts",
+			"missing": "libs/ui/button/button.missing.ts",
+		},
+	}
+
+	summary, err := Evaluate(EvalInput{
+		Cwd:       cwd,
+		FailOn:    "error",
+		Changed:   map[string]struct{}{},
+		Instances: []family.Instance{inst},
+		Rules: []config.Rule{
+			{
+				ID:       "both-must-exist",
+				Family:   "angular-component",
+				Severity: "error",
+				Require: config.RuleClauses{
+					KinExists: []string{"exists", "missing"},
+				},
+				Message: "both kin must exist",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if len(summary.Results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(summary.Results))
+	}
+	got := summary.Results[0].ExpectedFiles
+	want := []string{"libs/ui/button/button.missing.ts"}
+	if len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("ExpectedFiles = %v, want %v (a kin that already exists on disk must not be reported as expected/missing)", got, want)
+	}
+}
+
 func TestEvaluateRejectsUnsafeKinPath(t *testing.T) {
 	inst := family.Instance{
 		FamilyID: "component",
