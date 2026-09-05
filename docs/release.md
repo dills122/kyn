@@ -219,8 +219,9 @@ The permanent package identifier is `DylanSteele.Kyn`. The one-time setup is:
 1. Fork `microsoft/winget-pkgs` to `dills122/winget-pkgs`.
 2. Add the fork/PR-capable token as the `WINGET_GITHUB_TOKEN` repository secret.
 
-The initial v0.1.2 catalog submission is
-[microsoft/winget-pkgs#422458](https://github.com/microsoft/winget-pkgs/pull/422458).
+The current v0.1.3 catalog submission is
+[microsoft/winget-pkgs#430084](https://github.com/microsoft/winget-pkgs/pull/430084).
+It supersedes the closed initial v0.1.2 submission.
 
 On each stable tag, GoReleaser generates portable manifests from the Windows
 `amd64` and `arm64` zip archives, pushes a version-specific branch to the fork,

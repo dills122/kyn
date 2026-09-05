@@ -65,8 +65,8 @@ Upgrade with `scoop update kyn`.
 ### WinGet — catalog review pending
 
 Kyn's permanent package ID is `DylanSteele.Kyn`. Its
-[initial community-catalog submission](https://github.com/microsoft/winget-pkgs/pull/422458)
-is still under Microsoft review. After that PR is admitted:
+[current community-catalog submission](https://github.com/microsoft/winget-pkgs/pull/430084)
+is under Microsoft review. After that PR is admitted:
 
 ```powershell
 winget install --id DylanSteele.Kyn --exact

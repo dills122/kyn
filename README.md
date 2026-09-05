@@ -25,7 +25,7 @@ It answers questions like:
 
 ## Install a released version
 
-Package channels prepared for **v0.1.3 (2026-09-05)**.
+Release and package channels verified for **v0.1.3 (2026-09-05)**.
 
 | Environment | Recommended command |
 | --- | --- |
@@ -39,8 +39,8 @@ Kyn also publishes checksummed
 [GitHub Release](https://github.com/dills122/kyn/releases/latest) archives and
 native DEB/RPM/APK packages through public Fury repositories. The permanent
 WinGet ID is `DylanSteele.Kyn`; its
-[initial catalog submission](https://github.com/microsoft/winget-pkgs/pull/422458)
-is still under Microsoft review.
+[current catalog submission](https://github.com/microsoft/winget-pkgs/pull/430084)
+is under Microsoft review.
 
 See **[Install Kyn](https://dills122.github.io/kyn/install/)** for every command,
 upgrade instructions, architecture support, Fury's unsigned-repository caveat,
