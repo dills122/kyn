@@ -15,7 +15,7 @@ environment already manages tools.
 | Locked-down environment | Checksummed GitHub Release | Inspect and verify the exact artifact before installation |
 
 !!! tip "Pin releases in CI"
-    Examples below use v0.1.3, the release prepared on 2026-09-05. Replace it when you
+    Examples below use v0.1.3, the release verified on 2026-09-05. Replace it when you
     intentionally upgrade. Avoid `latest` in reproducible jobs.
 
 ## Homebrew
