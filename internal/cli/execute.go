@@ -94,7 +94,7 @@ Start with 'kyn init', preview path resolution with 'kyn check --dry-run-resolve
 then use 'kyn check' as the policy gate. Use 'kyn explain' to investigate why a
 rule applied, passed, failed, or skipped.
 `),
-		Example: strings.TrimSpace(`
+		Example: dedentExample(`
   # Generate a version 2 starter config
   kyn init --preset web-ui
 

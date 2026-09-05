@@ -36,7 +36,7 @@ Advanced flags:
   --verbose
   --cwd
 `),
-		Example: strings.TrimSpace(`
+		Example: dedentExample(`
   # Fastest happy path
   kyn explain -c kyn.config.yaml
 

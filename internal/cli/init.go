@@ -30,7 +30,7 @@ Generate a starter Kyn config file.
 This command creates a version 2 starter config with clear defaults so teams can
 run 'kyn check' quickly and then adapt rules/families to their repo.
 `),
-		Example: strings.TrimSpace(`
+		Example: dedentExample(`
   # Create default config in current directory
   kyn init
 
