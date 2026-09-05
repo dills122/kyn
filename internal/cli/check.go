@@ -171,18 +171,26 @@ Advanced flags:
 	return cmd
 }
 
+// machineOnlyFormats are report formats gated behind allowMachineFormats
+// (currently: available to `kyn check`, not `kyn explain`). Keeping this as
+// the single source of truth means adding a new machine-readable format only
+// requires updating this set, not every switch that cares which formats are
+// "machine-only".
+var machineOnlyFormats = map[string]struct{}{
+	"sarif":      {},
+	"rdjson":     {},
+	"checkstyle": {},
+}
+
+func isMachineOnlyFormat(format string) bool {
+	_, ok := machineOnlyFormats[format]
+	return ok
+}
+
 func validateCheckOptions(opts checkOptions, command string, allowMachineFormats bool) error {
-	switch opts.Format {
-	case "text", "json":
-	case "sarif":
-		if !allowMachineFormats {
-			return fmt.Errorf("invalid --format %q; %s supports text|json", opts.Format, command)
-		}
-	case "rdjson":
-		if !allowMachineFormats {
-			return fmt.Errorf("invalid --format %q; %s supports text|json", opts.Format, command)
-		}
-	case "checkstyle":
+	switch {
+	case opts.Format == "text" || opts.Format == "json":
+	case isMachineOnlyFormat(opts.Format):
 		if !allowMachineFormats {
 			return fmt.Errorf("invalid --format %q; %s supports text|json", opts.Format, command)
 		}
@@ -202,7 +210,7 @@ func validateCheckOptions(opts checkOptions, command string, allowMachineFormats
 		return fmt.Errorf("invalid --fail-on %q; expected error|warn", opts.FailOn)
 	}
 
-	if opts.DryRun && (opts.Format == "sarif" || opts.Format == "rdjson" || opts.Format == "checkstyle") {
+	if opts.DryRun && isMachineOnlyFormat(opts.Format) {
 		return fmt.Errorf("--dry-run-resolve does not support --format %s; use text or json", opts.Format)
 	}
 
