@@ -1,5 +1,13 @@
 # Kyn CLI Validation Matrix (MVP)
 
+> **Historical design document:** This matrix records MVP-era input-mode
+> validation and predates auto git mode, `--strict-input-mode`, and the
+> `sarif`/`rdjson`/`checkstyle` output formats — several entries below no
+> longer match shipped behavior (for example, `kyn check` with no explicit
+> mode now succeeds via auto mode instead of exiting 2). Use the
+> [current documentation site](https://dills122.github.io/kyn/) and
+> `kyn <command> --help` for the shipped CLI contract.
+
 This matrix defines valid and invalid combinations for change input flags.
 
 ## Valid

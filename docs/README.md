@@ -23,7 +23,7 @@ Repository documentation for Kyn users, maintainers, and historical design work.
 - [presets.md](presets.md): earlier preset adoption notes
 - [troubleshooting.md](troubleshooting.md): earlier troubleshooting notes
 - [decisions.md](decisions.md): locked MVP decisions
-- [cli-validation-matrix.md](cli-validation-matrix.md): valid and invalid input mode combinations
+- [cli-validation-matrix.md](cli-validation-matrix.md): earlier input-mode validation notes, predating auto git mode and the additional output formats
 - [mvp-tasks.md](mvp-tasks.md): original MVP backlog
 - [mvp-v2.md](mvp-v2.md): v2 proposal and design direction
 - [mvp-v2-tasks.md](mvp-v2-tasks.md): execution backlog for v2
