@@ -8,9 +8,25 @@
 | `kyn explain` | Show per-rule diagnostics without returning rule-failure exit 1 |
 | `kyn init` | Generate a v2 starter config |
 | `kyn config migrate` | Convert a v1 config to v2 |
+| `kyn completion <shell>` | Generate completion for Bash, Fish, PowerShell, or Zsh |
 | `kyn version` or `kyn --version` | Print build and release metadata |
 
 Run `kyn <command> --help` for the complete flag list.
+
+## Shell completion
+
+Generate a completion script for the current shell:
+
+```bash
+kyn completion bash
+kyn completion fish
+kyn completion powershell
+kyn completion zsh
+```
+
+Each shell subcommand documents temporary and persistent installation options;
+for example, run `kyn completion zsh --help` before adding it to your shell
+configuration.
 
 ## Check input modes
 
