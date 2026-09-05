@@ -157,6 +157,11 @@ accepts only the required `source` group.
 Configuration validation rejects `changedAny` and `changedStatusAny` under
 `assert`; keep both change-selection clauses under `if`.
 
+Configuration validation also rejects a rule that sets both `if` and the
+legacy v1 `when`, or both `assert` and the legacy v1 `require`. Pick one
+clause pair per rule — mixing them is not allowed to silently resolve in
+`if`/`assert`'s favor.
+
 !!! note "Use Git input for status rules"
     Git input preserves `added`, `modified`, and rename-destination status.
     Deleted paths are excluded, so configuration validation accepts only

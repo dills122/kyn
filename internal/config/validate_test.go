@@ -120,6 +120,24 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "both if and when set",
+			modify: func(cfg *Config) {
+				// base config already sets Rules[0].When; adding If on top of
+				// it must not silently win, it must be rejected.
+				cfg.Rules[0].If = RuleClauses{ChangedAny: []string{"source"}}
+			},
+			wantErr: true,
+		},
+		{
+			name: "both assert and require set",
+			modify: func(cfg *Config) {
+				// base config already sets Rules[0].Require; adding Assert on
+				// top of it must not silently win, it must be rejected.
+				cfg.Rules[0].Assert = RuleClauses{KinChanged: []string{"story"}}
+			},
+			wantErr: true,
+		},
+		{
 			name: "invalid changed status",
 			modify: func(cfg *Config) {
 				cfg.Version = 2
