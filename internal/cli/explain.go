@@ -88,19 +88,11 @@ Advanced flags:
 	}
 	cmd.SilenceUsage = true
 
-	cmd.Flags().StringVarP(&opts.ConfigPath, "config", "c", "", "Path to Kyn config file")
-	cmd.Flags().StringVarP(&opts.FilesCSV, "files", "f", "", "Comma-separated changed files")
-	cmd.Flags().StringVar(&opts.FilesFrom, "files-from", "", "Path to changed files list (one per line); use '-' for stdin")
-	cmd.Flags().BoolVar(&opts.Stdin, "stdin", false, "Read changed files from stdin (alias for --files-from -)")
-	cmd.Flags().StringVar(&opts.Base, "base", "", "Git base ref/SHA for diff detection")
-	cmd.Flags().StringVar(&opts.Head, "head", "", "Git head ref/SHA for diff detection")
-	cmd.Flags().BoolVar(&opts.StrictInput, "strict-input-mode", false, "Require an explicit single input mode; disable auto git mode")
-	cmd.Flags().StringVar(&opts.Cwd, "cwd", ".", "Working directory")
+	registerCommonInputFlags(cmd, &opts)
 	cmd.Flags().StringVarP(&opts.Format, "format", "o", "text", "Output format: text|json")
 	cmd.Flags().StringVar(&opts.FailOn, "fail-on", "error", "Severity threshold used for diagnostics: error|warn")
 	cmd.Flags().BoolVar(&opts.FailOnEmpty, "fail-on-empty", false, "Mark diagnostics failed if no family instances match")
 	cmd.Flags().BoolVar(&opts.SummaryOnly, "summary-only", false, "Print only aggregate diagnostics")
-	cmd.Flags().BoolVar(&opts.Verbose, "verbose", false, "Enable diagnostic output")
 
 	return cmd
 }
