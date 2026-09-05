@@ -20,6 +20,9 @@ git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
+For the current release's highlights and compatibility notes, see
+[Kyn v0.1.3](releases/v0.1.3.md).
+
 The workflow updates Homebrew and Scoop, opens a WinGet catalog PR when its
 token is configured, publishes GHCR images and GitHub assets, then uploads Linux
 packages to Fury. See the repository

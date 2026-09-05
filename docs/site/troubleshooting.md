@@ -81,6 +81,13 @@ include:
 
 Kyn normalizes paths internally on every operating system.
 
+## A path is rejected as outside the repository
+
+Changed paths and resolved kin must stay inside `--cwd`. Use repository-relative
+paths and remove leading drive letters, absolute roots, and `..` traversals. Kin
+existence checks also reject symlinks that resolve outside the repository; point
+the kin template at a path within the checkout instead.
+
 ## Config migration needs review
 
 ```bash

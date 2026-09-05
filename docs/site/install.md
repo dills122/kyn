@@ -15,7 +15,7 @@ environment already manages tools.
 | Locked-down environment | Checksummed GitHub Release | Inspect and verify the exact artifact before installation |
 
 !!! tip "Pin releases in CI"
-    Examples below use v0.1.2, the latest verified release. Replace it when you
+    Examples below use v0.1.3, the release prepared on 2026-09-05. Replace it when you
     intentionally upgrade. Avoid `latest` in reproducible jobs.
 
 ## Homebrew
@@ -42,7 +42,7 @@ Kyn's tap contains release archives for macOS and Linux on both `amd64` and
 With Go 1.22 or newer:
 
 ```bash
-go install github.com/dills122/kyn/cmd/kyn@v0.1.2
+go install github.com/dills122/kyn/cmd/kyn@v0.1.3
 kyn --version
 ```
 
@@ -82,8 +82,8 @@ Until the catalog entry is live, use Scoop or a Windows zip from GitHub Releases
 publishes Linux images for `amd64` and `arm64`:
 
 ```bash
-docker pull ghcr.io/dills122/kyn:0.1.2
-docker run --rm ghcr.io/dills122/kyn:0.1.2 --version
+docker pull ghcr.io/dills122/kyn:0.1.3
+docker run --rm ghcr.io/dills122/kyn:0.1.3 --version
 ```
 
 To check the current repository, compute the diff on the host and pipe the paths
@@ -94,7 +94,7 @@ git diff --name-only origin/main...HEAD \
   | docker run --rm -i \
   -v "$PWD:/work" \
   -w /work \
-  ghcr.io/dills122/kyn:0.1.2 \
+  ghcr.io/dills122/kyn:0.1.3 \
   check -c kyn.config.yaml --stdin
 ```
 
@@ -114,7 +114,7 @@ Every [GitHub Release](https://github.com/dills122/kyn/releases/latest) includes
 Download the archive and `checksums.txt`, then verify the exact filename:
 
 ```bash
-VERSION=0.1.2
+VERSION=0.1.3
 OS=darwin
 ARCH=arm64
 ARCHIVE="kyn_${VERSION}_${OS}_${ARCH}.tar.gz"

@@ -30,11 +30,11 @@ applicability with `kyn explain`.
 CI should use an immutable release:
 
 ```bash
-go install github.com/dills122/kyn/cmd/kyn@v0.1.2
+go install github.com/dills122/kyn/cmd/kyn@v0.1.3
 ```
 
 If the job should not install Go, use the pinned
-`ghcr.io/dills122/kyn:0.1.2` image or a checksummed release archive. See
+`ghcr.io/dills122/kyn:0.1.3` image or a checksummed release archive. See
 [Install Kyn](install.md) for every channel.
 
 ## 4. Make the base ref available
@@ -63,17 +63,19 @@ on:
 jobs:
   kyn:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
-          go-version: "1.22.x"
+          go-version: "1.27.x"
 
       - name: Install Kyn
-        run: go install github.com/dills122/kyn/cmd/kyn@v0.1.2
+        run: go install github.com/dills122/kyn/cmd/kyn@v0.1.3
 
       - name: Check related-file policy
         run: kyn check -c kyn.config.yaml --base origin/main --head HEAD --format text
@@ -86,11 +88,11 @@ reviewdog.
 
 ```yaml
 kyn:
-  image: golang:1.22
+  image: golang:1.27
   variables:
     GIT_DEPTH: "0"
   before_script:
-    - go install github.com/dills122/kyn/cmd/kyn@v0.1.2
+    - go install github.com/dills122/kyn/cmd/kyn@v0.1.3
   script:
     - kyn check -c kyn.config.yaml --base origin/main --head HEAD --format text
 ```
@@ -105,7 +107,7 @@ git diff --name-only origin/main...HEAD \
   | docker run --rm -i \
   -v "$PWD:/work" \
   -w /work \
-  ghcr.io/dills122/kyn:0.1.2 \
+  ghcr.io/dills122/kyn:0.1.3 \
   check -c kyn.config.yaml --stdin --format json
 ```
 
@@ -128,6 +130,17 @@ Rules that depend on added or renamed status should keep Git input mode.
 
 ### GitHub code scanning
 
+Add this permission block to the job or workflow. `actions: read` is required
+for private repositories and may be omitted for public repositories; grant no
+broader permissions than the surrounding workflow needs.
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+  actions: read # Required for private repositories only.
+```
+
 ```yaml
 - name: Run Kyn as SARIF
   id: kyn
@@ -136,7 +149,7 @@ Rules that depend on added or renamed status should keep Git input mode.
 
 - name: Upload Kyn SARIF
   if: always()
-  uses: github/codeql-action/upload-sarif@v3
+  uses: github/codeql-action/upload-sarif@v4
   with:
     sarif_file: kyn.sarif
 ```

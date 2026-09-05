@@ -89,3 +89,45 @@ func TestGoReleaserPreservesContainerTagContracts(t *testing.T) {
 		}
 	}
 }
+
+func TestReleaseWorkflowUsesStableGoToolchain(t *testing.T) {
+	type workflowStep struct {
+		Name string            `yaml:"name"`
+		Uses string            `yaml:"uses"`
+		With map[string]string `yaml:"with"`
+	}
+	type workflowJob struct {
+		Steps []workflowStep `yaml:"steps"`
+	}
+	type workflowConfig struct {
+		Jobs map[string]workflowJob `yaml:"jobs"`
+	}
+
+	contents, err := os.ReadFile("../.github/workflows/release.yml")
+	if err != nil {
+		t.Fatalf("read release workflow: %v", err)
+	}
+	var config workflowConfig
+	if err := yaml.Unmarshal(contents, &config); err != nil {
+		t.Fatalf("parse release workflow: %v", err)
+	}
+
+	job, ok := config.Jobs["goreleaser"]
+	if !ok {
+		t.Fatal("release workflow is missing goreleaser job")
+	}
+	for _, step := range job.Steps {
+		if step.Uses != "actions/setup-go@v5" {
+			continue
+		}
+		if got := step.With["go-version"]; got != "1.27.1" {
+			t.Fatalf("release Go version = %q, want 1.27.1", got)
+		}
+		if source := step.With["go-version-file"]; source != "" {
+			t.Fatalf("release Go toolchain must not be derived from minimum-version file %q", source)
+		}
+		return
+	}
+
+	t.Fatal("release workflow is missing actions/setup-go@v5 step")
+}

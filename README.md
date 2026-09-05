@@ -25,15 +25,15 @@ It answers questions like:
 
 ## Install a released version
 
-Package channels last verified: **2026-08-21**.
+Package channels prepared for **v0.1.3 (2026-09-05)**.
 
 | Environment | Recommended command |
 | --- | --- |
 | macOS | `brew tap dills122/tap && brew install --cask dills122/tap/kyn` |
 | Linux with Homebrew | `brew tap dills122/tap && brew install --cask dills122/tap/kyn` |
-| Go 1.22+ | `go install github.com/dills122/kyn/cmd/kyn@v0.1.2` |
+| Go 1.22+ | `go install github.com/dills122/kyn/cmd/kyn@v0.1.3` |
 | Windows | Add the [Scoop bucket](https://github.com/dills122/scoop-bucket), then `scoop install kyn` |
-| Container CI (GitHub Packages / GHCR) | `docker pull ghcr.io/dills122/kyn:0.1.2` |
+| Container CI (GitHub Packages / GHCR) | `docker pull ghcr.io/dills122/kyn:0.1.3` |
 
 Kyn also publishes checksummed
 [GitHub Release](https://github.com/dills122/kyn/releases/latest) archives and
@@ -144,6 +144,7 @@ Kyn's stable process contract is:
 - [CI adoption](https://dills122.github.io/kyn/ci/)
 - [CLI and exit codes](https://dills122.github.io/kyn/reference/)
 - [Troubleshooting](https://dills122.github.io/kyn/troubleshooting/)
+- [What's new in v0.1.3](https://dills122.github.io/kyn/releases/v0.1.3/)
 - [Release runbook](docs/release.md)
 - [Changelog](CHANGELOG.md)
 

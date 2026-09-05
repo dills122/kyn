@@ -112,7 +112,9 @@ exclude:
 
 Changed-file inputs and resolved kin paths must remain inside `--cwd`. Kyn
 rejects absolute paths, Windows drive paths, NUL bytes, and paths that escape
-through `..`.
+through `..`. For kin existence checks, Kyn also resolves existing symlink
+components and rejects a path that would leave the repository through a
+symlink.
 
 All source patterns in the family participate in matching. Excluded paths do
 not create family instances.
@@ -167,6 +169,10 @@ that happened to be.
 Every kin name must exist in the family's `kin` map. `changedAny` currently
 accepts only the required `source` group.
 
+Lists use AND semantics for kin existence and assertions: every named kin must
+satisfy the clause. `changedStatusAny` is the exception implied by its name: it
+applies when any changed source has any listed status.
+
 Configuration validation rejects `changedAny` and `changedStatusAny` under
 `assert`; keep both change-selection clauses under `if`.
 
@@ -205,5 +211,8 @@ kyn config migrate \
   --to v2
 ```
 
-The migrator writes a separate v2 file by default. Review it, preview resolution,
-and compare results before replacing the original.
+The migrator writes `<input>.v2.yaml` (or `<input>.v2.yml`) by default and will
+not overwrite an existing output unless `--force` is set. `--in-place` writes
+back to the input and creates `<input>.bak` by default; use `--backup=false`
+only when another recovery copy already exists. Review the result, preview
+resolution, and compare behavior before replacing the original.

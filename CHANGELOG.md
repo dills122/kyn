@@ -2,28 +2,51 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.1.3 - 2026-09-05
 
 ### Added
 
-- documented unapproved candidates for deeper Storybook and related-file policy capabilities
+- first-run guidance that leads from reviewing a generated policy through previewing,
+  enforcing, and diagnosing it, with shell-safe commands for POSIX shells and PowerShell
+- practical installation, CI-adoption, and frontend, Go API, and Terraform recipes on the
+  documentation site
+- automated WinGet manifest generation for Windows `amd64` and `arm64` archives, while keeping
+  the other release channels independent of WinGet credentials
+- documented, explicitly unapproved candidates for future related-file policy capabilities
 
 ### Changed
 
-- clarified current named-group and change-status limitations in the live documentation
-- migrated container publishing to GoReleaser's current multi-platform Docker v2 pipeline while preserving architecture-specific image aliases
-- pinned release validation and publishing to the same GoReleaser version
-- aligned docs deployment with pinned dependencies and tested the minimum and stable Go toolchains
+- empty change sets pass by default; use `--fail-on-empty` when an empty input must fail
+- verbose execution diagnostics are written to stderr so JSON, SARIF, RDJSON, and Checkstyle
+  stdout remains machine-readable
+- `--summary-only` now emits a genuinely compact JSON object and is limited to text and JSON;
+  SARIF, RDJSON, and Checkstyle continue to require per-rule diagnostics
+- configuration validation now rejects unsupported or conflicting v1/v2 clauses instead of
+  silently accepting policy the evaluator cannot enforce
+- ambiguous kin templates that resolve differently across source files now fail with an
+  actionable error instead of depending on input order
+- release containers use GoReleaser's multi-platform Docker v2 pipeline while preserving the
+  version, `latest`, and architecture-specific image tags
+- local `make ci` now includes the same lint and minimum-coverage gates enforced by CI
+- release validation and publishing use the same pinned GoReleaser version, and CI tests both
+  Go 1.22 and the current stable Go toolchain
+- release artifacts are compiled with the latest patched stable Go toolchain while `go.mod`
+  continues to declare Go 1.22 as Kyn's supported minimum
+- live documentation now states the current named-group, change-status, and source-anchored
+  evaluation boundaries
 
 ### Fixed
 
-- kept machine-readable stdout valid under `--verbose` by routing execution diagnostics to stderr
-- made root help and post-`init` guidance lead through previewing policy before enforcement, including copyable commands for custom working directories
-- reject named-group, assertion-side change, and deleted-status clauses that the current evaluator cannot enforce
-- let empty change sets pass by default and reserve failure for `--fail-on-empty`
-- isolate end-to-end Git fixtures from a developer's commit-signing configuration
-- reject absolute and parent-traversing changed or resolved kin paths outside `--cwd`
-- bound Git repository probes and diffs by execution time and captured output
+- expected-file reports now identify only the missing kin from multi-name assertions instead of
+  over-reporting every requested kin
+- absolute, parent-traversing, and symlink-escaping changed or resolved kin paths are rejected
+  when they leave `--cwd`
+- Git repository probes and diffs are bounded by execution time and captured output
+- Git-provider failures now return runtime/provider exit code `3`, while invalid config,
+  change input, and family resolution return usage/config exit code `2`
+- end-to-end Git fixtures are isolated from developer commit-signing configuration
+- every command renders multi-line help examples with consistent indentation
+- documentation deployment also runs when its workflow or pinned dependencies change
 
 ## v0.1.2 - 2026-08-21
 
