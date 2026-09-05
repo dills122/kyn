@@ -44,11 +44,13 @@ automatic behavior.
 | `--fail-on` | `error` | Blocking threshold: `error` or `warn` |
 | `--fail-on-empty` | false | Fail if no family instance matches |
 | `--show-passes` | false | Include passing rules in text output |
-| `--summary-only` | false | Omit per-rule detail |
+| `--summary-only` | false | Omit per-rule detail in text or JSON output |
 | `--dry-run-resolve` | false | Resolve families and kin without evaluating rules |
 | `--verbose` | false | Print config and input diagnostics to standard error |
 
 `explain` shares the input and diagnostic flags but supports only text and JSON.
+`check` rejects `--summary-only` with SARIF, RDJSON, or Checkstyle because those
+formats represent per-rule diagnostics.
 
 ## Output formats
 
