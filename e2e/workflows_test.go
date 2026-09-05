@@ -3,6 +3,7 @@ package e2e
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -44,6 +45,50 @@ func TestE2EPresetBootstrap(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestE2EEmptyInputUsesFailOnEmptyPolicy(t *testing.T) {
+	dir := t.TempDir()
+	_, stderr, exitCode := runKyn(t, dir, []string{"init", "--preset", "web-ui"})
+	if exitCode != 0 {
+		t.Fatalf("kyn init: exit=%d stderr=%s", exitCode, stderr)
+	}
+
+	stdout, stderr, exitCode := runKynStdin(t, dir, []string{
+		"check", "--files-from", "-", "--format", "json",
+	}, "")
+	if exitCode != 0 {
+		t.Fatalf("empty input: exit=%d, want 0\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+	if !strings.Contains(stdout, `"ok": true`) {
+		t.Fatalf("empty input report should pass:\n%s", stdout)
+	}
+
+	stdout, stderr, exitCode = runKynStdin(t, dir, []string{
+		"check", "--files-from", "-", "--format", "json", "--fail-on-empty",
+	}, "")
+	if exitCode != 1 {
+		t.Fatalf("empty input with --fail-on-empty: exit=%d, want 1\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+	if !strings.Contains(stdout, `"ruleId": "fail-on-empty"`) {
+		t.Fatalf("fail-on-empty report missing synthetic result:\n%s", stdout)
+	}
+}
+
+func TestE2ERejectsChangedPathOutsideCWD(t *testing.T) {
+	dir := t.TempDir()
+	_, stderr, exitCode := runKyn(t, dir, []string{"init", "--preset", "web-ui"})
+	if exitCode != 0 {
+		t.Fatalf("kyn init: exit=%d stderr=%s", exitCode, stderr)
+	}
+
+	_, stderr, exitCode = runKyn(t, dir, []string{"check", "--files", "../outside.ts"})
+	if exitCode != 2 {
+		t.Fatalf("unsafe changed path: exit=%d, want 2\nstderr:\n%s", exitCode, stderr)
+	}
+	if !strings.Contains(stderr, "repository-relative") {
+		t.Fatalf("unsafe changed path error is not actionable:\n%s", stderr)
 	}
 }
 

@@ -66,6 +66,66 @@ rules: []
 	}
 }
 
+func TestSummaryOnlySupportsOnlyFormatsThatCanOmitDetails(t *testing.T) {
+	dir := t.TempDir()
+	configYAML := `version: 2
+families:
+  - id: web-component
+    groups:
+      source:
+        include: ["src/*.ts"]
+    kin:
+      story: "{dir}/{base}.stories.ts"
+rules: []
+`
+	if err := os.WriteFile(filepath.Join(dir, "kyn.config.yaml"), []byte(configYAML), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	t.Run("explain json omits rule details", func(t *testing.T) {
+		cmd := newExplainCommand()
+		var stdout bytes.Buffer
+		cmd.SetOut(&stdout)
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetArgs([]string{
+			"--cwd", dir,
+			"--files", "src/button.ts",
+			"--format", "json",
+			"--summary-only",
+		})
+
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("execute: %v", err)
+		}
+		var output map[string]any
+		if err := json.Unmarshal(stdout.Bytes(), &output); err != nil {
+			t.Fatalf("decode JSON: %v\n%s", err, stdout.String())
+		}
+		if _, ok := output["results"]; ok {
+			t.Fatalf("summary-only JSON contains rule details:\n%s", stdout.String())
+		}
+	})
+
+	for _, format := range []string{"sarif", "rdjson", "checkstyle"} {
+		t.Run("check rejects "+format, func(t *testing.T) {
+			cmd := newCheckCommand()
+			cmd.SetOut(&bytes.Buffer{})
+			cmd.SetErr(&bytes.Buffer{})
+			cmd.SetArgs([]string{
+				"--cwd", dir,
+				"--files", "src/button.ts",
+				"--format", format,
+				"--summary-only",
+			})
+
+			err := cmd.Execute()
+			if err == nil || !strings.Contains(err.Error(), "--summary-only supports only text or json") {
+				t.Fatalf("execute error = %v, want summary-only format error", err)
+			}
+		})
+	}
+}
+
 func TestRootHelpShowsGoldenPath(t *testing.T) {
 	cmd := newRootCommand()
 	var stdout bytes.Buffer

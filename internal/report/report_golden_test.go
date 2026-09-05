@@ -1,6 +1,7 @@
 package report
 
 import (
+	"encoding/json"
 	"flag"
 	"os"
 	"path/filepath"
@@ -56,6 +57,16 @@ func TestRenderSARIF(t *testing.T) {
 		t.Fatalf("RenderSARIF returned error: %v", err)
 	}
 	assertGolden(t, "sarif.golden", string(out)+"\n")
+}
+
+func TestRenderSARIFUsesProjectInformationURI(t *testing.T) {
+	out, err := RenderSARIF(sampleSummary())
+	if err != nil {
+		t.Fatalf("RenderSARIF returned error: %v", err)
+	}
+	if !strings.Contains(string(out), `"informationUri": "https://github.com/dills122/kyn"`) {
+		t.Fatalf("SARIF tool metadata does not identify Kyn: %s", out)
+	}
 }
 
 func TestRenderRDJSON(t *testing.T) {
@@ -127,6 +138,24 @@ func TestRenderExplainJSON(t *testing.T) {
 		t.Fatalf("RenderExplainJSON returned error: %v", err)
 	}
 	assertGolden(t, "explain_json.golden", string(out)+"\n")
+}
+
+func TestRenderExplainJSONSummary(t *testing.T) {
+	summary := sampleExplainSummary()
+	out, err := RenderExplainJSONSummary(summary)
+	if err != nil {
+		t.Fatalf("RenderExplainJSONSummary returned error: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatalf("decode summary JSON: %v", err)
+	}
+	if _, ok := got["results"]; ok {
+		t.Fatalf("summary JSON contains per-rule results: %s", out)
+	}
+	if got["skipped"] != float64(summary.Skipped) {
+		t.Fatalf("summary JSON skipped = %v, want %d", got["skipped"], summary.Skipped)
+	}
 }
 
 func TestRDJSONHelpers(t *testing.T) {

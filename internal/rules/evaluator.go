@@ -1,13 +1,16 @@
 package rules
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/dills122/kyn/internal/changes"
 	"github.com/dills122/kyn/internal/config"
 	"github.com/dills122/kyn/internal/family"
+	"github.com/dills122/kyn/internal/matcher"
 )
 
 type EvalInput struct {
@@ -202,8 +205,11 @@ func evalRequire(cwd string, changed map[string]struct{}, req config.RuleClauses
 func kinExistence(cwd string, inst family.Instance, kinNames []string, shouldExist bool) (bool, error) {
 	for _, name := range kinNames {
 		p := inst.Kin[name]
-		abs := filepath.Join(cwd, filepath.FromSlash(p))
-		_, err := os.Stat(abs)
+		abs, err := repositoryPath(cwd, p)
+		if err != nil {
+			return false, fmt.Errorf("kin %q: %w", name, err)
+		}
+		_, err = os.Stat(abs)
 		exists := err == nil
 		if !exists && err != nil && !os.IsNotExist(err) {
 			return false, err
@@ -216,6 +222,85 @@ func kinExistence(cwd string, inst family.Instance, kinNames []string, shouldExi
 		}
 	}
 	return true, nil
+}
+
+func repositoryPath(cwd string, p string) (string, error) {
+	normalized, err := matcher.NormalizeRelativePath(p)
+	if err != nil {
+		return "", err
+	}
+
+	root, err := filepath.Abs(cwd)
+	if err != nil {
+		return "", fmt.Errorf("resolve repository root: %w", err)
+	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve repository root: %w", err)
+	}
+	if normalized == "" {
+		return root, nil
+	}
+
+	pending := strings.Split(filepath.FromSlash(normalized), string(filepath.Separator))
+	current := root
+	symlinks := 0
+	for len(pending) > 0 {
+		component := pending[0]
+		pending = pending[1:]
+		next := filepath.Join(current, component)
+		info, err := os.Lstat(next)
+		if os.IsNotExist(err) {
+			candidate := filepath.Join(append([]string{next}, pending...)...)
+			if !withinRepository(root, candidate) {
+				return "", fmt.Errorf("path %q escapes repository through symlink", p)
+			}
+			return candidate, nil
+		}
+		if err != nil {
+			return "", fmt.Errorf("inspect path %q: %w", p, err)
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			current = next
+			continue
+		}
+
+		symlinks++
+		if symlinks > 255 {
+			return "", fmt.Errorf("path %q contains too many symlinks", p)
+		}
+		target, err := os.Readlink(next)
+		if err != nil {
+			return "", fmt.Errorf("resolve path %q: %w", p, err)
+		}
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(filepath.Dir(next), target)
+		}
+		target = filepath.Clean(target)
+		if !withinRepository(root, target) {
+			return "", fmt.Errorf("path %q escapes repository through symlink", p)
+		}
+		relTarget, err := filepath.Rel(root, target)
+		if err != nil {
+			return "", fmt.Errorf("resolve path %q: %w", p, err)
+		}
+		targetParts := []string{}
+		if relTarget != "." {
+			targetParts = strings.Split(relTarget, string(filepath.Separator))
+		}
+		pending = append(targetParts, pending...)
+		current = root
+	}
+
+	return current, nil
+}
+
+func withinRepository(root string, candidate string) bool {
+	rel, err := filepath.Rel(root, candidate)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func hasRequireChecks(req config.RuleClauses) bool {

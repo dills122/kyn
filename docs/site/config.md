@@ -76,7 +76,7 @@ rules:
 | Field | Required | Purpose |
 | --- | --- | --- |
 | `id` | Yes | Unique family identifier |
-| `groups.source.include` | Yes in v2 | Globs that create family instances |
+| `groups.source.include` | Yes for native v2 configs | Globs that create family instances |
 | `groups.source.exclude` | No | Matching source paths to ignore |
 | Other `groups` | No | Reserved definitions that current rules cannot reference |
 | `baseName.stripSuffixes` | No | Normalizes names before resolving `{base}` |
@@ -84,6 +84,11 @@ rules:
 
 The `source` group is the family entry point. Related files are resolved by
 kin templates and checked against the full change set.
+
+For migration compatibility, a version 2 family with no `groups` map may still
+use the legacy top-level `include` and `exclude` fields. Kyn treats those fields
+as the source group. New and edited v2 configs should use `groups.source`; the
+v1-to-v2 migrator emits that native shape.
 
 !!! note "Source-anchored evaluation"
     Runtime family resolution is source-anchored. Rules may reference only
@@ -100,6 +105,10 @@ include:
 exclude:
   - "internal/generated/**"
 ```
+
+Changed-file inputs and resolved kin paths must remain inside `--cwd`. Kyn
+rejects absolute paths, Windows drive paths, NUL bytes, and paths that escape
+through `..`.
 
 All source patterns in the family participate in matching. Excluded paths do
 not create family instances.

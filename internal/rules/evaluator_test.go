@@ -3,6 +3,7 @@ package rules
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dills122/kyn/internal/changes"
@@ -106,6 +107,63 @@ func TestEvaluateFailOnEmpty(t *testing.T) {
 	}
 	if summary.Failed != 1 {
 		t.Fatalf("expected failed=1, got %d", summary.Failed)
+	}
+}
+
+func TestRepositoryPathRejectsSymlinkEscape(t *testing.T) {
+	cwd := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(cwd, "link")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	_, err := repositoryPath(cwd, "link/secret.txt")
+	if err == nil || !strings.Contains(err.Error(), "escapes repository") {
+		t.Fatalf("repositoryPath() error = %v, want symlink escape error", err)
+	}
+}
+
+func TestRepositoryPathAllowsContainedSymlinks(t *testing.T) {
+	cwd := t.TempDir()
+	realDir := filepath.Join(cwd, "real")
+	if err := os.Mkdir(realDir, 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.Symlink("real", filepath.Join(cwd, "link")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	got, err := repositoryPath(cwd, "link/secret.txt")
+	if err != nil {
+		t.Fatalf("repositoryPath() error = %v", err)
+	}
+	resolvedCwd, err := filepath.EvalSymlinks(cwd)
+	if err != nil {
+		t.Fatalf("EvalSymlinks() error = %v", err)
+	}
+	want := filepath.Join(resolvedCwd, "real", "secret.txt")
+	if got != want {
+		t.Fatalf("repositoryPath() = %q, want %q", got, want)
+	}
+}
+
+func TestRepositoryPathAllowsContainedBrokenSymlink(t *testing.T) {
+	cwd := t.TempDir()
+	if err := os.Symlink("missing", filepath.Join(cwd, "link")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	got, err := repositoryPath(cwd, "link/secret.txt")
+	if err != nil {
+		t.Fatalf("repositoryPath() error = %v", err)
+	}
+	resolvedCwd, err := filepath.EvalSymlinks(cwd)
+	if err != nil {
+		t.Fatalf("EvalSymlinks() error = %v", err)
+	}
+	want := filepath.Join(resolvedCwd, "missing", "secret.txt")
+	if got != want {
+		t.Fatalf("repositoryPath() = %q, want %q", got, want)
 	}
 }
 
@@ -371,6 +429,31 @@ func TestEvaluate_KinExistsAndMissingFailures(t *testing.T) {
 	}
 	if len(summary.Results) != 2 {
 		t.Fatalf("expected 2 results, got %d", len(summary.Results))
+	}
+}
+
+func TestEvaluateRejectsUnsafeKinPath(t *testing.T) {
+	inst := family.Instance{
+		FamilyID: "component",
+		Name:     "button",
+		Kin:      map[string]string{"test": "../outside_test.go"},
+	}
+
+	_, err := Evaluate(EvalInput{
+		Cwd:       t.TempDir(),
+		FailOn:    "error",
+		Changed:   map[string]struct{}{},
+		Instances: []family.Instance{inst},
+		Rules: []config.Rule{{
+			ID:       "test-exists",
+			Family:   "component",
+			Severity: "error",
+			Require:  config.RuleClauses{KinExists: []string{"test"}},
+			Message:  "test must exist",
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "repository-relative") {
+		t.Fatalf("Evaluate() error = %v, want repository-relative path error", err)
 	}
 }
 

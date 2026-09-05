@@ -12,6 +12,30 @@ func RenderExplainJSON(summary rules.ExplainSummary) ([]byte, error) {
 	return json.MarshalIndent(summary, "", "  ")
 }
 
+type explainSummaryOnly struct {
+	OK       bool     `json:"ok"`
+	Passed   int      `json:"passed"`
+	Failed   int      `json:"failed"`
+	Infos    int      `json:"infos"`
+	Skipped  int      `json:"skipped"`
+	Warnings int      `json:"warnings"`
+	Errors   int      `json:"errors"`
+	Flags    []string `json:"flags,omitempty"`
+}
+
+func RenderExplainJSONSummary(summary rules.ExplainSummary) ([]byte, error) {
+	return json.MarshalIndent(explainSummaryOnly{
+		OK:       summary.OK,
+		Passed:   summary.Passed,
+		Failed:   summary.Failed,
+		Infos:    summary.Infos,
+		Skipped:  summary.Skipped,
+		Warnings: summary.Warnings,
+		Errors:   summary.Errors,
+		Flags:    summary.Flags,
+	}, "", "  ")
+}
+
 func RenderExplainText(summary rules.ExplainSummary, summaryOnly bool) string {
 	var b strings.Builder
 

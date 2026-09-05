@@ -117,5 +117,5 @@ or publishing job. Kyn only reports the signal; it does not call external APIs.
   naming conventions.
 
 The repository's
-[executable Angular/Storybook fixture](https://github.com/dills122/kyn/tree/main/e2e/projects/angular-storybook)
-tests the same policy shape against golden output.
+[executable frontend-recipe fixture](https://github.com/dills122/kyn/tree/main/e2e/projects/frontend-recipe)
+runs this v2 policy against both the failing and passing command examples above.

@@ -111,6 +111,55 @@ rules:
 	}
 }
 
+func TestExecuteUnsafeResolvedKinReturnsUsage(t *testing.T) {
+	dir := t.TempDir()
+	cfg := `version: 1
+families:
+  - id: go-source
+    include:
+      - "src/*.go"
+    kin:
+      test: "../../{base}_test.go"
+rules:
+  - id: source-policy
+    family: go-source
+    severity: error
+    when:
+      changedAny: [source]
+    message: "source changed"
+`
+	if err := os.WriteFile(filepath.Join(dir, "kyn.config.yaml"), []byte(cfg), 0o600); err != nil {
+		t.Fatalf("write cfg: %v", err)
+	}
+
+	for _, command := range []string{"check", "explain"} {
+		t.Run(command, func(t *testing.T) {
+			code := runWithArgs(t, []string{
+				"kyn", command,
+				"--cwd", dir,
+				"--config", "kyn.config.yaml",
+				"--files", "src/button.go",
+			})
+			if code != ExitUsage {
+				t.Fatalf("expected exit %d, got %d", ExitUsage, code)
+			}
+		})
+	}
+}
+
+func TestExecuteAutoGitProviderFailureReturnsRuntime(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	t.Setenv("GIT_CONFIG_COUNT", "not-a-number")
+
+	code := runWithArgs(t, []string{"kyn", "check", "--cwd", cwd})
+	if code != ExitRuntime {
+		t.Fatalf("expected exit %d, got %d", ExitRuntime, code)
+	}
+}
+
 func TestExecuteAutoGitModeReturnsZero(t *testing.T) {
 	dir := t.TempDir()
 	cfg := `version: 1

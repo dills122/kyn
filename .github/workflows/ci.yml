@@ -3,8 +3,7 @@ name: CI
 on:
   push:
     branches: ["main"]
-  pull_request:
-    branches: ["main"]
+  pull_request: {}
 
 jobs:
   release-config:
@@ -81,7 +80,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        go-version: ["1.22.x", "1.23.x"]
+        go-version: ["1.22.x", "stable"]
         # go1.22 is EOL and never got the linker fix for golang/go#68678
         # ("missing LC_UUID load command"), which crashes any go1.22 test
         # binary outright on current macos-latest runner images. go1.23+

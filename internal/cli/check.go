@@ -4,13 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/dills122/kyn/internal/changes"
-	"github.com/dills122/kyn/internal/config"
-	"github.com/dills122/kyn/internal/family"
 	"github.com/dills122/kyn/internal/report"
 	"github.com/dills122/kyn/internal/rules"
 
@@ -68,66 +65,20 @@ Advanced flags:
 `),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cwd, err := resolveCWD(opts.Cwd)
+			run, err := prepareRun(opts, "check", true)
 			if err != nil {
-				return usageError("invalid --cwd: %v", err)
+				return err
 			}
-
-			effectiveOpts, autoMode, err := applyAutoInputMode(opts, cwd)
-			if err != nil {
-				return usageError("invalid options: %v", err)
-			}
-			if err := validateCheckOptions(effectiveOpts, "check", true); err != nil {
-				return usageError("invalid options: %v", err)
-			}
-
-			cfg, cfgPath, err := config.Load(cwd, effectiveOpts.ConfigPath)
-			if err != nil {
-				return usageError("invalid config: %v", err)
-			}
-
-			filesFrom := effectiveOpts.FilesFrom
-			if effectiveOpts.Stdin {
-				filesFrom = "-"
-			}
-
-			changedResult, err := changes.CollectDetailed(changes.Input{
-				Cwd:       cwd,
-				FilesCSV:  effectiveOpts.FilesCSV,
-				FilesFrom: filesFrom,
-				Base:      effectiveOpts.Base,
-				Head:      effectiveOpts.Head,
-			})
-			if err != nil {
-				if errors.Is(err, changes.ErrGitFailure) {
-					return runtimeError("git change detection failed: %v", err)
-				}
-				return usageError("invalid change input: %v", err)
-			}
-
-			instances, err := family.Resolve(cfg, changedResult.Files)
-			if err != nil {
-				return runtimeError("family resolution failed: %v", err)
-			}
-
-			selectedModes, err := selectedInputModes(effectiveOpts)
-			if err != nil {
-				return usageError("invalid options: %v", err)
-			}
-			mode := "unknown"
-			if len(selectedModes) > 0 {
-				mode = selectedModes[0]
-			}
-			if effectiveOpts.DryRun {
+			if run.opts.DryRun {
 				resolveReport := report.NewResolveReport(
-					mode,
-					effectiveOpts.Base,
-					effectiveOpts.Head,
-					changedResult.Files,
-					instances,
-					effectiveOpts.SummaryOnly,
+					run.mode,
+					run.opts.Base,
+					run.opts.Head,
+					run.changedResult.Files,
+					run.instances,
+					run.opts.SummaryOnly,
 				)
-				if effectiveOpts.Format == "json" {
+				if run.opts.Format == "json" {
 					out, err := report.RenderResolveJSON(resolveReport)
 					if err != nil {
 						return runtimeError("json render failed: %v", err)
@@ -141,45 +92,20 @@ Advanced flags:
 				return nil
 			}
 
-			changedSet := make(map[string]struct{}, len(changedResult.Files))
-			for _, f := range changedResult.Files {
-				changedSet[f] = struct{}{}
-			}
-
-			summary, err := rules.Evaluate(rules.EvalInput{
-				Cwd:          cwd,
-				FailOn:       effectiveOpts.FailOn,
-				FailOnEmpty:  effectiveOpts.FailOnEmpty,
-				Changed:      changedSet,
-				StatusByFile: changedResult.StatusByFile,
-				Rules:        cfg.Rules,
-				Instances:    instances,
-			})
+			summary, err := rules.Evaluate(run.evalInput())
 			if err != nil {
 				return runtimeError("rule evaluation failed: %v", err)
 			}
 
-			if effectiveOpts.Verbose {
-				_, _ = fmt.Fprintf(
-					cmd.ErrOrStderr(),
-					"config=%s families=%d rules=%d changed=%d instances=%d mode=%s autoMode=%t\n\n",
-					cfgPath,
-					len(cfg.Families),
-					len(cfg.Rules),
-					len(changedResult.Files),
-					len(instances),
-					mode,
-					autoMode,
-				)
-			}
+			run.writeVerbose(cmd.ErrOrStderr())
 
-			switch effectiveOpts.Format {
+			switch run.opts.Format {
 			case "json":
 				var (
 					out []byte
 					err error
 				)
-				if effectiveOpts.SummaryOnly {
+				if run.opts.SummaryOnly {
 					out, err = report.RenderJSONSummary(summary)
 				} else {
 					out, err = report.RenderJSON(summary)
@@ -212,8 +138,8 @@ Advanced flags:
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 			default:
 				_, _ = cmd.OutOrStdout().Write([]byte(report.RenderText(summary, report.TextOptions{
-					ShowPasses:  effectiveOpts.ShowPasses,
-					SummaryOnly: effectiveOpts.SummaryOnly,
+					ShowPasses:  run.opts.ShowPasses,
+					SummaryOnly: run.opts.SummaryOnly,
 				})))
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 			}
@@ -265,6 +191,9 @@ func validateCheckOptions(opts checkOptions, command string, allowMachineFormats
 			return fmt.Errorf("invalid --format %q; expected text|json|sarif|rdjson|checkstyle", opts.Format)
 		}
 		return fmt.Errorf("invalid --format %q; expected text|json", opts.Format)
+	}
+	if opts.SummaryOnly && opts.Format != "text" && opts.Format != "json" {
+		return fmt.Errorf("--summary-only supports only text or json; format %s requires per-rule diagnostics", opts.Format)
 	}
 
 	switch opts.FailOn {
@@ -340,7 +269,11 @@ func applyAutoInputMode(opts checkOptions, cwd string) (checkOptions, bool, erro
 		return opts, false, nil
 	}
 
-	if !isGitRepo(cwd) {
+	isRepo, err := changes.IsGitRepository(cwd)
+	if err != nil {
+		return opts, false, err
+	}
+	if !isRepo {
 		return opts, false, errors.New(
 			"auto input mode unavailable: no explicit mode provided and --cwd is not a git repository.\n" +
 				"Choose one: --files | --files-from | --stdin | --base+--head.\n" +
@@ -351,15 +284,6 @@ func applyAutoInputMode(opts checkOptions, cwd string) (checkOptions, bool, erro
 	opts.Base = firstNonEmpty(strings.TrimSpace(os.Getenv("KYN_BASE_REF")), "origin/main")
 	opts.Head = firstNonEmpty(strings.TrimSpace(os.Getenv("KYN_HEAD_REF")), "HEAD")
 	return opts, true, nil
-}
-
-func isGitRepo(cwd string) bool {
-	cmd := exec.Command("git", "-C", cwd, "rev-parse", "--is-inside-work-tree")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return false
-	}
-	return strings.TrimSpace(string(out)) == "true"
 }
 
 func firstNonEmpty(values ...string) string {

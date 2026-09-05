@@ -28,6 +28,10 @@ kyn check -c kyn.config.yaml --base origin/main --head HEAD
 Use your repository's real default branch. You can also set
 `KYN_BASE_REF` and `KYN_HEAD_REF` for automatic mode.
 
+Kyn bounds Git probes and diffs to 30 seconds and 16 MiB per output stream. If
+a repository exceeds those safety limits, compute the change set separately
+and pass it with `--files-from -`.
+
 ## A rule never appears
 
 Rules only appear when their `if` clauses apply. Inspect matching first:

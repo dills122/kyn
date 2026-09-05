@@ -13,12 +13,17 @@ All notable changes to this project will be documented in this file.
 - clarified current named-group and change-status limitations in the live documentation
 - migrated container publishing to GoReleaser's current multi-platform Docker v2 pipeline while preserving architecture-specific image aliases
 - pinned release validation and publishing to the same GoReleaser version
+- aligned docs deployment with pinned dependencies and tested the minimum and stable Go toolchains
 
 ### Fixed
 
 - kept machine-readable stdout valid under `--verbose` by routing execution diagnostics to stderr
 - made root help and post-`init` guidance lead through previewing policy before enforcement, including copyable commands for custom working directories
 - reject named-group, assertion-side change, and deleted-status clauses that the current evaluator cannot enforce
+- let empty change sets pass by default and reserve failure for `--fail-on-empty`
+- isolate end-to-end Git fixtures from a developer's commit-signing configuration
+- reject absolute and parent-traversing changed or resolved kin paths outside `--cwd`
+- bound Git repository probes and diffs by execution time and captured output
 
 ## v0.1.2 - 2026-08-21
 
@@ -63,7 +68,7 @@ First public release of Kyn.
 
 - `kyn check` for CI policy enforcement over changed file families
 - v1 and v2 config support, including `if` / `assert` / `actions`
-- family groups and status-aware matching with `changedStatusAny`
+- source-anchored family groups and status-aware matching for retained Git paths
 - `kyn explain` for per-rule diagnostics
 - `kyn init` with starter presets for `web-ui`, `api`, `proto`, and `iac`
 - `kyn config migrate --from v1 --to v2`

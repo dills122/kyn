@@ -153,7 +153,7 @@ func RenderSARIF(summary rules.Summary) ([]byte, error) {
 				Tool: sarifTool{
 					Driver: sarifDriver{
 						Name:           "kyn",
-						InformationURI: "https://github.com/",
+						InformationURI: "https://github.com/dills122/kyn",
 						Rules:          toolRules,
 					},
 				},

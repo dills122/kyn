@@ -1,13 +1,8 @@
 package cli
 
 import (
-	"errors"
-	"fmt"
 	"strings"
 
-	"github.com/dills122/kyn/internal/changes"
-	"github.com/dills122/kyn/internal/config"
-	"github.com/dills122/kyn/internal/family"
 	"github.com/dills122/kyn/internal/report"
 	"github.com/dills122/kyn/internal/rules"
 
@@ -56,98 +51,35 @@ Advanced flags:
 `),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cwd, err := resolveCWD(opts.Cwd)
+			run, err := prepareRun(opts, "explain", false)
 			if err != nil {
-				return usageError("invalid --cwd: %v", err)
+				return err
 			}
 
-			effectiveOpts, autoMode, err := applyAutoInputMode(opts, cwd)
-			if err != nil {
-				return usageError("invalid options: %v", err)
-			}
-			if err := validateCheckOptions(effectiveOpts, "explain", false); err != nil {
-				return usageError("invalid options: %v", err)
-			}
-
-			cfg, cfgPath, err := config.Load(cwd, effectiveOpts.ConfigPath)
-			if err != nil {
-				return usageError("invalid config: %v", err)
-			}
-
-			filesFrom := effectiveOpts.FilesFrom
-			if effectiveOpts.Stdin {
-				filesFrom = "-"
-			}
-
-			changedResult, err := changes.CollectDetailed(changes.Input{
-				Cwd:       cwd,
-				FilesCSV:  effectiveOpts.FilesCSV,
-				FilesFrom: filesFrom,
-				Base:      effectiveOpts.Base,
-				Head:      effectiveOpts.Head,
-			})
-			if err != nil {
-				if errors.Is(err, changes.ErrGitFailure) {
-					return runtimeError("git change detection failed: %v", err)
-				}
-				return usageError("invalid change input: %v", err)
-			}
-
-			instances, err := family.Resolve(cfg, changedResult.Files)
-			if err != nil {
-				return runtimeError("family resolution failed: %v", err)
-			}
-
-			changedSet := make(map[string]struct{}, len(changedResult.Files))
-			for _, f := range changedResult.Files {
-				changedSet[f] = struct{}{}
-			}
-
-			summary, err := rules.Explain(rules.EvalInput{
-				Cwd:          cwd,
-				FailOn:       effectiveOpts.FailOn,
-				FailOnEmpty:  effectiveOpts.FailOnEmpty,
-				Changed:      changedSet,
-				StatusByFile: changedResult.StatusByFile,
-				Rules:        cfg.Rules,
-				Instances:    instances,
-			})
+			summary, err := rules.Explain(run.evalInput())
 			if err != nil {
 				return runtimeError("explain evaluation failed: %v", err)
 			}
 
-			selectedModes, err := selectedInputModes(effectiveOpts)
-			if err != nil {
-				return usageError("invalid options: %v", err)
-			}
-			mode := "unknown"
-			if len(selectedModes) > 0 {
-				mode = selectedModes[0]
-			}
+			run.writeVerbose(cmd.ErrOrStderr())
 
-			if effectiveOpts.Verbose {
-				_, _ = fmt.Fprintf(
-					cmd.ErrOrStderr(),
-					"config=%s families=%d rules=%d changed=%d instances=%d mode=%s autoMode=%t\n\n",
-					cfgPath,
-					len(cfg.Families),
-					len(cfg.Rules),
-					len(changedResult.Files),
-					len(instances),
-					mode,
-					autoMode,
+			if run.opts.Format == "json" {
+				var (
+					out []byte
+					err error
 				)
-			}
-
-			if effectiveOpts.Format == "json" {
-				out, err := report.RenderExplainJSON(summary)
+				if run.opts.SummaryOnly {
+					out, err = report.RenderExplainJSONSummary(summary)
+				} else {
+					out, err = report.RenderExplainJSON(summary)
+				}
 				if err != nil {
 					return runtimeError("json render failed: %v", err)
 				}
 				_, _ = cmd.OutOrStdout().Write(out)
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 			} else {
-				_, _ = cmd.OutOrStdout().Write([]byte(report.RenderExplainText(summary, effectiveOpts.SummaryOnly)))
+				_, _ = cmd.OutOrStdout().Write([]byte(report.RenderExplainText(summary, run.opts.SummaryOnly)))
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 			}
 

@@ -24,7 +24,10 @@ func Resolve(cfg config.Config, changedFiles []string) ([]Instance, error) {
 		includePatterns := fam.SourceInclude()
 		excludePatterns := fam.SourceExclude()
 		for _, file := range changedFiles {
-			file = matcher.NormalizePath(file)
+			file, err := matcher.NormalizeRelativePath(file)
+			if err != nil {
+				return nil, fmt.Errorf("family %q received invalid changed path: %w", fam.ID, err)
+			}
 			if file == "" {
 				continue
 			}
@@ -63,8 +66,19 @@ func Resolve(cfg config.Config, changedFiles []string) ([]Instance, error) {
 					sources:  map[string]struct{}{},
 					kin:      map[string]string{},
 				}
-				for kinName, kinTemplate := range fam.Kin {
-					a.kin[kinName] = resolveTemplate(kinTemplate, ctx)
+				kinNames := make([]string, 0, len(fam.Kin))
+				for kinName := range fam.Kin {
+					kinNames = append(kinNames, kinName)
+				}
+				sort.Strings(kinNames)
+				for _, kinName := range kinNames {
+					kinTemplate := fam.Kin[kinName]
+					resolved := resolveTemplate(kinTemplate, ctx)
+					normalized, err := matcher.NormalizeRelativePath(resolved)
+					if err != nil {
+						return nil, fmt.Errorf("family %q kin %q resolved unsafe path: %w", fam.ID, kinName, err)
+					}
+					a.kin[kinName] = normalized
 				}
 				instances[key] = a
 			}

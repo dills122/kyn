@@ -25,7 +25,8 @@ func TestInitGuidanceRunsInDeclaredShell(t *testing.T) {
 		{"commit", "-m", "fixture"},
 		{"update-ref", "refs/remotes/origin/main", "HEAD"},
 	} {
-		cmd := exec.Command("git", args...)
+		gitArgs := append([]string{"-c", "commit.gpgsign=false"}, args...)
+		cmd := exec.Command("git", gitArgs...)
 		cmd.Dir = repo
 		if output, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v\n%s", args, err, output)
@@ -35,7 +36,8 @@ func TestInitGuidanceRunsInDeclaredShell(t *testing.T) {
 		t.Fatalf("update component: %v", err)
 	}
 	for _, args := range [][]string{{"add", "."}, {"commit", "-m", "change component"}} {
-		cmd := exec.Command("git", args...)
+		gitArgs := append([]string{"-c", "commit.gpgsign=false"}, args...)
+		cmd := exec.Command("git", gitArgs...)
 		cmd.Dir = repo
 		if output, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v\n%s", args, err, output)
