@@ -3,6 +3,7 @@ package rules
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dills122/kyn/internal/changes"
@@ -371,6 +372,31 @@ func TestEvaluate_KinExistsAndMissingFailures(t *testing.T) {
 	}
 	if len(summary.Results) != 2 {
 		t.Fatalf("expected 2 results, got %d", len(summary.Results))
+	}
+}
+
+func TestEvaluateRejectsUnsafeKinPath(t *testing.T) {
+	inst := family.Instance{
+		FamilyID: "component",
+		Name:     "button",
+		Kin:      map[string]string{"test": "../outside_test.go"},
+	}
+
+	_, err := Evaluate(EvalInput{
+		Cwd:       t.TempDir(),
+		FailOn:    "error",
+		Changed:   map[string]struct{}{},
+		Instances: []family.Instance{inst},
+		Rules: []config.Rule{{
+			ID:       "test-exists",
+			Family:   "component",
+			Severity: "error",
+			Require:  config.RuleClauses{KinExists: []string{"test"}},
+			Message:  "test must exist",
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "repository-relative") {
+		t.Fatalf("Evaluate() error = %v, want repository-relative path error", err)
 	}
 }
 

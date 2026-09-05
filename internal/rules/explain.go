@@ -3,7 +3,6 @@ package rules
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -381,8 +380,11 @@ func evalRequireTrace(
 
 func explainKinExistence(cwd string, inst family.Instance, kinName string, shouldExist bool) (bool, error) {
 	p := inst.Kin[kinName]
-	abs := filepath.Join(cwd, filepath.FromSlash(p))
-	_, err := os.Stat(abs)
+	abs, err := repositoryPath(cwd, p)
+	if err != nil {
+		return false, fmt.Errorf("kin %q: %w", kinName, err)
+	}
+	_, err = os.Stat(abs)
 	exists := err == nil
 	if !exists && err != nil && !os.IsNotExist(err) {
 		return false, err
