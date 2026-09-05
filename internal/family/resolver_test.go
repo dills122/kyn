@@ -133,4 +133,19 @@ func TestResolveRejectsUnsafePaths(t *testing.T) {
 			t.Fatalf("Resolve() error = %v, want unsafe kin path error", err)
 		}
 	})
+
+	t.Run("multiple invalid kin paths are reported deterministically", func(t *testing.T) {
+		cfg := base
+		cfg.Families = append([]config.Family(nil), base.Families...)
+		cfg.Families[0].Kin = config.KinMap{
+			"zeta":  "../../zeta/{base}_test.go",
+			"alpha": "../../alpha/{base}_test.go",
+		}
+		for i := 0; i < 100; i++ {
+			_, err := Resolve(cfg, []string{"src/button.go"})
+			if err == nil || !strings.Contains(err.Error(), `kin "alpha"`) {
+				t.Fatalf("Resolve() error = %v, want lexicographically first invalid kin", err)
+			}
+		}
+	})
 }

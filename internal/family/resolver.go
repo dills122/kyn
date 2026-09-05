@@ -66,7 +66,13 @@ func Resolve(cfg config.Config, changedFiles []string) ([]Instance, error) {
 					sources:  map[string]struct{}{},
 					kin:      map[string]string{},
 				}
-				for kinName, kinTemplate := range fam.Kin {
+				kinNames := make([]string, 0, len(fam.Kin))
+				for kinName := range fam.Kin {
+					kinNames = append(kinNames, kinName)
+				}
+				sort.Strings(kinNames)
+				for _, kinName := range kinNames {
+					kinTemplate := fam.Kin[kinName]
 					resolved := resolveTemplate(kinTemplate, ctx)
 					normalized, err := matcher.NormalizeRelativePath(resolved)
 					if err != nil {
