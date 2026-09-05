@@ -66,7 +66,8 @@ automatic behavior.
 
 `explain` shares the input and diagnostic flags but supports only text and JSON.
 `check` rejects `--summary-only` with SARIF, RDJSON, or Checkstyle because those
-formats represent per-rule diagnostics.
+formats represent per-rule diagnostics. `--dry-run-resolve` likewise supports
+only text and JSON.
 
 ## Output formats
 

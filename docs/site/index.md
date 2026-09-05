@@ -39,3 +39,4 @@ which file is expected and exits with a stable code CI can act on.
 - [How Kyn works](concepts.md)
 - [Real-world recipes](recipes/frontend.md)
 - [CI adoption](ci.md)
+- [What's new in v0.1.3](releases/v0.1.3.md)

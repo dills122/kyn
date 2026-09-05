@@ -1,5 +1,5 @@
 site_name: Kyn
-site_description: Deterministic related-file policy checks for CI
+site_description: Deterministic related-file policy checks for local development and CI
 site_url: https://dills122.github.io/kyn/
 docs_dir: docs/site
 repo_url: https://github.com/dills122/kyn
