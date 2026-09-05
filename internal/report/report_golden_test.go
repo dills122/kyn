@@ -58,6 +58,16 @@ func TestRenderSARIF(t *testing.T) {
 	assertGolden(t, "sarif.golden", string(out)+"\n")
 }
 
+func TestRenderSARIFUsesProjectInformationURI(t *testing.T) {
+	out, err := RenderSARIF(sampleSummary())
+	if err != nil {
+		t.Fatalf("RenderSARIF returned error: %v", err)
+	}
+	if !strings.Contains(string(out), `"informationUri": "https://github.com/dills122/kyn"`) {
+		t.Fatalf("SARIF tool metadata does not identify Kyn: %s", out)
+	}
+}
+
 func TestRenderRDJSON(t *testing.T) {
 	summary := sampleSummary()
 	out, err := RenderRDJSON(summary)

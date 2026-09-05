@@ -6,7 +6,7 @@
       "tool": {
         "driver": {
           "name": "kyn",
-          "informationUri": "https://github.com/",
+          "informationUri": "https://github.com/dills122/kyn",
           "rules": [
             {
               "id": "story-sync",
