@@ -2,6 +2,7 @@ package changes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -47,6 +48,34 @@ func TestRunBoundedCommandHonorsContext(t *testing.T) {
 	if ctx.Err() != context.DeadlineExceeded {
 		t.Fatalf("context error = %v, want deadline exceeded", ctx.Err())
 	}
+}
+
+func TestIsGitRepositoryDistinguishesNonRepositoryFromGitFailure(t *testing.T) {
+	t.Run("non repository", func(t *testing.T) {
+		isRepo, err := IsGitRepository(t.TempDir())
+		if err != nil {
+			t.Fatalf("IsGitRepository() error = %v", err)
+		}
+		if isRepo {
+			t.Fatal("IsGitRepository() = true, want false")
+		}
+	})
+
+	t.Run("malformed git configuration", func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Getwd() error = %v", err)
+		}
+		t.Setenv("GIT_CONFIG_COUNT", "not-a-number")
+
+		_, err = IsGitRepository(cwd)
+		if !errors.Is(err, ErrGitFailure) {
+			t.Fatalf("IsGitRepository() error = %v, want ErrGitFailure", err)
+		}
+		if !strings.Contains(err.Error(), "bogus count") {
+			t.Fatalf("IsGitRepository() error = %v, want actionable Git detail", err)
+		}
+	})
 }
 
 func TestGitCommandHelperProcess(t *testing.T) {

@@ -5,7 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -85,9 +87,42 @@ func IsGitRepository(cwd string) (bool, error) {
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			return false, nil
+			hasMarker, markerErr := hasGitRepositoryMarker(cwd)
+			if markerErr != nil {
+				return false, fmt.Errorf("%w: inspect repository metadata: %v", ErrGitFailure, markerErr)
+			}
+			if !hasMarker {
+				return false, nil
+			}
 		}
-		return false, fmt.Errorf("%w: inspect repository: %v", ErrGitFailure, err)
+		detail := strings.TrimSpace(result.stderr.String())
+		if detail == "" {
+			return false, fmt.Errorf("%w: inspect repository: %v", ErrGitFailure, err)
+		}
+		return false, fmt.Errorf("%w: inspect repository: %v: %s", ErrGitFailure, err, detail)
 	}
 	return strings.TrimSpace(result.stdout.String()) == "true", nil
+}
+
+func hasGitRepositoryMarker(cwd string) (bool, error) {
+	current, err := filepath.Abs(cwd)
+	if err != nil {
+		return false, err
+	}
+
+	for {
+		_, err := os.Stat(filepath.Join(current, ".git"))
+		switch {
+		case err == nil:
+			return true, nil
+		case !os.IsNotExist(err):
+			return false, err
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			return false, nil
+		}
+		current = parent
+	}
 }
