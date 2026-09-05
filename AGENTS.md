@@ -40,6 +40,19 @@ go vet ./...
 go build ./cmd/kyn
 ```
 
+## AI Central Workflows
+
+1. Read the repository steering under `.codex/steering/` when it applies to the task.
+2. Use the linked skills under `.agents/skills/` (and their `.codex/skills/` compatibility links)
+   when their trigger conditions match.
+3. For a genuinely parallel, multi-part outcome, use `orchestrated-delivery` and keep the lead
+   responsible for integration and final verification. Delegate only when the user or runtime
+   policy authorizes it.
+4. For substantial completed work that needs a readiness verdict, use `independent-review` and
+   conduct the reviewer pass in a fresh task with no inherited implementation context.
+5. Keep repository-specific instructions and quality gates as real files; refresh reusable skills
+   and shared steering from AI Central rather than copying or editing their targets here.
+
 ## MVP Boundaries
 
 Do not implement in MVP:
@@ -48,4 +61,3 @@ Do not implement in MVP:
 - PR comments/integrations
 - plugin systems
 - monorepo graph adapters (Nx/Rush/Turbo)
-
