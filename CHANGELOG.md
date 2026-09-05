@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - let empty change sets pass by default and reserve failure for `--fail-on-empty`
 - isolate end-to-end Git fixtures from a developer's commit-signing configuration
 - reject absolute and parent-traversing changed or resolved kin paths outside `--cwd`
+- bound Git repository probes and diffs by execution time and captured output
 
 ## v0.1.2 - 2026-08-21
 

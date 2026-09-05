@@ -63,6 +63,9 @@ Advanced flags:
 
 			effectiveOpts, autoMode, err := applyAutoInputMode(opts, cwd)
 			if err != nil {
+				if errors.Is(err, changes.ErrGitFailure) {
+					return runtimeError("git repository detection failed: %v", err)
+				}
 				return usageError("invalid options: %v", err)
 			}
 			if err := validateCheckOptions(effectiveOpts, "explain", false); err != nil {
