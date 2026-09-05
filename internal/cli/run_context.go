@@ -65,7 +65,7 @@ func prepareRun(opts checkOptions, command string, allowMachineFormats bool) (ru
 
 	instances, err := family.Resolve(cfg, changedResult.Files)
 	if err != nil {
-		return runContext{}, runtimeError("family resolution failed: %v", err)
+		return runContext{}, usageError("family resolution failed: %v", err)
 	}
 
 	selectedModes, err := selectedInputModes(effectiveOpts)
