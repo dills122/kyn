@@ -2,7 +2,6 @@ package changes
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/dills122/kyn/internal/matcher"
@@ -10,13 +9,17 @@ import (
 
 func fromGitDiff(cwd string, base string, head string) ([]Change, error) {
 	rangeSpec := fmt.Sprintf("%s...%s", base, head)
-	cmd := exec.Command("git", "-C", cwd, "diff", "--name-status", "-M", rangeSpec)
-	out, err := cmd.CombinedOutput()
+	result, err := executeGit(cwd, "diff", "--name-status", "-M", rangeSpec)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v: %s", ErrGitFailure, err, strings.TrimSpace(string(out)))
+		detail := strings.TrimSpace(result.stderr.String())
+		if detail == "" {
+			return nil, fmt.Errorf("%w: %v", ErrGitFailure, err)
+		}
+		return nil, fmt.Errorf("%w: %v: %s", ErrGitFailure, err, detail)
 	}
+	out := result.stdout.String()
 
-	lines := strings.Split(string(out), "\n")
+	lines := strings.Split(out, "\n")
 	outChanges := make([]Change, 0, len(lines))
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
