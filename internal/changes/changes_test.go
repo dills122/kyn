@@ -47,6 +47,17 @@ func TestCollectDetailedAllowsEmptyManualInput(t *testing.T) {
 	}
 }
 
+func TestCollectDetailedRejectsUnsafeManualPaths(t *testing.T) {
+	for _, input := range []string{"../outside.ts", "/tmp/outside.ts", `C:\tmp\outside.ts`} {
+		t.Run(input, func(t *testing.T) {
+			_, err := CollectDetailed(Input{FilesCSV: input})
+			if err == nil || !strings.Contains(err.Error(), "repository-relative") {
+				t.Fatalf("CollectDetailed(%q) error = %v, want repository-relative path error", input, err)
+			}
+		})
+	}
+}
+
 func TestCollectFromFile(t *testing.T) {
 	dir := t.TempDir()
 	listPath := filepath.Join(dir, "changed.txt")

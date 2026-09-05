@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -8,6 +9,7 @@ import (
 	"github.com/dills122/kyn/internal/changes"
 	"github.com/dills122/kyn/internal/config"
 	"github.com/dills122/kyn/internal/family"
+	"github.com/dills122/kyn/internal/matcher"
 )
 
 type EvalInput struct {
@@ -202,8 +204,11 @@ func evalRequire(cwd string, changed map[string]struct{}, req config.RuleClauses
 func kinExistence(cwd string, inst family.Instance, kinNames []string, shouldExist bool) (bool, error) {
 	for _, name := range kinNames {
 		p := inst.Kin[name]
-		abs := filepath.Join(cwd, filepath.FromSlash(p))
-		_, err := os.Stat(abs)
+		abs, err := repositoryPath(cwd, p)
+		if err != nil {
+			return false, fmt.Errorf("kin %q: %w", name, err)
+		}
+		_, err = os.Stat(abs)
 		exists := err == nil
 		if !exists && err != nil && !os.IsNotExist(err) {
 			return false, err
@@ -216,6 +221,14 @@ func kinExistence(cwd string, inst family.Instance, kinNames []string, shouldExi
 		}
 	}
 	return true, nil
+}
+
+func repositoryPath(cwd string, p string) (string, error) {
+	normalized, err := matcher.NormalizeRelativePath(p)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(cwd, filepath.FromSlash(normalized)), nil
 }
 
 func hasRequireChecks(req config.RuleClauses) bool {
