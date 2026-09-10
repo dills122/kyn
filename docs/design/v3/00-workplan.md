@@ -19,18 +19,19 @@ experiment; see [`01-observed-semantics.md`](01-observed-semantics.md).
 | IR2 | Flat rules omit source-instance grouping semantics | P1 | G2 | Settled — D11 |
 | IR3 | Migration claim broader than the representable subset | P1 | G4 | Open |
 | IR4 | Expectation names overstate what Kyn observes | P2 | G1 | Settled — D6 |
-| IR5 | Version-specific decoding lacks a compatibility matrix | P2 | G3 | Open |
+| IR5 | Version-specific decoding lacks a compatibility matrix | P2 | G3 | Settled — measured, 05-compatibility-matrix.md |
 | IR6 | Map-key validation not fully deterministic | P2 | G0/G2 | Settled — D3, D1 |
 | CR1 | `stripSuffixes` is a grouping input the inline form cannot express | P1 | G2 | Settled — D12 |
 | CR2 | Migration has no answer for declared-but-inert v2 groups | P1 | G4 | Settled — D2 |
 | CR3 | Resolve-time error selection becomes order-dependent under maps | P2 | G0 | Confirmed by OS7 |
 | CR4 | Generated default messages are an unowned output contract | P2 | G1 | Settled — D7 |
 | CR5 | `explain` clause names are a JSON contract the shorthand must map to | P2 | G2 | Settled — D13 |
-| CR6 | "v3 config" collides with product versioning; `description` dropped | nit | G3 | Open |
+| CR6 | "v3 config" collides with product versioning; `description` dropped | nit | G3 | Settled — D14 |
 | OS3 | Kyn cannot observe deletion; the default shape is silenced by it | **P0** | G1 | Settled — D5 |
 | OS8 | Renaming the related file away is equally invisible | **P0** | G1 | Settled — D5 |
 | OS5 | The proposed common form self-matches; OS3 hides the mistake | P1 | G2 | Settled — D8 |
 | OS7 | Error selection is already non-deterministic (ships today) | P1 | G0 | Specified — v0.1.x patch, not yet written |
+| OS10 | `rule.description` is parsed and never read | P2 | G0/G3 | Settled — D14 |
 
 ### IR1 is wider than reported
 
@@ -73,11 +74,17 @@ Ordered. A gate may not open until the one before it is closed.
 ### G0 — Stabilize the baseline (independent of v3)
 
 Differential conformance testing is worthless against a non-deterministic
-baseline, so this comes first and ships on its own schedule.
+baseline, so this comes first and ships on its own schedule. Everything here is
+a v2 improvement that stands on its own merits.
 
 - Fix OS7: sort map keys before every validation and resolution pass, so error
   selection is stable. Add tests that assert *which* error is reported.
 - Fix OS6: stop `kyn init` emitting inert `groups.story` / `groups.tests`.
+- Fix OS10: route `rule.description` into SARIF `fullDescription` and `explain`,
+  so an accepted field stops being inert.
+- Fix the zero-value leaks in two validation messages: a missing `version`
+  reports `unsupported config version 0`, and a missing `severity` reports
+  `has invalid severity ""` (matrix rows 15 and 17).
 - Decide whether validation should reject or warn on non-`source` groups.
 
 Deliverable: a v0.1.x patch. No v3 content.
@@ -105,14 +112,16 @@ Delivered in [`03-instance-and-identity.md`](03-instance-and-identity.md).
 - `explain` clause vocabulary follows the config version (D13).
 - Self-match rejected at resolve time (D8).
 
-### G3 — Grammar and compatibility matrix
+### G3 — Grammar and compatibility matrix — CLOSED
 
-- IR5: inventory every v1/v2 shape that loads today, mark each contractual or
-  incidental.
-- v3 grammar, informed by G1 and G2.
-- CR6: naming, and whether `description` survives.
+Delivered in [`04-grammar.md`](04-grammar.md) and
+[`05-compatibility-matrix.md`](05-compatibility-matrix.md).
 
-Deliverable: `04-grammar.md`, `05-compatibility-matrix.md`.
+- Compatibility matrix measured, not guessed: 20 shapes probed, 11 load, 9
+  rejected, each marked contractual or incidental.
+- Grammar written against the frozen semantics and instance model.
+- `description` survives and becomes functional (D14).
+- All ten of the proposal's open questions answered.
 
 ### G4 — Migration
 
@@ -152,6 +161,7 @@ Recorded here as they close; each is backed by an experiment or a code citation.
 | D11 | Instances are keyed on the **source shape** — the (`match`, `exclude`, `stripSuffixes`) triple — not on the rule. A pattern is a named source shape; an inline rule owns an anonymous one identified by its rule ID. | OS9 shows rule-keyed instances would regroup and reorder every report. Shape-keying maps a v2 family one-for-one and preserves the contract. |
 | D12 | `match`, `exclude` and `stripSuffixes` are all legal inline on a rule. A pattern is a named bundle of exactly those three and carries no extra capability. | OS4/CR1. Confining `stripSuffixes` to patterns left the inline form unable to express the shipped `api` preset. Also makes inline and pattern-backed forms normalize identically by construction. |
 | D13 | Structural identity fields stay stable across config versions; vocabulary that echoes the user's own config (`explain`'s `clause`) follows the config version. | CR5. Reporting `if.kinExists` for a config containing neither `if` nor `kinExists` would be the actual defect. |
+| D14 | `description` survives into v3 and becomes functional (SARIF `fullDescription`, `explain`). `version:` is a config-schema version; prose calls v3 "the rule-centric format". | OS10 + CR6. Dropping `description` would break configs that already set it, and the fix is one line. |
 
 ## Open questions for the maintainer
 

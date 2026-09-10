@@ -239,6 +239,33 @@ Every starter config therefore teaches two constructs that do nothing. This is
 evidence for the v3 pivot and it settles the migration question for these
 groups: they can be dropped with proven zero behavior change.
 
+## OS10 — `rule.description` is parsed and never read
+
+`Rule.Description` is declared
+([`internal/config/config.go:33`](../../../internal/config/config.go)) and, via
+`KnownFields(true)`, is an accepted field — a config using it loads (OS9 matrix).
+Nothing reads it. `grep -rn '\.Description' internal/report internal/rules
+internal/cli` returns no hits.
+
+SARIF has the natural home for it and fills both slots with the message instead
+([`internal/report/sarif.go:86`](../../../internal/report/sarif.go)):
+
+```go
+ShortDescription: sarifMessage{Text: result.Message},
+FullDescription:  sarifMessage{Text: result.Message},
+```
+
+That makes three constructs v2 accepts that do nothing:
+
+1. non-`source` `groups` (OS6)
+2. `if.changedAny: [source]` (OS6)
+3. `rule.description` (this observation)
+
+Two of the three are taught by the generated starter configs. This is the
+strongest single argument for the v3 pivot, and it is also a small standalone
+improvement: routing `Description` into SARIF `fullDescription` costs one line
+and makes the field mean something.
+
 ## OS7 — Error selection is already non-deterministic (shipping defect)
 
 Source: [`e6-determinism.sh`](experiments/e6-determinism.sh)
@@ -288,5 +315,5 @@ map, or every v3 rule and pattern inherits this defect.
 | OS3, OS8 | Deletion blindness must be an explicit product decision before the vocabulary is frozen. Naming alone cannot fix it, and a fix that handles only `D` leaves the rename half open. |
 | OS4 | `stripSuffixes` must be available to the inline form, or the inline form must be declared single-shape-only and migration must refuse to flatten multi-shape families. |
 | OS5 | v3 must either auto-exclude resolved related paths from source matching, or make an unmatched/self-matched source a loud error. |
-| OS6 | Migration drops non-`source` groups with proven zero behavior change. `kyn init` should stop emitting them now, independently of v3. |
+| OS6, OS10 | Migration drops non-`source` groups with proven zero behavior change. `kyn init` should stop emitting them now, independently of v3. `description` is inert and should either be wired into SARIF or dropped. |
 | OS7 | Normalized model is an ordered slice. Fix the existing defect first so v3 differential tests have a stable baseline. |
