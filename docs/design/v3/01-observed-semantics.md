@@ -9,7 +9,8 @@ produced it.
 
 The purpose is to give the v3 design a factual baseline. Several proposal and
 review claims turned out to be understated, and two shipping defects surfaced
-that are independent of v3.
+that are independent of v3: non-deterministic error selection (OS7) and a policy
+gate that is silenced by deleting or renaming the file it protects (OS3, OS8).
 
 ## Method
 
@@ -108,14 +109,47 @@ The file does not exist. The trace states that it is unchanged.
 the v3 proposal nominates as the common default. Deleting the related test
 silences the rule that exists to protect it, and `check` exits 0.
 
-No current rule form can express "the related file was deleted in this change",
-because deleted paths never enter the change set. `assert.kinExists` catches the
+OS8 shows the same hole for renames. No current rule form can express "the
+related file was deleted or renamed away in this change", because neither event
+enters the change set. `assert.kinExists` catches the
 after-effect — the path is gone from the working tree — but cannot attribute it
 to this diff.
 
 This is a capability gap, not a naming problem. Renaming `changed` to
 `in-change-set` makes the vocabulary honest; it does not make deletion
-observable. v3 must decide whether to close the gap or document it.
+observable.
+
+Maintainer decision (2026-09-09): close the gap. The design is in
+[`02-semantics.md`](02-semantics.md) section 4.
+
+## OS8 — Renaming the related file away is equally invisible
+
+Source: [`e8-rename-blindness.sh`](experiments/e8-rename-blindness.sh)
+
+`fromGitDiff` handles `R` by recording `fields[2]`, the rename destination, and
+discarding `fields[1]`, the source
+([`internal/changes/git.go:45`](../../../internal/changes/git.go)). The path the
+policy was watching simply disappears from Kyn's view.
+
+Source modified, related test renamed away in the same commit:
+
+```text
+--- diff under evaluation ---
+M	src/a.go
+R100	src/a_test.go	src/renamed_test.go
+--- what kyn collected ---
+  - src/a.go
+  - src/renamed_test.go
+--- result ---
+Status: skipped
+If:
+  - if.kinExists: fail (rel missing (src/a_test.go))
+check exit=0
+```
+
+Identical outcome to OS3. From the rule's perspective a rename-away and a
+deletion are the same event, and both are silent. Any fix for OS3 that only
+handles `D` leaves this half open.
 
 ## OS4 — `stripSuffixes` is a grouping input, not a source-shape detail
 
@@ -251,7 +285,7 @@ map, or every v3 rule and pattern inherits this defect.
 | Observation | Consequence |
 | --- | --- |
 | OS1, OS2 | The expectation vocabulary is a small closed grid, not an open enum. The proposal's combinatorial-growth risk is smaller than feared. |
-| OS3 | Deletion blindness must be an explicit product decision before the vocabulary is frozen. Naming alone cannot fix it. |
+| OS3, OS8 | Deletion blindness must be an explicit product decision before the vocabulary is frozen. Naming alone cannot fix it, and a fix that handles only `D` leaves the rename half open. |
 | OS4 | `stripSuffixes` must be available to the inline form, or the inline form must be declared single-shape-only and migration must refuse to flatten multi-shape families. |
 | OS5 | v3 must either auto-exclude resolved related paths from source matching, or make an unmatched/self-matched source a loud error. |
 | OS6 | Migration drops non-`source` groups with proven zero behavior change. `kyn init` should stop emitting them now, independently of v3. |
