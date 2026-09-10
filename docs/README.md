@@ -17,6 +17,7 @@ Repository documentation for Kyn users, maintainers, and historical design work.
 
 ## Historical Design and Planning
 
+- [v0.1.3 onboarding review](reviews/v0.1.3-onboarding.md): usability findings, reproduced first-run behavior, and proposed documentation improvements
 - [related-file-policy-exploration.md](related-file-policy-exploration.md): unapproved candidates for deeper related-file policy capabilities
 - [spec.md](spec.md): original product specification; not the current CLI reference
 - [ci.md](ci.md): earlier CI examples retained for repository history
