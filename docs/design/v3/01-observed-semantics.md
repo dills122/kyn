@@ -239,6 +239,46 @@ Every starter config therefore teaches two constructs that do nothing. This is
 evidence for the v3 pivot and it settles the migration question for these
 groups: they can be dropped with proven zero behavior change.
 
+## OS11 — The shipped `api` preset fails on an ordinary change set
+
+Source: [`e12-preset-api-defect.sh`](experiments/e12-preset-api-defect.sh)
+
+`kyn init --preset api` generates a family that sets
+
+```yaml
+    baseName:
+      stripSuffixes: ["_handler", "_service"]
+    kin:
+      test: "{dir}/{name}_test.go"
+```
+
+These two lines contradict each other. `stripSuffixes` collapses
+`order_handler.go` and `order_service.go` into the single instance
+`internal/order/order` (OS4), while `{name}` resolves differently for each of
+them. Changing a handler and a service in the same directory — both matched by
+the preset's own globs — trips the kin-agreement guard:
+
+```text
+family resolution failed: family "go-api-handler" instance "internal/order/order":
+kin "test" template "{dir}/{name}_test.go" resolves to different paths for
+different source files in this instance
+```
+
+`check` exits 2. Changing either file alone works, so the defect only appears
+once a plausible multi-file change arrives — likely in CI rather than locally.
+
+Two separate problems:
+
+1. **The preset is wrong.** For its evident intent — each handler and service
+   has its own `_test.go` — the fix is to drop `stripSuffixes`, giving the
+   two-instance behavior OS4 measured. Using `{base}` instead would be the other
+   coherent reading: one shared `order_test.go`.
+2. **The error's hint is wrong for this case.** It says the template "uses
+   `{ext}`, `{file}`, or `{name}` and the instance's source files have different
+   extensions". Here both files are `.go`; the collapse came from
+   `stripSuffixes`. The guard fires correctly, but its explanation sends the user
+   looking at extensions.
+
 ## OS10 — `rule.description` is parsed and never read
 
 `Rule.Description` is declared
@@ -315,5 +355,6 @@ map, or every v3 rule and pattern inherits this defect.
 | OS3, OS8 | Deletion blindness must be an explicit product decision before the vocabulary is frozen. Naming alone cannot fix it, and a fix that handles only `D` leaves the rename half open. |
 | OS4 | `stripSuffixes` must be available to the inline form, or the inline form must be declared single-shape-only and migration must refuse to flatten multi-shape families. |
 | OS5 | v3 must either auto-exclude resolved related paths from source matching, or make an unmatched/self-matched source a loud error. |
+| OS11 | Fix the preset and the guard's hint text in G0. It is also the sharpest concrete evidence for CR1: `stripSuffixes` and the template must be designed together, so they belong at the same level. |
 | OS6, OS10 | Migration drops non-`source` groups with proven zero behavior change. `kyn init` should stop emitting them now, independently of v3. `description` is inert and should either be wired into SARIF or dropped. |
 | OS7 | Normalized model is an ordered slice. Fix the existing defect first so v3 differential tests have a stable baseline. |

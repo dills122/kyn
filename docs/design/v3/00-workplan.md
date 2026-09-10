@@ -17,7 +17,7 @@ experiment; see [`01-observed-semantics.md`](01-observed-semantics.md).
 | --- | --- | --- | --- | --- |
 | IR1 | Normalized model cannot preserve report identity | P1 | G2 | Settled — D10 |
 | IR2 | Flat rules omit source-instance grouping semantics | P1 | G2 | Settled — D11 |
-| IR3 | Migration claim broader than the representable subset | P1 | G4 | Open |
+| IR3 | Migration claim broader than the representable subset | P1 | G4 | Settled — 06-migration.md |
 | IR4 | Expectation names overstate what Kyn observes | P2 | G1 | Settled — D6 |
 | IR5 | Version-specific decoding lacks a compatibility matrix | P2 | G3 | Settled — measured, 05-compatibility-matrix.md |
 | IR6 | Map-key validation not fully deterministic | P2 | G0/G2 | Settled — D3, D1 |
@@ -32,6 +32,7 @@ experiment; see [`01-observed-semantics.md`](01-observed-semantics.md).
 | OS5 | The proposed common form self-matches; OS3 hides the mistake | P1 | G2 | Settled — D8 |
 | OS7 | Error selection is already non-deterministic (ships today) | P1 | G0 | Specified — v0.1.x patch, not yet written |
 | OS10 | `rule.description` is parsed and never read | P2 | G0/G3 | Settled — D14 |
+| OS11 | The shipped `api` preset fails with exit 2 on an ordinary change set | P1 | G0 | Specified — v0.1.x patch |
 
 ### IR1 is wider than reported
 
@@ -123,24 +124,30 @@ Delivered in [`04-grammar.md`](04-grammar.md) and
 - `description` survives and becomes functional (D14).
 - All ten of the proposal's open questions answered.
 
-### G4 — Migration
+### G4 — Migration — CLOSED
 
-- IR3: formal migratable normal form; refuse everything outside it.
-- CR2 is settled (D2) and becomes a documented no-op with a differential test.
-- Deprecation policy for configs that cannot migrate.
+Delivered in [`06-migration.md`](06-migration.md).
 
-Deliverable: `06-migration.md`.
+- Migratable normal form M1–M4, with a clause-by-clause mapping.
+- Refusal set R1–R3, refused rather than approximated.
+- All four shipped presets migrate — with `api` needing its OS11 defect fixed
+  in G0 first, since migration preserves behavior including broken behavior.
+- Unreferenced kin identified as the one drop that is *not* a proven no-op.
 
-### G5 — Differential conformance harness
+### G5 — Differential conformance harness — SPECIFIED
 
-Compare check and explain text and JSON, SARIF, RDJSON, Checkstyle, dry-run,
-flags, result counts, ordering, and exit codes across equivalent configs. The
-existing v1→v2 end-to-end test (`e2e/workflows_test.go:95`) is the standard but
-covers one scenario.
+Delivered in [`07-conformance.md`](07-conformance.md). Cannot be **built** until
+G0 lands: OS7 means a red result is currently indistinguishable from a coin flip.
+
+- Two-layer matrix — exhaustive on semantics, sampled across output modes.
+- Three sanctioned differences (S1–S3), each asserted positively so the harness
+  fails if the intended difference is absent.
+- Corpus includes one config per refusal class, asserted refused.
 
 ### G6 — Implementation
 
-Not authorized. Requires G0–G5 closed and an approved specification.
+Not authorized. Requires G0 shipped, G5 built and green, and maintainer approval
+of the G1–G4 design set as a specification.
 
 ## Decisions taken
 
@@ -163,6 +170,18 @@ Recorded here as they close; each is backed by an experiment or a code citation.
 | D13 | Structural identity fields stay stable across config versions; vocabulary that echoes the user's own config (`explain`'s `clause`) follows the config version. | CR5. Reporting `if.kinExists` for a config containing neither `if` nor `kinExists` would be the actual defect. |
 | D14 | `description` survives into v3 and becomes functional (SARIF `fullDescription`, `explain`). `version:` is a config-schema version; prose calls v3 "the rule-centric format". | OS10 + CR6. Dropping `description` would break configs that already set it, and the fix is one line. |
 
+## Status
+
+| Gate | State |
+| --- | --- |
+| G0 — baseline fixes | Specified; ready to implement as a v0.1.x patch |
+| G1 — semantics | Closed — [`02-semantics.md`](02-semantics.md) |
+| G2 — instance and identity | Closed — [`03-instance-and-identity.md`](03-instance-and-identity.md) |
+| G3 — grammar and compatibility | Closed — [`04-grammar.md`](04-grammar.md), [`05-compatibility-matrix.md`](05-compatibility-matrix.md) |
+| G4 — migration | Closed — [`06-migration.md`](06-migration.md) |
+| G5 — conformance harness | Specified; blocked on G0 — [`07-conformance.md`](07-conformance.md) |
+| G6 — implementation | Not authorized |
+
 ## Open questions for the maintainer
 
 Answered 2026-09-09:
@@ -172,11 +191,16 @@ Answered 2026-09-09:
 
 Currently open:
 
-3. **OS5 / self-match.** Should v3 auto-exclude resolved related paths from
-   source matching, or reject a config whose `related` template can match its
-   own `match` globs? Auto-exclude is quieter; rejection is louder and matches
-   the repository's strict-validation habit. Decided in G2.
-4. **`--files-from` two-column form.** [`02-semantics.md`](02-semantics.md) §5
-   proposes `status<TAB>path` so explicit mode can express deletion. This adds
-   CLI surface, which the steering doc guards. Worth it, or is degrading to
-   current behavior in explicit mode acceptable?
+3. ~~OS5 / self-match~~ — reject at resolve time. Recorded as D8.
+4. ~~`--files-from` two-column form~~ — add it. Recorded as D9.
+
+Currently open:
+
+5. **Non-`source` groups in v2 validation (G0).** Now that OS6 proves they are
+   inert, should `kyn check` reject them, warn, or keep accepting them silently?
+   Rejecting is a breaking change to a shape that loads today (matrix row 8).
+   Warning fits the G0 "make inert things visible" theme.
+6. **Should G0 ship before the design set is approved?** Everything in G0 is a
+   v2 improvement on its own merits — determinism, a broken preset, an inert
+   field, two zero-value error messages. It does not depend on v3 being
+   approved, and G5 cannot start without it.
