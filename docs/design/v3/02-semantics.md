@@ -85,6 +85,30 @@ It also makes the OS5 self-match hazard visible rather than silent: the phantom
 instance's related path never existed, so it still skips — but a skip is no
 longer the same signal as a satisfied policy, and `explain` can name the reason.
 
+### Validated against real git output
+
+[`e9-gate-prototype.sh`](experiments/e9-gate-prototype.sh) simulates the
+proposed gate over five scenarios, deriving `vanishedInChange` from
+`git diff --name-status -M <base>...<head>` — the exact command Kyn already runs
+(`internal/changes/git.go:10`). No additional git invocation, no revision
+walking, no object reads.
+
+| Scenario | `existsNow` | `vanished` | `inChangeSet` | `existedAtBase` | old gate | new gate |
+| --- | --- | --- | --- | --- | --- | --- |
+| related untouched | Y | N | N | Y | FAIL | FAIL |
+| related updated | Y | N | Y | Y | pass | pass |
+| related **deleted** | N | Y | N | Y | skipped | **FAIL** |
+| related **renamed away** | N | Y | N | Y | skipped | **FAIL** |
+| related never existed | N | N | N | N | skipped | skipped |
+
+Two of five rows change, and they are exactly the two the fix targets. The
+already-correct rows — including the genuinely-not-applicable case — are
+untouched, so the change adds no false positives.
+
+This "2 of 5" blast radius is also the honest framing for the migration
+dry-run: a v2 rule behaves identically after migration unless the related file
+is deleted or renamed away in the change under evaluation.
+
 ### Cost: this is a deliberate behavior change
 
 A repository that deletes a test today exits `0`. After this change it exits
