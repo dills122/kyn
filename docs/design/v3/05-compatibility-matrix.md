@@ -2,6 +2,12 @@
 
 Status: measured. Answers IR5.
 
+> **Superseded as a constraint.** The
+> [scope change](00-workplan.md#scope-change-2026-09-10) retires v1 and v2
+> instead of carrying them, so "do not break shapes that load today" no longer
+> binds. This document is kept as measured evidence and for the three findings
+> below, which still apply to v3.
+
 Source: [`e11-compat-matrix.sh`](experiments/e11-compat-matrix.sh)
 
 IR5's objection was that "continue loading v1 and v2" does not define what the
@@ -90,9 +96,20 @@ alongside the other error-quality work: report a missing `version` as missing.
 - Row 16 — `version: 3` becomes valid. Nothing else changes about how 1 and 2
   are handled.
 
-## Rule for the v3 loader
+## What still applies to v3
 
-Every row marked contractual becomes a loader fixture **before** the shared
-decoder is split into version-specific document types. Rows marked incidental
-are explicitly listed as dropped, so the change is deliberate and reviewable
-rather than discovered later by a user.
+The contractual/incidental column is now historical. Three findings survive the
+scope change:
+
+1. **Row 18 makes v3 safe to add.** `KnownFields(true)` already rejects unknown
+   top-level keys, so no v1/v2 file ever silently ignored a `patterns:` block.
+   There is no ambiguous overlap to design around, whether or not v2 is kept.
+2. **Rows 6 and 10 are design lessons worth repeating.** Both reject an
+   *ambiguous* combination — top-level `include` alongside `groups.source`, and
+   `if` alongside `when` — with an explanatory message rather than silently
+   picking one. v3 should keep that habit: `use` alongside inline `match` is the
+   direct analogue, and validation rule 1 already covers it.
+3. **Rows 15 and 17 are real error-quality bugs** that carry straight into v3 if
+   the code is reused: a missing `version` reports `unsupported config version 0`
+   and a missing `severity` reports `has invalid severity ""`. Both leak a Go
+   zero value into a user-facing message.

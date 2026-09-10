@@ -1,30 +1,31 @@
-# G5 — Differential conformance harness
+# G5 — Conformance suite
 
 Status: proposed. Closes gate G5 in [`00-workplan.md`](00-workplan.md).
 
-The harness that proves a migrated policy behaves identically — and proves the
-sanctioned exceptions are the *only* differences.
-
-## Precondition: G0 first
-
-A differential harness compares outputs across two runs. OS7 measured the
-current binary producing three different error messages across thirty identical
-runs. Until G0 lands, a red result cannot be distinguished from a coin flip.
-
-**Do not build this harness before the determinism fix.**
+> Formerly a *differential* harness comparing a v2 policy against its migrated
+> v3 equivalent. The
+> [scope change](00-workplan.md#scope-change-2026-09-10) removed the migration,
+> so this is now a straight conformance suite for v3 semantics. It is no longer
+> blocked on a stable v2 baseline and can be built alongside the implementation.
 
 ## The oracle
 
-For each config in the corpus:
+There is no v2 side to compare against, so the oracle is the frozen semantics
+themselves:
 
-1. Migrate v2 → v3 (G4).
-2. Run both configs against the same fixture and the same change set.
-3. Compare every observable.
-4. Assert the difference set is empty, or is exactly a sanctioned exception.
+1. Build a fixture and a change set.
+2. Run the v3 config.
+3. Assert every observable against the truth table in
+   [`02-semantics.md`](02-semantics.md) §6, computed independently of the
+   implementation.
 
 Structural comparison of normalized policies is **not** sufficient. Two policies
 can normalize identically and still render different text, and the text is what
-users and CI consume. Compare rendered output.
+users and CI consume. Assert on rendered output.
+
+The determinism guard below is what makes any of this meaningful: OS7 measured
+the current binary producing three different error messages across thirty
+identical runs, and that code is reused by v3.
 
 ## Observables
 
@@ -33,41 +34,37 @@ All of them, every run:
 | Observable | Why it can differ independently |
 | --- | --- |
 | `check` exit code | severity mapping, `--fail-on`, gate changes |
-| `check` text | ordering, `Family:` / `Instance:` labels, pass suppression |
+| `check` text | ordering, `Shape:` / `Instance:` labels, pass suppression |
 | `check` json | field values, result count |
 | `check` sarif | rule-level dedup, `properties`, level mapping |
-| `check` rdjson | family identity is baked into `message` prose (IR1) |
+| `check` rdjson | instance identity is baked into `message` prose (IR1) |
 | `check` checkstyle | groups by path, reuses the RDJSON message renderer |
-| `explain` text | `If:` / `Assert:` section labels, clause traces |
+| `explain` text | `When:` / `Expect:` section labels, clause traces |
 | `explain` json | `clause` strings, `skipped` counts |
-| `--dry-run-resolve` text and json | instance list, kin map |
+| `--dry-run-resolve` text and json | instance list, resolved related paths |
 | result counts | `passed`, `failed`, `infos`, `skipped`, `warnings`, `errors` |
 | emitted flags | ordering and membership |
-| result ordering | `familyId`, then `familyName`, then `ruleId` (OS9) |
+| result ordering | `shapeId`, then `instanceName`, then `ruleId` (OS9) |
 
 `--show-passes` must be on. Passing results are hidden by default in text
 output, so a regression that flips a fail to a pass would otherwise show up only
 as a missing line.
 
-## Sanctioned differences
+## Invariants that were sanctioned differences
 
-A naive harness flags all three of these as regressions. They are the design,
-and each must be asserted **positively** — the harness should fail if the
-difference is *absent*, not merely tolerate it when present.
+The differential version of this document carried three sanctioned exceptions.
+Two disappear with the migration; one becomes an ordinary assertion.
 
-| # | Difference | Where | Authority |
-| --- | --- | --- | --- |
-| S1 | A v3 rule fails where v2 skipped, when the related path was deleted or renamed away in the change under evaluation | exit code, status, counts | D5, [`02-semantics.md`](02-semantics.md) §4 |
-| S2 | `explain` clause strings and text section labels use v3 vocabulary (`when.related-existed`, `expect.in-change-set`, `When:` / `Expect:`) | `explain` only | D13, [`03-instance-and-identity.md`](03-instance-and-identity.md) §7 |
-| S3 | Kin unreferenced by any rule disappear from the resolve report | `--dry-run-resolve` only | [`06-migration.md`](06-migration.md) |
+| Was | Now |
+| --- | --- |
+| S1 — a v3 rule fails where v2 skipped, on delete/rename-away | Not an exception. The gate is universal ([`02-semantics.md`](02-semantics.md) §4), so this is simply required behavior, asserted in layer 1. |
+| S2 — `explain` uses v3 clause vocabulary | Not an exception. One vocabulary exists. |
+| S3 — unreferenced kin vanish from the resolve report | Gone with `kin`. |
 
-Everything else is a regression. In particular `familyId`, `familyName`, the
-`(family instance: …)` message suffix, and result ordering must be **byte
-identical** (D10).
-
-S1 is the one with teeth: [`e9-gate-prototype.sh`](experiments/e9-gate-prototype.sh)
-established it changes exactly 2 of 5 scenarios. The harness must confirm both
-that those two change and that the other three do not.
+What replaces them is a positive assertion set. The delete and rename-away
+scenarios from [`e9-gate-prototype.sh`](experiments/e9-gate-prototype.sh) must
+**fail**, and the never-existed scenario must **skip**. A suite that only
+asserted "no crash" would pass while the OS3 hole was reopened.
 
 ## Scenario matrix
 
@@ -86,10 +83,11 @@ The dimensions that interact:
 | related vanished | no, deleted, renamed away |
 
 3 × 5 × 2 × 2 × 3 = 180 cells, minus the unreachable combinations (a path cannot
-both exist and have vanished in the same change). Run in git mode, compared on
+both exist and have vanished in the same change). Run in git mode, asserted on
 `explain --format json` plus the exit code. This is the direct successor to
 [`e3-truthtable.sh`](experiments/e3-truthtable.sh) and should replace it as a
-committed Go test.
+committed Go test — the experiment script produced the v2 baseline, and this
+produces the v3 contract.
 
 ### Layer 2 — projection and shape, sampled
 
@@ -111,15 +109,14 @@ get exercised.
 
 Real configs, not only synthetic ones:
 
-- the four `kyn init` presets — post-G0 fix for `api` (OS11)
-- the configs embedded in `docs/site/recipes/*.md`
-- the existing `internal/config`, `internal/family` and `internal/rules` fixtures
-- one config per refusal class R1–R3, asserted to be **refused** rather than
-  migrated
+- the four rewritten v3 presets, including the corrected `api` ([`06-cutover.md`](06-cutover.md))
+- the configs embedded in `docs/site/recipes/*.md`, rewritten for v3
+- one config per validation rule in [`04-grammar.md`](04-grammar.md), asserted to
+  be **rejected** with the right message and exit 2
 
-That last item matters as much as the passing cases. A migration that silently
-approximates R1 would pass every equivalence test that only runs migratable
-configs.
+That last item matters as much as the passing cases. Validation rules 7 and 10 —
+unused pattern, self-match — are new and unproven, and a suite that only runs
+valid configs would never exercise them.
 
 ## Form
 
@@ -127,17 +124,21 @@ Per `AGENTS.md`: table-driven Go tests, small explicit fixtures, golden files
 alongside the existing `internal/report` goldens.
 
 The existing v1→v2 end-to-end test (`e2e/workflows_test.go:95`) is the right
-shape and the right standard — it covers one scenario, and this expands it to a
-matrix.
+*shape* to copy even though its subject is being deleted: build a fixture, run
+the real binary, assert on rendered output and exit code.
 
 Golden files are external-contract fixtures under the repository steering, so a
-diff in one is a deliberate review event, not a test to re-record.
+diff in one is a deliberate review event, not a test to re-record. Record them
+only after the `iac` deduplication question in [`06-cutover.md`](06-cutover.md)
+is settled, since that changes result counts.
 
 ## Exit criteria for G5
 
-1. Layer 1 green, with S1 asserted positively in both directions.
+1. Layer 1 green across all 180 reachable cells, with the delete and
+   rename-away scenarios asserted to fail and never-existed asserted to skip.
 2. Layer 2 green across all seven output modes.
-3. Every corpus config either migrates with only sanctioned differences, or is
-   refused with a cited R-number.
+3. Every invalid corpus config rejected with the expected message and exit 2.
 4. The suite passes repeatedly — a determinism guard that runs the same input
-   several times and requires identical bytes, closing OS7 permanently.
+   several times and requires identical bytes, closing OS7 permanently. This is
+   the one criterion that must be written first, because it is the only one that
+   can fail intermittently.

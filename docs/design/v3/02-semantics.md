@@ -105,30 +105,28 @@ Two of five rows change, and they are exactly the two the fix targets. The
 already-correct rows — including the genuinely-not-applicable case — are
 untouched, so the change adds no false positives.
 
-This "2 of 5" blast radius is also the honest framing for the migration
-dry-run: a v2 rule behaves identically after migration unless the related file
-is deleted or renamed away in the change under evaluation.
+The "2 of 5" blast radius is also the honest framing for the release note: a
+policy behaves as before unless the related file is deleted or renamed away in
+the change under evaluation.
 
-### Cost: this is a deliberate behavior change
+### Cost: a behavior change, no longer a divergence
 
 A repository that deletes a test today exits `0`. After this change it exits
-`1`. That is the point, but it breaks a shipped contract, so it must be
-version-gated:
+`1`. That is the point.
 
-- **v1 and v2 configs keep the current gate.** Observed behavior is preserved
-  exactly; the compatibility promise holds.
-- **v3 configs get the corrected gate.**
+This was originally version-gated — v1/v2 keeping the blind gate, v3 getting the
+fix — to protect a shipped contract, which made it the first and only
+intentional divergence between a v2 policy and its v3 equivalent. The
+[scope change](00-workplan.md#scope-change-2026-09-10) removed that constraint:
+there are no users, v1 and v2 are being retired rather than carried, so the
+corrected gate is simply **the** gate.
 
-This makes the gate **the first and currently only intentional divergence
-between a v2 policy and its migrated v3 equivalent.** The proposal's rule that
-migration must be behaviorally equivalent cannot cover it, and the G5
-differential harness must special-case it rather than flagging it as a
-regression. `kyn config migrate` must report it explicitly in dry-run output —
-something like: *this rule will additionally fail when the related file is
-deleted or renamed away*.
+Consequences of dropping the version gate:
 
-Do not let this become a precedent. Every further divergence needs the same
-explicit treatment, and the count should stay at one.
+- No divergence to special-case, so the G5 harness loses its S1 exception.
+- No dry-run divergence warning to write.
+- `existedAtBase` is computed one way, not two, which removes a branch from the
+  normalized model and from every test that would have covered both sides.
 
 ## 5. Input-mode asymmetry
 
@@ -143,7 +141,7 @@ Recommendation:
    status syntax to a comma-separated list would be unreadable.
 2. **`--files-from` gains an optional two-column form**, `status<TAB>path`,
    mirroring `git diff --name-status` — the format users already have on hand.
-   Single-column lines keep meaning `modified`, so existing files keep working.
+   Single-column lines keep meaning `modified`, so a plain path list still works.
 3. **`--files` documents the fallback**: without vanish information the gate
    degrades to `existsNow`, which is exactly today's behavior. A policy designed
    in `--files` mode and enforced in git mode can therefore fail in CI having

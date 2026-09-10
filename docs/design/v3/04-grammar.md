@@ -5,7 +5,7 @@ Status: proposed. Closes gate G3 with
 
 Follows from the semantics frozen in [`02-semantics.md`](02-semantics.md) and
 the instance model in [`03-instance-and-identity.md`](03-instance-and-identity.md).
-Nothing here is safe to implement before G4 and G5.
+Nothing here is safe to implement before the G5 conformance suite exists.
 
 ## Common form
 
@@ -65,7 +65,7 @@ rules:
 
 Both rules share one source shape, so they share instances and reproduce the
 measured cardinality contract (OS9): two rules × two instances = four results,
-grouped and sorted exactly as v2 produced them.
+grouped by shape and sorted `shapeId`, `instanceName`, `ruleId`.
 
 ## Field reference
 
@@ -112,10 +112,11 @@ Dropped from v2 with reason:
 OS10 found `description` is accepted, validated and never read; SARIF fills both
 its description slots with the message instead.
 
-Keep the field, and wire it into SARIF `fullDescription` and `explain`. Dropping
-it would break the row-13 configs that already use it, and the fix is one line.
-That fix belongs in G0, so v2 users get it immediately rather than as a v3
-inducement.
+Keep the field and wire it into SARIF `fullDescription` and `explain`. The
+original argument was compatibility — dropping it would break configs that set
+it. With no such configs the field is kept on merit instead: a policy file
+benefits from recording *why* a rule exists, separately from the message shown
+when it fails, and SARIF already has the slot for it.
 
 ## Validation rules
 
@@ -138,7 +139,7 @@ Revised from the proposal's list, with the measured results folded in.
 Rule 9 is not a style preference. OS7 measured the current unsorted behavior
 producing three different error messages across thirty identical runs.
 
-## Known non-parity
+## Known capability limit
 
 v3.0 deliberately cannot express a rule whose applicability or assertions span
 **several** related paths atomically. The v2 shape:
@@ -149,13 +150,22 @@ assert: { kinChanged: [story, spec] }
 actions: { emit: [reviewRequired] }
 ```
 
-skips as one unit when either path is absent, and emits once. Splitting it into
-two v3 rules changes result counts and can emit when v2 would not.
+skips as one unit when either path is absent, and emits once. Two v3 rules
+evaluate independently, so counts and flags differ.
 
-This is not migratable and must be **refused**, not approximated — the subject of
-gate G4. Such configs stay on v2, which stays supported. Do not let the
-convenience of an approximate migration erode the proposal's own rule that
-migration never weakens a policy.
+Originally this had an escape hatch — such configs stayed on v2. The
+[scope change](00-workplan.md#scope-change-2026-09-10) removed it, so this is now
+a real capability limit rather than a migration boundary.
+
+Accepted on evidence: **no config uses it.** Every kin clause across the four
+presets, `docs/site/recipes/*`, and `docs/site/config.md` names exactly one kin.
+The only multi-path syntax anywhere in the repository is `kinChangedAny` in
+`docs/related-file-policy-exploration.md`, which is explicitly unapproved and was
+never implemented.
+
+Reserve the space rather than filling it: `expect` is already list-shaped, so
+adding a list-shaped `related` later is additive and does not break the grammar.
+Do not add it in v3.0.
 
 ## Naming (CR6)
 
@@ -167,23 +177,28 @@ Convention: the file says `version: 3`; prose calls it **the rule-centric
 format**. Reserve "v1/v2/v3" for the `version:` key alone, and say "Kyn 0.1.4"
 for releases.
 
+Keep the number at `3` even though v1 and v2 are being deleted. Restarting at
+`1` would collide with the original v1 in git history, in `docs/decisions.md`,
+and in `docs/migration-v1-to-v2.md`, and would make `version: 1` ambiguous
+forever. A gap in the sequence costs nothing.
+
 ## Proposal open questions — answers
 
 | # | Question | Answer |
 | --- | --- | --- |
 | 1 | `patterns`/`use` or `sources`/`source`? | `patterns`/`use`. `source` is already overloaded — `groups.source`, `changedAny: [source]`, `SourceFiles` — and reusing it would collide with report vocabulary. |
 | 2 | `rules` as mapping or sequence? | Mapping (D3). Duplicate detection and line numbers are already free. |
-| 3 | One related path per rule? | Yes. `expect` takes a list of assertions; multiple related *paths* means multiple rules. Atomic multi-path rules stay on v2 — see Known non-parity. |
+| 3 | One related path per rule? | Yes. `expect` takes a list of assertions; multiple related *paths* means multiple rules. Atomic multi-path rules are a known capability limit, accepted because no config uses one. |
 | 4 | Which expectation names? | D6: `in-change-set`, `not-in-change-set`, `exists`, `missing`, gated by `when`. |
 | 5 | Unused patterns — error, warning, or allowed? | Error (validation rule 7). |
-| 6 | Full v2 parity before release? | No, but v2 cannot enter deprecation until parity exists or a durable compatibility policy is published. |
-| 7 | What expanded form handles emit, multiple kin, advanced applicability? | None in v3.0. `emit` is flat and per-rule; the rest stays v2. |
+| 6 | Full v2 parity before release? | No. v1 and v2 are deleted rather than deprecated, and the one gap — atomic multi-path rules — is unused. |
+| 7 | What expanded form handles emit, multiple kin, advanced applicability? | None in v3.0. `emit` is flat and per-rule; multi-path is reserved, not built. |
 | 8 | Generated messages by default? | Yes, constrained by D7. |
-| 9 | Deprecation window; v1→v3 direct? | G4. Note row 2 of the compatibility matrix: v1 has no `groups`, so v1→v3 is a distinct path from v2→v3, not a shortcut through it. |
+| 9 | Deprecation window; v1→v3 direct? | Neither. v1 and v2 are removed outright; the four presets are rewritten by hand. |
 | 10 | Reserve `imports`? | Omit entirely. Reserving a key with no semantics invites the same inert-construct problem OS6 and OS10 document. |
 
 ## What G3 does not settle
 
-- The migratable normal form and the refusal set — gate G4.
-- The differential conformance harness — gate G5.
-- A JSON Schema for editor validation. Worth having; not a blocker.
+- The conformance suite — gate G5.
+- A JSON Schema for editor validation. Worth having once the grammar freezes;
+  not a blocker.

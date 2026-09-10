@@ -105,10 +105,11 @@ D5 retains deleted and renamed-away paths. It would now be *possible* to resolve
 instances from a vanished **source** file, expressing "delete the handler, delete
 its test".
 
-Deferred deliberately. Creating instances from vanished sources would change
-instance counts for every migrated policy, making it a second intentional v2→v3
-divergence. [`02-semantics.md`](02-semantics.md) §4 commits to keeping that count
-at one. Vanished paths stay available to the *gate* and to nothing else in v3.0.
+Deferred deliberately, now on scope grounds rather than compatibility grounds.
+A vanished source has no working-tree file to derive `{ext}`, `{file}` or
+`{name}` from, so template resolution and the agreement check in §4 would both
+need a second code path. Vanished paths stay available to the *gate* and to
+nothing else in v3.0.
 
 ## 5. Self-match is rejected at resolve time (OS5, D8)
 
@@ -144,24 +145,36 @@ including RDJSON and Checkstyle as message prose.
 With §2, the identity exists: `sourceShapeID` and `instanceName` are total for
 v3 rules, inline ones included. So the question is only what goes on the wire.
 
-**Decision: the wire format does not change.** `familyId` carries
-`sourceShapeID`; `familyName` carries `instanceName`. Field names, types,
-ordering and message strings are identical across v1, v2 and v3 configs.
+**Decision: rename the fields to say what they are.**
 
-The proposal itself supplies the rule: *"Never change machine report schemas or
-exit behavior solely because the input config version changed."* Renaming
-`familyId` to `sourceId` for v3 configs would break every consumer at the moment
-a repository migrates — precisely the coupling that sentence forbids.
+The original decision here was to keep `familyId` / `familyName` untouched,
+because renaming would break every consumer at the moment a repository migrated.
+The [scope change](00-workplan.md#scope-change-2026-09-10) removed that
+constraint — there are no consumers — so the fields get honest names instead of
+inherited ones.
 
-| Output | Field | v3 value |
+| Old | New | Value |
 | --- | --- | --- |
-| `json` | `familyId` / `familyName` | `sourceShapeID` / `instanceName` |
-| `text` | `Family:` / `Instance:` | same |
-| `sarif` | `properties.familyId` / `familyName`, rule `properties.familyId` | same |
-| `rdjson` | `message` suffix `(family instance: <name>)` | `instanceName` |
-| `checkstyle` | `message` (reuses the RDJSON renderer) | `instanceName` |
-| `--dry-run-resolve` | `instances[].familyId` / `.name` | same |
-| `explain` | `familyId` / `familyName` | same |
+| `familyId` | `shapeId` | pattern name, or the rule ID for an inline shape |
+| `familyName` | `instanceName` | `{dir}/{base}` |
+
+| Output | Change |
+| --- | --- |
+| `json` | `familyId` → `shapeId`, `familyName` → `instanceName` |
+| `text` | `Family:` → `Shape:`, `Instance:` unchanged |
+| `sarif` | `properties.familyId` → `shapeId`, same for the rule-level property |
+| `rdjson` | message suffix `(family instance: src/a)` → `(instance: src/a)` |
+| `checkstyle` | inherits the RDJSON message renderer |
+| `--dry-run-resolve` | `instances[].familyId` → `.shapeId`, `.name` → `.instanceName` |
+| `explain` | same as `json` |
+
+Sorting is unchanged in structure — `shapeId`, then `instanceName`, then
+`ruleId` — so the OS9 ordering contract survives the rename intact.
+
+For an inline rule `shapeId` equals the rule ID, which reads as redundant in
+reports. That redundancy is deliberate: it keeps one grouping key across inline
+and pattern-backed rules, so consumers do not need to branch on which form the
+author used.
 
 ### The `kin` map in `--dry-run-resolve`
 
@@ -183,28 +196,13 @@ Structurally identical to the v2 output in §1, with rule IDs where kin names
 were. For a migrated config the strings differ only if the user named their kin
 differently from their rules — which the migration dry-run must show.
 
-### Deferred: the "family" vocabulary
-
-`(family instance: …)` in RDJSON and Checkstyle, and `Family:` in text output,
-are v2 words that a v3 author never wrote. Changing them alters every message
-string and breaks golden fixtures and downstream string matching.
-
-Keep them. Revisit under a deliberate report-schema version bump, never as a
-side effect of a config-version change.
-
 ## 7. `explain` clause naming (CR5)
 
 `ClauseTrace.Clause` is a JSON string carrying values like `if.kinExists` and
 `assert.kinChanged` (`internal/rules/explain.go:29`).
 
-Distinguish two kinds of field:
-
-- **Structural identity** — `familyId`, `familyName`, `ruleId`, `status`. Stable
-  across config versions (§6).
-- **Vocabulary that echoes the user's own config** — `clause`. Follows the
-  version of the config the user wrote.
-
-`clause` is the second kind. A v3 config's trace should name v3 fields:
+With v1 and v2 retired there is only one vocabulary, so this reduces to naming
+the clauses after the fields the user actually writes:
 
 ```text
 When:
@@ -213,15 +211,15 @@ Expect:
   - expect.in-change-set: fail (not in change set (src/a_test.go))
 ```
 
-This is not a schema change: the field exists in both, is a string in both, and
-its documented meaning — "which clause produced this result" — is unchanged.
-Reporting `if.kinExists` for a config containing neither `if` nor `kinExists`
-would be the actual defect.
+`ExplainResult` keeps its shape — the two-field grammar from D6 maps onto the
+existing `IfTrace` / `AssertTrace` slots without needing a third. The JSON keys
+stay `if` and `assert` only if that reads honestly; since nothing depends on
+them any more, rename them to `when` and `expect` alongside the §6 rename and
+keep one vocabulary end to end.
 
-The two-field grammar from D6 maps onto the existing `IfTrace` / `AssertTrace`
-sections without inventing a third, so `ExplainResult` keeps its shape. Only the
-section labels in **text** output change for v3 configs (`If:` → `When:`,
-`Assert:` → `Expect:`); the JSON keys `if` and `assert` stay.
+The distinction D13 originally drew — structural identity stable across config
+versions, user-facing vocabulary following the config version — is moot with a
+single version. It is worth keeping as a principle for any future version bump.
 
 ## 8. Normalized types
 
@@ -230,7 +228,7 @@ iteration already produces non-deterministic error selection; a v3 keyed by YAML
 mappings would inherit that per rule and per pattern.
 
 ```go
-// Version-neutral. v1, v2 and v3 documents all compile into this.
+// The normalized policy. The v3 document compiles into this.
 type Policy struct {
     Shapes []SourceShape   // sorted by ID
     Rules  []Rule          // sorted by ID
@@ -254,21 +252,21 @@ type Rule struct {
     Severity string
     Message  string        // generated per D7 when empty
     Emit     []string
-    Origin   Provenance    // config version, source position, pre-migration identity
+    Origin   Provenance    // source position: file, line, column
 }
 ```
 
-`Origin` is what keeps `explain` honest across versions and lets the G4 migration
-dry-run report exactly what changed. It is normalization input, never report
-output.
+`Origin` carries YAML source position so validation errors can point at the
+line the user wrote. It is normalization input, never report output. With v1 and
+v2 retired it no longer needs to carry a config version or a pre-migration
+identity.
 
 Instance resolution iterates `Shapes` in sorted order, so both error selection
 and result ordering are total functions of the input.
 
 ## 9. What G2 does not settle
 
-- The concrete v3 grammar and the v1/v2 compatibility matrix — gate G3.
-- The migratable normal form — gate G4. §6's kin-map projection and §3's
-  `stripSuffixes` move both feed it directly.
-- Whether `description` survives into v3 — gate G3.
+- The concrete v3 grammar — gate G3.
+- Whether the `--dry-run-resolve` kin map should deduplicate related paths that
+  several instances demand — see the `iac` case in the workplan's open items.
 - A sound static self-match pre-check (§5) — future work, not a v3.0 blocker.

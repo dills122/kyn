@@ -17,13 +17,15 @@ baseline in `01`.
 | [`02-semantics.md`](02-semantics.md) | G1 | Deletion gap closed; expectation grid frozen as `when` + `expect` |
 | [`03-instance-and-identity.md`](03-instance-and-identity.md) | G2 | Instances keyed on the source shape; report identity preserved |
 | [`04-grammar.md`](04-grammar.md) | G3 | The v3 grammar, validation rules, and answers to the proposal's open questions |
-| [`05-compatibility-matrix.md`](05-compatibility-matrix.md) | G3 | Twenty v1/v2 shapes probed against the shipped binary |
-| [`06-migration.md`](06-migration.md) | G4 | Migratable normal form, refusal set, preset coverage |
-| [`07-conformance.md`](07-conformance.md) | G5 | Differential harness, sanctioned differences, scenario matrix |
+| [`05-compatibility-matrix.md`](05-compatibility-matrix.md) | G3 | Twenty v1/v2 shapes probed; superseded as a constraint, kept as evidence |
+| [`06-cutover.md`](06-cutover.md) | G4 | v1/v2 removal list, preset rewrite, accepted capability limit |
+| [`07-conformance.md`](07-conformance.md) | G5 | Conformance suite, scenario matrix, exit criteria |
 | [`experiments/`](experiments/) | — | Reproduction scripts for every observation in `01` |
 
-Nothing is implemented. G0 — a set of v2 fixes that stand on their own merits —
-is specified in the workplan and blocks the conformance harness.
+Nothing is implemented. Read the workplan's
+[scope change](00-workplan.md#scope-change-2026-09-10) first — Kyn has no users
+yet, v1 and v2 are being retired rather than carried, and that invalidated two
+earlier decisions and dissolved most of gate G0.
 
 ## Running the experiments
 
