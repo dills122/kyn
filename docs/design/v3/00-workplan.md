@@ -15,21 +15,21 @@ experiment; see [`01-observed-semantics.md`](01-observed-semantics.md).
 
 | ID | Finding | Sev | Gate | Status |
 | --- | --- | --- | --- | --- |
-| IR1 | Normalized model cannot preserve report identity | P1 | G2 | Open — widened, see below |
-| IR2 | Flat rules omit source-instance grouping semantics | P1 | G2 | Open |
+| IR1 | Normalized model cannot preserve report identity | P1 | G2 | Settled — D10 |
+| IR2 | Flat rules omit source-instance grouping semantics | P1 | G2 | Settled — D11 |
 | IR3 | Migration claim broader than the representable subset | P1 | G4 | Open |
 | IR4 | Expectation names overstate what Kyn observes | P2 | G1 | Settled — D6 |
 | IR5 | Version-specific decoding lacks a compatibility matrix | P2 | G3 | Open |
-| IR6 | Map-key validation not fully deterministic | P2 | G0/G2 | Partly settled — D3, D1 |
-| CR1 | `stripSuffixes` is a grouping input the inline form cannot express | P1 | G2 | Confirmed by OS4 |
+| IR6 | Map-key validation not fully deterministic | P2 | G0/G2 | Settled — D3, D1 |
+| CR1 | `stripSuffixes` is a grouping input the inline form cannot express | P1 | G2 | Settled — D12 |
 | CR2 | Migration has no answer for declared-but-inert v2 groups | P1 | G4 | Settled — D2 |
 | CR3 | Resolve-time error selection becomes order-dependent under maps | P2 | G0 | Confirmed by OS7 |
 | CR4 | Generated default messages are an unowned output contract | P2 | G1 | Settled — D7 |
-| CR5 | `explain` clause names are a JSON contract the shorthand must map to | P2 | G2 | Open |
+| CR5 | `explain` clause names are a JSON contract the shorthand must map to | P2 | G2 | Settled — D13 |
 | CR6 | "v3 config" collides with product versioning; `description` dropped | nit | G3 | Open |
 | OS3 | Kyn cannot observe deletion; the default shape is silenced by it | **P0** | G1 | Settled — D5 |
 | OS8 | Renaming the related file away is equally invisible | **P0** | G1 | Settled — D5 |
-| OS5 | The proposed common form self-matches; OS3 hides the mistake | P1 | G1 | Open — partly mitigated by D5 |
+| OS5 | The proposed common form self-matches; OS3 hides the mistake | P1 | G2 | Settled — D8 |
 | OS7 | Error selection is already non-deterministic (ships today) | P1 | G0 | Specified — v0.1.x patch, not yet written |
 
 ### IR1 is wider than reported
@@ -93,16 +93,17 @@ Delivered in [`02-semantics.md`](02-semantics.md).
   paths, error, or warn. D5 makes the phantom instance's skip legible but does
   not stop it being created. Carried into G2, where the instance key is defined.
 
-### G2 — Instance and identity model
+### G2 — Instance and identity model — CLOSED
 
-- IR2 + CR1: instance-key derivation, `stripSuffixes` placement, source
-  aggregation, template-context agreement, status aggregation.
-- IR1: normalized identity and its projection into all seven output modes.
-- CR5: clause naming in `explain` traces.
-- D1 applies throughout: ordered slices, never maps.
+Delivered in [`03-instance-and-identity.md`](03-instance-and-identity.md).
 
-Deliverable: `03-instance-and-identity.md`, including a normalized Go type
-sketch and a field-by-field report projection table.
+- Instance key rebased onto the source shape (D11), which is what preserves the
+  measured cardinality and ordering contract (OS9).
+- `stripSuffixes` moved to the rule (D12), so the inline form can express the
+  shipped `api` preset.
+- Report identity resolved by keeping the wire format unchanged (D10).
+- `explain` clause vocabulary follows the config version (D13).
+- Self-match rejected at resolve time (D8).
 
 ### G3 — Grammar and compatibility matrix
 
@@ -145,6 +146,12 @@ Recorded here as they close; each is backed by an experiment or a code citation.
 | D5 | Close the deletion gap. The applicability gate becomes "existed at base", derived from `D` and rename-source entries Kyn already parses and discards. Version-gated to v3. | Maintainer decision 2026-09-09. Validated by `e9-gate-prototype.sh`: fixes OS3 and OS8, changes 2 of 5 scenarios, adds no false positives, needs no new git call. See [`02-semantics.md`](02-semantics.md) §4. |
 | D6 | The expectation vocabulary is two orthogonal fields — `when` and `expect` — not fused enum names. `when` defaults to `always`, never to a lenient gate. | OS1/OS2 plus IR4. Removes the concealed skip, and makes enum growth additive instead of multiplicative. See [`02-semantics.md`](02-semantics.md) §6. |
 | D7 | `message` may be generated, but the generated text is a versioned, fixture-tested contract containing only the rule ID and resolved related path — never a config path or absolute path. | CR4. Absolute paths would leak the CI checkout root into reviewdog comments. |
+| D8 | A resolved `related` path that matches its own rule's `match`/`exclude` is a config error, reported at resolve time with exit 2. | Maintainer decision 2026-09-09. A sound static check is glob intersection; the resolve-time check is exact and cheap. See [`03-instance-and-identity.md`](03-instance-and-identity.md) §5. |
+| D9 | `--files-from` gains an optional `status<TAB>path` form so explicit mode can express deletion. Single-column lines still mean `modified`. | Maintainer decision 2026-09-09. Without it a policy designed with `--files` passes locally and fails in git-mode CI. See [`02-semantics.md`](02-semantics.md) §5. |
+| D10 | Report wire format is unchanged across config versions: `familyId` carries the source-shape ID, `familyName` the instance name. | IR1. The proposal's own rule forbids changing report schemas because the input config version changed; renaming would break every consumer at the moment a repo migrates. See [`03-instance-and-identity.md`](03-instance-and-identity.md) §6. |
+| D11 | Instances are keyed on the **source shape** — the (`match`, `exclude`, `stripSuffixes`) triple — not on the rule. A pattern is a named source shape; an inline rule owns an anonymous one identified by its rule ID. | OS9 shows rule-keyed instances would regroup and reorder every report. Shape-keying maps a v2 family one-for-one and preserves the contract. |
+| D12 | `match`, `exclude` and `stripSuffixes` are all legal inline on a rule. A pattern is a named bundle of exactly those three and carries no extra capability. | OS4/CR1. Confining `stripSuffixes` to patterns left the inline form unable to express the shipped `api` preset. Also makes inline and pattern-backed forms normalize identically by construction. |
+| D13 | Structural identity fields stay stable across config versions; vocabulary that echoes the user's own config (`explain`'s `clause`) follows the config version. | CR5. Reporting `if.kinExists` for a config containing neither `if` nor `kinExists` would be the actual defect. |
 
 ## Open questions for the maintainer
 
