@@ -52,12 +52,12 @@ that belongs to exactly one rule.
 sourceShapeID = pattern name        (when the rule uses `use:`)
               = rule ID             (when the rule declares match/exclude inline)
 
-instanceKey   = sourceShapeID + "|" + instanceName
-instanceName  = {dir}/{base}        (unchanged from v2)
+instanceKey   = sourceShapeID + "|" + <template footprint>   (see §4)
 ```
 
-This maps a v2 family onto a v3 pattern one-for-one, so `familyId` →
-`sourceShapeID` and `familyName` → `instanceName` preserve §1 exactly.
+This maps a v2 family onto a v3 pattern one-for-one, so the grouping and
+ordering measured in §1 survive. The second half of the key — what v2 hardcoded
+as `{dir}/{base}` — is derived in §4 instead.
 
 ## 3. `stripSuffixes` moves to the rule (CR1, OS4)
 
@@ -88,14 +88,79 @@ Consequences:
 - `use:` remains mutually exclusive with inline `match`/`exclude`/
   `stripSuffixes`, and pattern fields still cannot be overridden.
 
-## 4. Aggregation rules
+## 4. The instance key is derived from the template's variable footprint
 
-Carried forward from v2 unchanged, because they are already correct and tested:
+Maintainer decision: deduplicate results that demand the same path (item 8).
+OS13 shows the cleanest place to do that is the instance key itself, not a
+post-hoc merge of results.
+
+### The problem
+
+The key is `{dir}/{base}`, derived from the **source** file. The demanded path
+comes from the **template**. When the template ignores the per-file variables
+the two disagree, and one file is demanded once per source file (OS13):
+
+| `related` | instances | distinct paths demanded |
+| --- | --- | --- |
+| `{dir}/{name}_test.go` | 3 | 3 |
+| `{dir}/README.md` | 3 | **1** |
+| `CHANGELOG.md` | 3 | **1** |
+
+### The rule
+
+> A rule's instance key is the source shape plus **exactly the template
+> variables its `related` uses**, in the fixed order `dir`, `base`, `name`,
+> `ext`, `file`.
+
+| `related` | footprint | key | iac/changelog outcome |
+| --- | --- | --- | --- |
+| `{dir}/{base}.spec.ts` | dir, base | `shape\|dir\|base` | unchanged from v2 |
+| `{dir}/{name}_test.go` | dir, name | `shape\|dir\|name` | unchanged |
+| `{dir}/README.md` | dir | `shape\|dir` | **1 instance per directory** |
+| `CHANGELOG.md` | — | `shape` | **1 instance total** |
+
+`instanceName` is the rendered key. For an empty footprint it is the resolved
+related path, which is constant by definition.
+
+### Why this rather than merging results
+
+Three properties fall out for free.
+
+1. **Deduplication is structural.** There is no merge step, so there is no
+   question of what `instanceName`, `changedFiles` or `shapeId` become on a
+   merged row. Sources aggregate into one instance the same way they always did.
+2. **The template-agreement error becomes unreachable.** The guard at
+   `internal/family/resolver.go:117` exists because a template using `{ext}`,
+   `{file}` or `{name}` can resolve differently across files sharing a
+   `{dir}/{base}` key. Under footprint keying those variables are *in* the key,
+   so files in one instance necessarily agree. The check stays as an assertion,
+   but it can no longer fire.
+3. **OS11 stops being possible.** The `api` preset's contradiction —
+   `stripSuffixes` collapsing handler and service while `{name}` splits them —
+   resolves automatically: `{name}` is in the footprint, so they are separate
+   instances, each with its own test. `stripSuffixes` now affects grouping only
+   when the template actually uses `{base}`, which is the only case where it
+   *should*.
+
+Property 3 means the preset fix in [`06-cutover.md`](06-cutover.md) is belt and
+braces rather than load-bearing — worth keeping, since a config should not
+depend on a subtle key derivation to be coherent.
+
+### Relationship to D11
+
+This refines D11, it does not contradict it. The **shape** still decides which
+files group together; the footprint decides how finely that group is
+partitioned. Two rules over one pattern whose templates have the same footprint
+partition identically and share instances exactly as OS9 measured. They diverge
+only when their templates genuinely address different granularities — which is
+the correct behavior, not a regression.
+
+### Aggregation rules
 
 | Concern | Rule |
 | --- | --- |
 | Source aggregation | All source files resolving to one instance key are collected and sorted. |
-| Template agreement | If `related` resolves differently across source files in one instance, error. `{dir}` and `{base}` agree by construction; `{ext}`, `{file}` and `{name}` can disagree (`internal/family/resolver.go:117`). |
+| Template agreement | Guaranteed by the key. Retained as an assertion that must never fire. |
 | Status applicability | `on:` matches if **any** source file in the instance carries an allowed status. |
 | Evaluation cardinality | One result per (rule, instance). |
 
@@ -105,11 +170,10 @@ D5 retains deleted and renamed-away paths. It would now be *possible* to resolve
 instances from a vanished **source** file, expressing "delete the handler, delete
 its test".
 
-Deferred deliberately, now on scope grounds rather than compatibility grounds.
-A vanished source has no working-tree file to derive `{ext}`, `{file}` or
-`{name}` from, so template resolution and the agreement check in §4 would both
-need a second code path. Vanished paths stay available to the *gate* and to
-nothing else in v3.0.
+Deferred deliberately on scope grounds. A vanished source has no working-tree
+file to derive `{ext}`, `{file}` or `{name}` from, so both template resolution
+and the footprint key would need a second code path. Vanished paths stay
+available to the *gate* and to nothing else in v3.0.
 
 ## 5. Self-match is rejected at resolve time (OS5, D8)
 
@@ -196,6 +260,30 @@ Structurally identical to the v2 output in §1, with rule IDs where kin names
 were. For a migrated config the strings differ only if the user named their kin
 differently from their rules — which the migration dry-run must show.
 
+### Report headline (OS12)
+
+`summarize` counts every failing result in `Failed` but only clears `OK` for
+results at or above `--fail-on`
+(`internal/rules/engine.go:32`), so a failing `severity: warn` rule prints
+`PASS` directly above `Rules failed: 1` and exits 0. The `web-ui` preset's
+`tests-sync` rule is `severity: warn`, so this is the common case.
+
+The exit code is right — `warn` is not meant to block. The headline is not.
+Three states, so three words:
+
+| Condition | Headline | Exit |
+| --- | --- | --- |
+| `OK == false` | `FAIL` | 1 |
+| `OK == true` and `Failed > 0` | `NON-BLOCKING` | 0 |
+| `Failed == 0` | `PASS` | 0 |
+
+`PASS` becomes a claim that nothing failed, which is what a reader scanning the
+first line assumes it already means. `NON-BLOCKING` says the run did not block
+without saying nothing happened.
+
+This changes the first line of every text golden, so it must land before the G5
+fixtures are recorded.
+
 ## 7. `explain` clause naming (CR5)
 
 `ClauseTrace.Clause` is a JSON string carrying values like `if.kinExists` and
@@ -267,6 +355,6 @@ and result ordering are total functions of the input.
 ## 9. What G2 does not settle
 
 - The concrete v3 grammar — gate G3.
-- Whether the `--dry-run-resolve` kin map should deduplicate related paths that
-  several instances demand — see the `iac` case in the workplan's open items.
+- Nothing outstanding. The deduplication question from the workplan is answered
+  by §4.
 - A sound static self-match pre-check (§5) — future work, not a v3.0 blocker.

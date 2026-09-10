@@ -197,8 +197,20 @@ forever. A gap in the sequence costs nothing.
 | 9 | Deprecation window; v1→v3 direct? | Neither. v1 and v2 are removed outright; the four presets are rewritten by hand. |
 | 10 | Reserve `imports`? | Omit entirely. Reserving a key with no semantics invites the same inert-construct problem OS6 and OS10 document. |
 
+## JSON Schema
+
+Approved as a deliverable, to be written once this grammar freezes.
+
+It buys editor completion and inline validation for a format whose whole premise
+is that the common case should be obvious to write. Two constraints:
+
+- **Generated from the same source as the loader**, or checked against it in CI.
+  A schema that drifts from the validator is worse than none, because it
+  green-lights configs the binary rejects.
+- **It cannot express every rule.** Validation rules 7 and 10 — unused pattern,
+  self-match — are cross-field and resolve-time respectively. The schema covers
+  shape and enums; the loader remains the authority.
+
 ## What G3 does not settle
 
 - The conformance suite — gate G5.
-- A JSON Schema for editor validation. Worth having once the grammar freezes;
-  not a blocker.

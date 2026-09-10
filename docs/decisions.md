@@ -2,6 +2,22 @@
 
 This file captures product and implementation decisions locked for MVP.
 
+> **Partly superseded.** Two decisions below are overturned by the v3 design and
+> are kept here because that design cites them as the behavior it changes:
+>
+> - **Git Change Detection** excludes `D` paths from the change set. Measured
+>   consequence: a policy rule is silenced by deleting or renaming away the file
+>   it protects. Overturned by decision D5 — see
+>   [design/v3/02-semantics.md](design/v3/02-semantics.md).
+> - **Family Instance Deduplication** and the `{dir}/{base}` instance key
+>   over-partition when the related-path template ignores the source file name.
+>   Refined by decision D17 — see
+>   [design/v3/03-instance-and-identity.md](design/v3/03-instance-and-identity.md).
+>
+> Everything else — exit codes, input modes, deterministic ordering — still
+> holds. Config-version specifics (`families`, `kin`, `groups`) describe v1/v2,
+> which are slated for removal.
+
 > Rule keys below use v2 naming (`if` / `assert` / `actions`). See
 > [mvp-v2.md](mvp-v2.md) for the v1 -> v2 rename rationale and
 > [migration-v1-to-v2.md](migration-v1-to-v2.md) for migrating existing

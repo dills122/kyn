@@ -239,6 +239,31 @@ Every starter config therefore teaches two constructs that do nothing. This is
 evidence for the v3 pivot and it settles the migration question for these
 groups: they can be dropped with proven zero behavior change.
 
+## OS13 — The instance key over-partitions when the template ignores the file
+
+Source: [`e14-template-footprint.sh`](experiments/e14-template-footprint.sh)
+
+The instance key is `{dir}/{base}`, derived from the **source** file. The
+demanded path comes from the **template**. When the template does not use the
+per-file variables, the two disagree and one file gets demanded many times.
+
+Three changed sources, three templates:
+
+| `related` template | instances | failures | distinct paths demanded |
+| --- | --- | --- | --- |
+| `{dir}/{name}_test.go` | 3 | 3 | 3 |
+| `{dir}/README.md` | 3 | 3 | **1** |
+| `CHANGELOG.md` | 3 | 3 | **1** |
+
+Row 1 is right. Rows 2 and 3 report the same missing file three times.
+
+Row 2 is the shipped `iac` preset. Row 3 — "any change under `src/` requires a
+changelog entry" — is an obvious policy to want, and it produces one failure per
+changed file.
+
+The mismatch is mechanical: the key is derived from the source, but the
+partition that matters is the one the template induces.
+
 ## OS12 — A report can say `PASS` and `Rules failed: 1` at once
 
 Source: [`e13-severity-failon.sh`](experiments/e13-severity-failon.sh)
@@ -393,6 +418,7 @@ map, or every v3 rule and pattern inherits this defect.
 | OS3, OS8 | Deletion blindness must be an explicit product decision before the vocabulary is frozen. Naming alone cannot fix it, and a fix that handles only `D` leaves the rename half open. |
 | OS4 | `stripSuffixes` must be available to the inline form, or the inline form must be declared single-shape-only and migration must refuse to flatten multi-shape families. |
 | OS5 | v3 must either auto-exclude resolved related paths from source matching, or make an unmatched/self-matched source a loud error. |
+| OS13 | Derive the instance key from the variables the `related` template actually uses, not from the source basename. Fixes the over-partition and makes the template-agreement error class unreachable. |
 | OS12 | Report headline must agree with the counts. Settle before the G5 goldens are recorded, since the headline is in every text fixture. |
 | OS11 | Fix the preset and the guard's hint text in G0. It is also the sharpest concrete evidence for CR1: `stripSuffixes` and the template must be designed together, so they belong at the same level. |
 | OS6, OS10 | Migration drops non-`source` groups with proven zero behavior change. `kyn init` should stop emitting them now, independently of v3. `description` is inert and should either be wired into SARIF or dropped. |

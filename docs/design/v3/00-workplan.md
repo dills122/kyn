@@ -67,7 +67,8 @@ experiment; see [`01-observed-semantics.md`](01-observed-semantics.md).
 | OS7 | Error selection is already non-deterministic (ships today) | P1 | G0 | Specified — v0.1.x patch, not yet written |
 | OS10 | `rule.description` is parsed and never read | P2 | G0/G3 | Settled — D14 |
 | OS11 | The shipped `api` preset fails with exit 2 on an ordinary change set | P1 | G4 | Settled — corrected in the preset rewrite |
-| OS12 | A report can print `PASS` above `Rules failed: 1` | P1 | G5 | Open — see item 9 |
+| OS12 | A report can print `PASS` above `Rules failed: 1` | P1 | G2 | Settled — D18 |
+| OS13 | The instance key over-partitions when the template ignores the file | P1 | G2 | Settled — D17 |
 
 ### IR1 is wider than reported
 
@@ -208,6 +209,10 @@ Recorded here as they close; each is backed by an experiment or a code citation.
 | D14 | `description` survives into v3 and becomes functional (SARIF `fullDescription`, `explain`). `version:` is a config-schema version; prose calls v3 "the rule-centric format", and the number stays `3` rather than restarting. | OS10 + CR6. Kept on merit rather than compatibility: a policy file benefits from recording *why* a rule exists, separately from the failure message, and SARIF has the slot. |
 | D15 | v3.0 ships **without** atomic multi-path rules. `expect` stays list-shaped so a future list-shaped `related` is additive. | Maintainer decision 2026-09-10. Measured: every kin clause in the four presets, `docs/site/recipes/*` and `docs/site/config.md` names exactly one kin. The only multi-path syntax is `kinChangedAny` in an explicitly unapproved exploration doc. |
 | D16 | Reports rename `familyId` → `shapeId` and `familyName` → `instanceName`; the RDJSON/Checkstyle message suffix becomes `(instance: src/a)`; text output says `Shape:`. Supersedes D10. | Maintainer decision 2026-09-10. With no consumers the fields get honest names. Sort structure is unchanged, so the OS9 ordering contract survives. |
+| D17 | A rule's instance key is the source shape plus **exactly the variables its `related` template uses**. Refines D11. | Maintainer decision 2026-09-10 (dedupe). OS13 measured the over-partition: `{dir}/README.md` and `CHANGELOG.md` each demand one path but produce one failure per source file. Footprint keying deduplicates structurally, makes the template-agreement error unreachable, and makes OS11 impossible. See [`03-instance-and-identity.md`](03-instance-and-identity.md) §4. |
+| D18 | Three report headlines: `FAIL` when the run blocked, `NON-BLOCKING` when failures exist but did not block, `PASS` only when `Failed == 0`. | Maintainer decision 2026-09-10. OS12: the current headline says `PASS` above `Rules failed: 1`, and the shipped `web-ui` preset triggers it. |
+| D19 | `docs/decisions.md` and `docs/migration-v1-to-v2.md` are annotated as superseded rather than deleted. | Maintainer decision 2026-09-10. This design set cites `decisions.md` as the source of the `D`-exclusion rule D5 overturns, so deleting it would break the citations. |
+| D20 | A JSON Schema ships once the grammar freezes, generated from or CI-checked against the loader. | Maintainer decision 2026-09-10. A schema that drifts from the validator green-lights configs the binary rejects. It cannot express the cross-field and resolve-time rules; the loader stays authoritative. |
 
 ## Status
 
