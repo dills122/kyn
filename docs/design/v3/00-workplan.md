@@ -66,7 +66,8 @@ experiment; see [`01-observed-semantics.md`](01-observed-semantics.md).
 | OS5 | The proposed common form self-matches; OS3 hides the mistake | P1 | G2 | Settled — D8 |
 | OS7 | Error selection is already non-deterministic (ships today) | P1 | G0 | Specified — v0.1.x patch, not yet written |
 | OS10 | `rule.description` is parsed and never read | P2 | G0/G3 | Settled — D14 |
-| OS11 | The shipped `api` preset fails with exit 2 on an ordinary change set | P1 | G0 | Specified — v0.1.x patch |
+| OS11 | The shipped `api` preset fails with exit 2 on an ordinary change set | P1 | G4 | Settled — corrected in the preset rewrite |
+| OS12 | A report can print `PASS` above `Rules failed: 1` | P1 | G5 | Open — see item 9 |
 
 ### IR1 is wider than reported
 

@@ -239,6 +239,44 @@ Every starter config therefore teaches two constructs that do nothing. This is
 evidence for the v3 pivot and it settles the migration question for these
 groups: they can be dropped with proven zero behavior change.
 
+## OS12 — A report can say `PASS` and `Rules failed: 1` at once
+
+Source: [`e13-severity-failon.sh`](experiments/e13-severity-failon.sh)
+
+`summarize` counts every failing result in `Failed`, but only clears `OK` for
+results at or above the `--fail-on` threshold
+([`internal/rules/engine.go:32`](../../../internal/rules/engine.go)). With the
+default `--fail-on error`, a failing `severity: warn` rule produces:
+
+```text
+kyn check
+
+PASS
+
+Rules failed: 1
+Warnings: 1
+
+[WARN] r
+Status: fail
+Message: Test not updated.
+EXIT=0
+```
+
+The exit code is defensible — `warn` is not meant to block. The headline is not:
+`PASS` sits directly above `Rules failed: 1`, and the two contradict.
+
+This is not a corner case. The shipped `web-ui` preset's `tests-sync` rule is
+`severity: warn`, so the most common starter config prints this whenever a spec
+is not updated alongside its component.
+
+Same family as OS3 and OS5: the tool reports success while a policy was
+violated. Here nothing is hidden — the detail is right there — but the word a
+reader scans for is wrong.
+
+Fix belongs in v3's report design: reserve `PASS` for `Failed == 0`, and give
+non-blocking failures their own headline so the summary word and the counts
+agree.
+
 ## OS11 — The shipped `api` preset fails on an ordinary change set
 
 Source: [`e12-preset-api-defect.sh`](experiments/e12-preset-api-defect.sh)
@@ -355,6 +393,7 @@ map, or every v3 rule and pattern inherits this defect.
 | OS3, OS8 | Deletion blindness must be an explicit product decision before the vocabulary is frozen. Naming alone cannot fix it, and a fix that handles only `D` leaves the rename half open. |
 | OS4 | `stripSuffixes` must be available to the inline form, or the inline form must be declared single-shape-only and migration must refuse to flatten multi-shape families. |
 | OS5 | v3 must either auto-exclude resolved related paths from source matching, or make an unmatched/self-matched source a loud error. |
+| OS12 | Report headline must agree with the counts. Settle before the G5 goldens are recorded, since the headline is in every text fixture. |
 | OS11 | Fix the preset and the guard's hint text in G0. It is also the sharpest concrete evidence for CR1: `stripSuffixes` and the template must be designed together, so they belong at the same level. |
 | OS6, OS10 | Migration drops non-`source` groups with proven zero behavior change. `kyn init` should stop emitting them now, independently of v3. `description` is inert and should either be wired into SARIF or dropped. |
 | OS7 | Normalized model is an ordered slice. Fix the existing defect first so v3 differential tests have a stable baseline. |
