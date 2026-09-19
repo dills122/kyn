@@ -44,62 +44,77 @@ So closing the gap is a matter of retaining data already parsed, which
 `docs/decisions.md` explicitly anticipated: "Deleted paths may be retained as
 metadata for future enhancements".
 
-## 3. Proposed model
+## 3. Proposed model — a tri-state, not a boolean
 
-Three independent facts per path, all locally computable:
+An earlier draft derived a boolean `existedAtBase = existsNow OR
+vanishedInChange`. Independent review 2 was right that this is not literal
+existence at base: a file **added** in this change has `existsNow = Y` and never
+existed at base. The predicate was misnamed, and only one of the two gates was
+ever tabulated against it.
+
+Two facts per related path, both locally computable:
 
 | Fact | Source | Available in `--files` mode |
 | --- | --- | --- |
 | `existsNow` | `os.Stat` against `--cwd` | yes |
-| `inChangeSet` | membership in the collected set (`A`, `M`, `R`-destination) | yes |
-| `vanishedInChange` | appeared as `D`, or as the **source** of an `R` | git mode only |
+| `vanishedInChange` | appeared as `D`, or as the **source** of an `R` | git mode only (see §5) |
 
-`inChangeSet` keeps its exact current meaning. Deleted paths are **not** added
-to it — doing so would make `assert.kinChanged` pass for a file the change
-deleted, which is the opposite of the intent. Deletion is a third fact, not a
-kind of membership.
+They are mutually exclusive in practice — a path present in the working tree was
+not removed by this change — so they collapse into one tri-state:
 
-From these, one derived predicate:
+| `relatedState` | Condition |
+| --- | --- |
+| `present` | exists in the working tree |
+| `vanished` | not in the tree, and appeared as `D` or a rename source in this change |
+| `absent` | neither |
 
-```text
-existedAtBase = existsNow OR vanishedInChange
-```
+Change-set membership stays a separate, orthogonal fact. Deleted paths are
+**not** added to the change set — doing so would make `expect: in-change-set`
+pass for a file the change deleted, the opposite of the intent.
 
-## 4. The gate fix
+## 4. The gate, defined over all three states
 
-Redefine the applicability gate from "exists now" to "existed at base".
+| `when` | fires on |
+| --- | --- |
+| `always` | `present`, `vanished`, `absent` |
+| `related-existed` | `present`, `vanished` |
+| `related-absent` | `absent` |
 
-| Scenario | `existsNow` | `vanished` | old gate | new gate | old result | new result |
-| --- | --- | --- | --- | --- | --- | --- |
-| Related present, not touched | Y | N | pass | pass | fail | fail |
-| Related present and touched | Y | N | pass | pass | pass | pass |
-| Related **deleted** (OS3) | N | Y | fail | **pass** | skipped, exit 0 | **fail, exit 1** |
-| Related **renamed away** (OS8) | N | Y | fail | **pass** | skipped, exit 0 | **fail, exit 1** |
-| Related never existed | N | N | fail | fail | skipped | skipped |
+Every case review 2 asked for, with the previous behavior for comparison:
 
-This fixes OS3 and OS8 together, with **no new expectation vocabulary**, no new
-git calls, and no change to what `in-change-set` means. Case 3 keeps skipping,
-which is correct.
+| Scenario | `relatedState` | `related-existed` | `related-absent` | old gate |
+| --- | --- | --- | --- | --- |
+| Related present, untouched | `present` | fires | skips | fires |
+| Related present, updated | `present` | fires | skips | fires |
+| Related **added** in this change | `present` | fires | skips | fires |
+| Related **deleted** (OS3) | `vanished` | **fires** | skips | skipped |
+| Related **renamed away** (OS8) | `vanished` | **fires** | skips | skipped |
+| Related never existed | `absent` | skips | **fires** | skipped |
 
-It also makes the OS5 self-match hazard visible rather than silent: the phantom
-instance's related path never existed, so it still skips — but a skip is no
-longer the same signal as a satisfied policy, and `explain` can name the reason.
+The tri-state fixes OS3 and OS8 together, with no new expectation vocabulary, no
+new git calls, and no change to what change-set membership means. `absent` keeps
+skipping under `related-existed`, which is correct, and is the only state that
+activates `related-absent`.
+
+It also makes the OS5 self-match hazard legible: the phantom instance's related
+path is `absent`, so it still skips — but `explain` can now name which state
+produced the skip rather than reporting a bare `skipped`.
 
 ### Validated against real git output
 
 [`e9-gate-prototype.sh`](experiments/e9-gate-prototype.sh) simulates the
-proposed gate over five scenarios, deriving `vanishedInChange` from
+`related-existed` gate over five scenarios, deriving `vanishedInChange` from
 `git diff --name-status -M <base>...<head>` — the exact command Kyn already runs
 (`internal/changes/git.go:10`). No additional git invocation, no revision
 walking, no object reads.
 
-| Scenario | `existsNow` | `vanished` | `inChangeSet` | `existedAtBase` | old gate | new gate |
+| Scenario | `existsNow` | `vanished` | `inChangeSet` | state | old gate | new gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| related untouched | Y | N | N | Y | FAIL | FAIL |
-| related updated | Y | N | Y | Y | pass | pass |
-| related **deleted** | N | Y | N | Y | skipped | **FAIL** |
-| related **renamed away** | N | Y | N | Y | skipped | **FAIL** |
-| related never existed | N | N | N | N | skipped | skipped |
+| related untouched | Y | N | N | `present` | FAIL | FAIL |
+| related updated | Y | N | Y | `present` | pass | pass |
+| related **deleted** | N | Y | N | `vanished` | skipped | **FAIL** |
+| related **renamed away** | N | Y | N | `vanished` | skipped | **FAIL** |
+| related never existed | N | N | N | `absent` | skipped | skipped |
 
 Two of five rows change, and they are exactly the two the fix targets. The
 already-correct rows — including the genuinely-not-applicable case — are
@@ -125,7 +140,7 @@ Consequences of dropping the version gate:
 
 - No divergence to special-case, so the G5 harness loses its S1 exception.
 - No dry-run divergence warning to write.
-- `existedAtBase` is computed one way, not two, which removes a branch from the
+- `relatedState` is computed one way, not two, which removes a branch from the
   normalized model and from every test that would have covered both sides.
 
 ## 5. Input-mode asymmetry
@@ -139,9 +154,23 @@ Recommendation:
 
 1. **`--files` stays a plain path list.** It is the quick-iteration flag; adding
    status syntax to a comma-separated list would be unreadable.
-2. **`--files-from` gains an optional two-column form**, `status<TAB>path`,
-   mirroring `git diff --name-status` — the format users already have on hand.
-   Single-column lines keep meaning `modified`, so a plain path list still works.
+2. **`--files-from` accepts `git diff --name-status -M` output verbatim.**
+   Review 2 was right that `status<TAB>path` alone cannot encode a rename: git
+   emits three fields for one, `R100<TAB>old<TAB>new`, and both paths matter —
+   the destination joins the change set, the source is what makes the related
+   path `vanished`.
+
+   So the accepted grammar is git's own, not a two-column approximation of it:
+
+   ```text
+   M	src/a.go
+   D	src/a_test.go
+   R100	src/old.go	src/new.go
+   ```
+
+   Single-field lines keep meaning `modified`, so a plain path list still works
+   and nothing that reads today stops reading. Users can pipe git straight in,
+   and there is no second format to learn or to keep in sync.
 3. **`--files` documents the fallback**: without vanish information the gate
    degrades to `existsNow`, which is exactly today's behavior. A policy designed
    in `--files` mode and enforced in git mode can therefore fail in CI having

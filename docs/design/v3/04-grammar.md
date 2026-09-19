@@ -95,7 +95,8 @@ capability a rule lacks (D12).
 | `emit` | no | | informational flags; flat, replacing `actions.emit` |
 | `description` | no | | see below |
 
-`when` ∈ `always` \| `related-existed` \| `related-absent`.
+`when` ∈ `always` \| `related-existed` \| `related-absent`, evaluated against the
+tri-state in [`02-semantics.md`](02-semantics.md) §3.
 `expect` ∈ `in-change-set` \| `not-in-change-set` \| `exists` \| `missing`.
 
 Dropped from v2 with reason:
@@ -135,6 +136,13 @@ Revised from the proposal's list, with the measured results folded in.
 | 9 | Rule and pattern IDs sorted before every normalization, validation and resolution pass | D1; OS7 shows the unsorted version is already non-deterministic |
 | 10 | **New** — a resolved `related` path matching its own rule's source shape is an error, exit 2 | D8, OS5 |
 | 11 | **New** — `expect` lists are deduplicated and sorted during normalization | D1 |
+| 12 | **New** — rule and pattern IDs share one namespace and must be globally unique | D21; two ID spaces feeding one shape ID space would otherwise collide |
+| 13 | **New** — all rules using one shape must share a footprint signature | D22; keeps `instanceName` unique by construction. Vacuous for inline rules |
+| 14 | **New** — `stripSuffixes` is an error when no rule using that shape references `{base}` | D22; footprint keying makes it inert otherwise, and OS6/OS10 are the record of how long inert constructs survive |
+
+Rules 12–14 all come from independent review 2. Rule 14 is the one that is easy
+to skip and should not be: without it, footprint keying trades OS11's
+contradiction for a fresh way to write a declaration that does nothing.
 
 Rule 9 is not a style preference. OS7 measured the current unsorted behavior
 producing three different error messages across thirty identical runs.

@@ -2,6 +2,10 @@
 
 Status: active. Design only — no implementation is authorized.
 
+One question is open (item 12, informational rules). Independent review 2 is
+recorded below; the PR body's earlier claim that no questions remained is
+superseded by it.
+
 This tracks the findings raised against
 [`../../reviews/v3-config-proposal.md`](../../reviews/v3-config-proposal.md) by
 [independent review 1](../../reviews/v3-config-independent-review-1.md) and by a
@@ -103,6 +107,33 @@ A policy tool whose default rule is disabled by deleting the file it protects
 has a correctness problem, not a vocabulary problem. IR4 remains valid but is
 now downstream of this: renaming `changed` to `in-change-set` makes the words
 honest without making deletion observable.
+
+## Independent review 2 (2026-09-19)
+
+Raised on [PR #50](https://github.com/dills122/kyn/pull/50). All five design
+points and the test-hygiene point were verified and accepted; two of them found
+things the design set had asserted wrongly rather than merely left vague.
+
+| ID | Finding | Status |
+| --- | --- | --- |
+| R2-1 | Rule and pattern IDs collide in one shape-ID space | Settled — D21 |
+| R2-2 | `instanceName` undefined when rules sharing a pattern have different constant `related` paths | Settled — D22 |
+| R2-3 | `existsNow OR vanishedInChange` is not existence at base; `related-absent` never specified | Settled — D23 |
+| R2-4 | v2 emit-only informational rules are a second capability loss | **Open** — see open questions |
+| R2-5 | `status<TAB>path` cannot encode a git rename | Settled — D24 |
+| R2-6 | Git-backed experiment scripts hide fixture failures | Settled — D25 |
+
+Two corrections to claims this design set had made:
+
+- **R2-3 was a naming error, not an omission.** `existedAtBase` was computed as
+  `existsNow OR vanishedInChange`, which is true for a file *added* in the
+  change under evaluation — a file that never existed at base. Replaced by an
+  explicit tri-state.
+- **R2-4 falsified "atomic multi-path rules are the only loss."** Emit-only
+  informational rules are specified behavior (`docs/spec.md:480`), produce
+  `status: info` and a `flags` array, and ship in a recipe
+  (`docs/site/recipes/frontend.md:61`). The grammar made `expect` required, so
+  they were unexpressible and the loss went unrecorded.
 
 ## Gates
 
@@ -213,17 +244,22 @@ Recorded here as they close; each is backed by an experiment or a code citation.
 | D18 | Three report headlines: `FAIL` when the run blocked, `NON-BLOCKING` when failures exist but did not block, `PASS` only when `Failed == 0`. | Maintainer decision 2026-09-10. OS12: the current headline says `PASS` above `Rules failed: 1`, and the shipped `web-ui` preset triggers it. |
 | D19 | `docs/decisions.md` and `docs/migration-v1-to-v2.md` are annotated as superseded rather than deleted. | Maintainer decision 2026-09-10. This design set cites `decisions.md` as the source of the `D`-exclusion rule D5 overturns, so deleting it would break the citations. |
 | D20 | A JSON Schema ships once the grammar freezes, generated from or CI-checked against the loader. | Maintainer decision 2026-09-10. A schema that drifts from the validator green-lights configs the binary rejects. It cannot express the cross-field and resolve-time rules; the loader stays authoritative. |
+| D21 | Rule and pattern IDs share **one namespace** and must be globally unique. | R2-1, maintainer decision 2026-09-19. Kind-qualified shape references would avoid the collision but put a prefix in every `shapeId` in every report, and a config where a rule and pattern share a name confuses a reader regardless. |
+| D22 | All rules using one shape must share a footprint signature; `instanceName` is the footprint values joined `/`, or `(all)` when empty, derived from the source side only; the internal key is `shapeID` + NUL + NUL-joined values. Carries a new rule that `stripSuffixes` is an error when no rule on that shape uses `{base}`. | R2-2, maintainer decision 2026-09-19 after a deliberate re-check. Verified: rendering is injective within a signature, no existing config is broken, the restriction is vacuous for inline rules, and it is statically detectable. See [`03-instance-and-identity.md`](03-instance-and-identity.md) §4. |
+| D23 | The gate is defined over a tri-state `relatedState` ∈ `present` \| `vanished` \| `absent`, replacing the misnamed `existedAtBase` boolean. `related-existed` fires on present and vanished; `related-absent` fires on absent. Refines D5. | R2-3. The boolean was true for a file added in the change under evaluation, which never existed at base, and left `related-absent` undefined. |
+| D24 | `--files-from` accepts `git diff --name-status -M` output verbatim, three-field rename form included. Supersedes D9's two-column form. | R2-5. A rename carries two paths that both matter — the destination joins the change set, the source makes the related path `vanished` — and two columns cannot hold them. Git's own format needs no second grammar. |
+| D25 | Experiment scripts route every fixture git call through a helper that requires and validates `$W`; `cd` is banned; `source lib.sh` is guarded. `set -e` is deliberately not used. | R2-6. The scripts could run `git add -A && git commit` against the invoking repository when a fixture failed. `set -e` was tried and aborted 10 of 13 scripts on the non-zero kyn exits they exist to measure. |
 
 ## Status
 
 | Gate | State |
 | --- | --- |
 | G0 — baseline | Mostly dissolved by the scope change. OS7 still urgent. |
-| G1 — semantics | Closed — [`02-semantics.md`](02-semantics.md) |
-| G2 — instance and identity | Closed — [`03-instance-and-identity.md`](03-instance-and-identity.md) |
+| G1 — semantics | Closed; revised by review 2 (D23, D24) — [`02-semantics.md`](02-semantics.md) |
+| G2 — instance and identity | Closed; revised by review 2 (D21, D22) — [`03-instance-and-identity.md`](03-instance-and-identity.md) |
 | G3 — grammar | Closed — [`04-grammar.md`](04-grammar.md); [`05`](05-compatibility-matrix.md) superseded as a constraint |
 | G4 — cutover | Closed — [`06-cutover.md`](06-cutover.md) |
-| G5 — conformance suite | Specified — [`07-conformance.md`](07-conformance.md) |
+| G5 — conformance suite | Specified; matrix corrected to 75 reachable cells — [`07-conformance.md`](07-conformance.md) |
 | G6 — implementation | Not authorized |
 
 ## Open questions for the maintainer
@@ -236,7 +272,7 @@ Answered 2026-09-09:
 Currently open:
 
 3. ~~OS5 / self-match~~ — reject at resolve time. Recorded as D8.
-4. ~~`--files-from` two-column form~~ — add it. Recorded as D9.
+4. ~~`--files-from` two-column form~~ — add it. Recorded as D9, superseded by D24 (git's own `--name-status` format).
 
 Currently open:
 

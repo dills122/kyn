@@ -78,13 +78,21 @@ The dimensions that interact:
 | --- | --- |
 | `when` | `always`, `related-existed`, `related-absent` |
 | `expect` | `in-change-set`, `not-in-change-set`, `exists`, `missing`, `[exists, in-change-set]` |
-| related exists | yes, no |
+| `relatedState` | `present`, `vanished` (deleted), `vanished` (renamed away), `absent` |
 | related in change set | yes, no |
-| related vanished | no, deleted, renamed away |
 
-3 × 5 × 2 × 2 × 3 = 180 cells, minus the unreachable combinations (a path cannot
-both exist and have vanished in the same change). Run in git mode, asserted on
-`explain --format json` plus the exit code. This is the direct successor to
+An earlier draft counted 3 × 5 × 2 × 2 × 3 = 180 cells by treating existence and
+vanishing as independent axes. They are not — review 2's point about reachable
+cells. The tri-state in [`02-semantics.md`](02-semantics.md) §3 collapses them,
+and the remaining combinations are further constrained:
+
+- a `vanished` or `absent` path cannot be in the change set, since deleted paths
+  never enter it and a rename records only the destination
+- so `in change set` is free only for `present`
+
+That leaves 3 × 5 × (2 `present` rows + 1 each for deleted, renamed, absent) =
+**3 × 5 × 5 = 75 reachable cells**, asserted on `explain --format json` plus the
+exit code. This is the direct successor to
 [`e3-truthtable.sh`](experiments/e3-truthtable.sh) and should replace it as a
 committed Go test — the experiment script produced the v2 baseline, and this
 produces the v3 contract.
@@ -134,8 +142,9 @@ is settled, since that changes result counts.
 
 ## Exit criteria for G5
 
-1. Layer 1 green across all 180 reachable cells, with the delete and
-   rename-away scenarios asserted to fail and never-existed asserted to skip.
+1. Layer 1 green across all 75 reachable cells, with the delete and
+   rename-away scenarios asserted to fail under `related-existed`, and
+   never-existed asserted to skip under it and fire under `related-absent`.
 2. Layer 2 green across all seven output modes.
 3. Every invalid corpus config rejected with the expected message and exit 2.
 4. The suite passes repeatedly — a determinism guard that runs the same input

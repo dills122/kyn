@@ -52,8 +52,28 @@ that belongs to exactly one rule.
 sourceShapeID = pattern name        (when the rule uses `use:`)
               = rule ID             (when the rule declares match/exclude inline)
 
-instanceKey   = sourceShapeID + "|" + <template footprint>   (see §4)
+instanceKey   = sourceShapeID + NUL + <footprint values>     (see §4)
 ```
+
+### Rule and pattern IDs share one namespace
+
+Shape IDs are drawn from two places, so `patterns.foo` and an inline rule
+`rules.foo` would both yield the shape ID `foo`. YAML mapping keys prevent
+duplicates *within* `patterns:` and *within* `rules:`, never across them.
+
+Decision: **rule and pattern IDs occupy a single namespace and must be
+globally unique**, enforced at validation.
+
+```text
+config declares both a pattern and a rule named "web-component"; rule and
+pattern IDs share one namespace, so rename one of them
+```
+
+The alternative — qualifying internal references by kind, so shape IDs render
+as `pattern:web-component` or `rule:handler-test` — removes the collision but
+puts a prefix in every `shapeId` in every report. A config in which a rule and
+a pattern share a name is confusing to a human reader whether or not the tool
+can disambiguate, so the constraint is worth its cost.
 
 This maps a v2 family onto a v3 pattern one-for-one, so the grouping and
 ordering measured in §1 survive. The second half of the key — what v2 hardcoded
@@ -112,15 +132,91 @@ the two disagree, and one file is demanded once per source file (OS13):
 > variables its `related` uses**, in the fixed order `dir`, `base`, `name`,
 > `ext`, `file`.
 
-| `related` | footprint | key | iac/changelog outcome |
+| `related` | footprint | `instanceName` | iac/changelog outcome |
 | --- | --- | --- | --- |
-| `{dir}/{base}.spec.ts` | dir, base | `shape\|dir\|base` | unchanged from v2 |
-| `{dir}/{name}_test.go` | dir, name | `shape\|dir\|name` | unchanged |
-| `{dir}/README.md` | dir | `shape\|dir` | **1 instance per directory** |
-| `CHANGELOG.md` | — | `shape` | **1 instance total** |
+| `{dir}/{base}.spec.ts` | dir, base | `src/a` | unchanged from v2 |
+| `{dir}/{name}_test.go` | dir, name | `src/a` | unchanged |
+| `{dir}/README.md` | dir | `src` | **1 instance per directory** |
+| `CHANGELOG.md` | — | `(all)` | **1 instance total** |
 
-`instanceName` is the rendered key. For an empty footprint it is the resolved
-related path, which is constant by definition.
+### `instanceName` and the uniform-footprint restriction
+
+An earlier draft said `instanceName` was the rendered key, and for an empty
+footprint the resolved related path — "constant by definition". It is constant
+per *rule*, not per shape. Two rules sharing a pattern with different constant
+`related` paths share one instance key yet would each claim a different name.
+`instanceName` therefore derives from the **source side only**, never from the
+resolved related path.
+
+Rendering the footprint values joined with `/` is not by itself unique either.
+One pattern over `src/**/*.go` with two rules:
+
+| Rule | `related` | footprint |
+| --- | --- | --- |
+| A | `{dir}/README.md` | `dir` |
+| B | `{dir}/{base}.md` | `dir`, `base` |
+
+`src/a/b.go` puts A in an instance rendering `src/a`; `src/a.go` puts B in an
+instance rendering `src/a`. Same shape, same rendered name, different
+instances. The key is distinct, but `instanceName` is what reports show and
+what sorting uses, so a consumer grouping on it would merge the two.
+
+Decision, in three parts:
+
+1. **All rules using one shape must share a footprint signature.** Mixing is a
+   validation error naming both rules and telling the author to split the
+   pattern. Vacuous for inline rules, which have exactly one rule per shape.
+2. **`instanceName` is the footprint values joined with `/`**, in the fixed
+   order `dir`, `base`, `name`, `ext`, `file`. An empty footprint renders
+   `(all)` — a marker that cannot be mistaken for a path.
+3. **The internal key is `shapeID` + NUL + the NUL-joined footprint values.**
+   NUL cannot occur in a path, and the key is never reported.
+
+Sort order is unchanged in structure: `shapeId`, then `instanceName`, then
+`ruleId`, byte-wise.
+
+#### Why the restriction rather than uglier names
+
+Rendering `var=value` pairs (`dir=src,base=a`) would be unambiguous without any
+restriction, but it is unlike anything v2 showed and it pays that cost on every
+line of every report to buy a case that no configuration currently exercises.
+Accepting the collision was the third option and was rejected: a rare,
+silent, consumer-visible merge is exactly the class of defect OS3, OS5 and OS11
+all turned out to be.
+
+The restriction has a real cost — one pattern cannot feed both a per-directory
+rule and a per-file rule, so those need two patterns with duplicated globs. That
+is the proposal's own principle 4, *a small amount of repetition is preferable
+to hidden inheritance*, and it fails loudly at validation rather than quietly at
+runtime.
+
+#### Verification
+
+| Check | Result |
+| --- | --- |
+| Rendering injective within one signature? | Yes. `base`, `name` and `ext` come from `path.Base`, so they never contain `/`; `dir` and `file` are functions of the source path, so inconsistent tuples are unreachable. |
+| `(all)` collide with a directory literally named `(all)`? | No. Different signatures cannot coexist in one shape under the restriction, and across shapes `shapeId` differs. |
+| OS9 cardinality contract preserved? | Yes. `web-ui`'s two rules both have footprint `dir`+`base`. |
+| Any existing config broken? | **None.** Every multi-rule family in the presets, `docs/site/recipes/*` and `docs/site/config.md` already uses a uniform signature. |
+| Statically detectable? | Yes — the footprint is a scan for `{var}` in the template. Validation time, exit 2, before any file is read. |
+| Cost to inline rules? | None; the restriction is vacuous for them. |
+
+One rendering edge to specify rather than discover: an extensionless file under
+a signature containing `{ext}` contributes an empty component, so the name ends
+in a trailing `/`.
+
+#### `stripSuffixes` must not become the next inert construct
+
+`stripSuffixes` only affects `base`. Under footprint keying, a shape whose rules
+never reference `{base}` is unaffected by it entirely — which is exactly why
+OS11 dissolves, and exactly how a fresh decorative declaration becomes possible.
+The shipped `api` preset is this case today: `stripSuffixes: ["_handler",
+"_service"]` with `related: "{dir}/{name}_test.go"`.
+
+So footprint keying carries a matching validation rule: **`stripSuffixes` is an
+error when no rule using that shape references `{base}`.** Without it, D17 trades
+one silent-nothing (OS11's contradiction) for another, and OS6 and OS10 are the
+record of how long those survive unnoticed.
 
 ### Why this rather than merging results
 
@@ -148,12 +244,18 @@ depend on a subtle key derivation to be coherent.
 
 ### Relationship to D11
 
-This refines D11, it does not contradict it. The **shape** still decides which
-files group together; the footprint decides how finely that group is
-partitioned. Two rules over one pattern whose templates have the same footprint
-partition identically and share instances exactly as OS9 measured. They diverge
-only when their templates genuinely address different granularities — which is
-the correct behavior, not a regression.
+This refines D11, it does not contradict it — but the refinement needs stating
+precisely, because "instances belong to a shape" is no longer literally true.
+
+Instances belong to a **(shape, footprint signature)** pair. The shape decides
+which files group together; the footprint decides how finely. Two rules over one
+pattern whose templates share a footprint partition identically and share
+instances exactly as OS9 measured.
+
+Under the uniform-footprint restriction above, every rule using a shape has the
+same signature, so within any one shape the pair collapses back to the shape and
+D11 reads true again. The restriction is what keeps the model as simple as D11
+claims it is.
 
 ### Aggregation rules
 
