@@ -2,13 +2,13 @@
 # OS8: git.go records only the DESTINATION of a rename (StatusRenamed) and
 # discards the source path. Renaming the related file away is therefore
 # indistinguishable from deleting it -- the same silent skip as OS3.
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 W=$(fixture e8)
 
-mkdir -p "$W/src"; cd "$W" || exit 1
-git init -q .; git config user.email design@example.invalid; git config user.name design
-echo a > src/a.go; echo t > src/a_test.go
-git add -A && git commit -qm base
+mkdir -p "$W/src"
+git_init
+echo a > "$W/src/a.go"; echo t > "$W/src/a_test.go"
+g add -A && g commit -qm base
 
 cat > "$W/c.yaml" <<'YAML'
 version: 2
@@ -30,12 +30,12 @@ rules:
 YAML
 
 # modify the source, rename its test away
-echo a2 >> src/a.go
-git mv src/a_test.go src/renamed_test.go
-git add -A && git commit -qm work
+echo a2 >> "$W/src/a.go"
+g mv src/a_test.go src/renamed_test.go
+g add -A && g commit -qm work
 
 echo "--- diff under evaluation ---"
-git diff --name-status -M HEAD~1...HEAD
+git -C "$W" diff --name-status -M HEAD~1...HEAD
 echo "--- what kyn collected ---"
 "$KYN" check --cwd "$W" -c "$W/c.yaml" --base HEAD~1 --head HEAD --dry-run-resolve | sed -n '/Changed file list/,/^$/p'
 echo "--- result ---"

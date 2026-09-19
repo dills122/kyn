@@ -4,7 +4,7 @@
 #
 # The source glob excludes the related path on purpose; see e7-selfmatch.sh for
 # what happens without that exclude.
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 
 emit_cfg() { # $1=path $2=if-block $3=assert-block
 cat > "$1" <<YAML

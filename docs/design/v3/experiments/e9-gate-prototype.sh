@@ -6,20 +6,21 @@
 #
 # This simulates the proposed gate over four scenarios and compares it to the
 # gate Kyn ships today.
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 
 REL="src/a_test.go"
 
 scenario() { # $1=label $2=setup-commands
   W=$(fixture "e9-$1")
-  mkdir -p "$W/src"; cd "$W" || exit 1
-  git init -q .; git config user.email design@example.invalid; git config user.name design
-  echo a > src/a.go; echo t > "$REL"
-  git add -A && git commit -qm base
+  mkdir -p "$W/src"
+  git_init
+  echo a > "$W/src/a.go"; echo t > "$W/$REL"
+  g add -A && g commit -qm base
   eval "$2"
-  git add -A && git commit -qm work 2>/dev/null
+  g add -A
+  g commit -qm work
 
-  local diff; diff=$(git diff --name-status -M HEAD~1...HEAD)
+  local diff; diff=$(git -C "$W" diff --name-status -M HEAD~1...HEAD)
 
   # --- what Kyn collects today: A / M / R-destination ---
   local in_change_set=N
@@ -56,8 +57,8 @@ printf '%-22s %-9s %-9s %-9s %-11s %-9s %s\n' \
   SCENARIO EXISTS-NOW VANISHED IN-CS EXISTED-BASE "OLD-GATE" "NEW-GATE"
 printf '%s\n' "-------------------------------------------------------------------------------------------"
 
-scenario "related-untouched"  'echo a2 >> src/a.go'
-scenario "related-updated"    'echo a2 >> src/a.go; echo t2 >> src/a_test.go'
-scenario "related-deleted"    'echo a2 >> src/a.go; git rm -q src/a_test.go'
-scenario "related-renamed"    'echo a2 >> src/a.go; git mv src/a_test.go src/renamed_test.go'
-scenario "related-never-made" 'git rm -q src/a_test.go; git commit -qm drop; echo a2 >> src/a.go'
+scenario "related-untouched"  'echo a2 >> "$W/src/a.go"'
+scenario "related-updated"    'echo a2 >> "$W/src/a.go"; echo t2 >> "$W/src/a_test.go"'
+scenario "related-deleted"    'echo a2 >> "$W/src/a.go"; g rm -q src/a_test.go'
+scenario "related-renamed"    'echo a2 >> "$W/src/a.go"; g mv src/a_test.go src/renamed_test.go'
+scenario "related-never-made" 'g rm -q src/a_test.go; g commit -qm drop; echo a2 >> "$W/src/a.go"'

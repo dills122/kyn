@@ -1,17 +1,14 @@
 #!/usr/bin/env bash
 # OS3: git mode. `docs/decisions.md` excludes D paths from the change set.
 # What do the expectations do when the related file is DELETED in the diff?
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 W=$(fixture e4)
 
 mkdir -p "$W/src"
-cd "$W" || exit 1
-git init -q .
-git config user.email design@example.invalid
-git config user.name design
-echo a > src/a.go
-echo t > src/a_test.go
-git add -A && git commit -qm base
+git_init
+echo a > "$W/src/a.go"
+echo t > "$W/src/a_test.go"
+g add -A && g commit -qm base
 
 emit() { cat > "$W/$1.yaml" <<YAML
 version: 2
@@ -41,13 +38,13 @@ emit changed "    assert:
       kinChanged: [rel]"
 
 # modify the source, delete its test, in one commit
-echo a2 >> src/a.go
-git rm -q src/a_test.go
-git add -A && git commit -qm work
+echo a2 >> "$W/src/a.go"
+g rm -q src/a_test.go
+g add -A && g commit -qm work
 
 echo "--- diff under evaluation ---"
-git diff --name-status -M HEAD~1...HEAD
-echo "--- working tree ---"; ls src/
+git -C "$W" diff --name-status -M HEAD~1...HEAD
+echo "--- working tree ---"; ls "$W/src/"
 echo
 
 for s in unchanged changed-if-present changed; do

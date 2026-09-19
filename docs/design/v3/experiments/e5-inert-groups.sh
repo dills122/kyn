@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # OS6: are non-`source` groups inert? Compare every output mode with and
 # without the `groups.story` / `groups.tests` blocks that `kyn init` emits.
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 W=$(fixture e5)
 
 mkdir -p "$W/src"

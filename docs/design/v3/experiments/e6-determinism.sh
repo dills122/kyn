@@ -5,7 +5,7 @@
 #   internal/family/resolver.go:117  checkKinAgreement, ranges fam.Kin
 #   internal/config/validate.go:89   Validate, ranges fam.Kin
 # Identical runs should report an identical error. They do not.
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 
 RUNS="${RUNS:-30}"
 

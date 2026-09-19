@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # IR5: inventory every v1/v2 config shape and record whether it LOADS today.
 # The v3 loader must reproduce this matrix for any shape marked contractual.
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 W=$(fixture e11)
 mkdir -p "$W/src"; touch "$W/src/a.ts" "$W/src/a.spec.ts"
 

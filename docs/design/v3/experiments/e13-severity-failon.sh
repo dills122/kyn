@@ -2,7 +2,7 @@
 # OS12: a failing rule below the --fail-on threshold is counted as failed but
 # the report headline still says PASS. The shipped web-ui preset's tests-sync
 # rule is severity: warn, so this is the common case, not a corner.
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 W=$(fixture e13)
 mkdir -p "$W/src"; touch "$W/src/a.go" "$W/src/a_test.go"
 

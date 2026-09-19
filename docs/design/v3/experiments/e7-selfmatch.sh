@@ -2,7 +2,7 @@
 # OS5: the v3 common form self-matches. `match: src/**/*.go` also matches the
 # related path `{dir}/{name}_test.go`, producing a phantom second instance --
 # which the changed-if-present gate then silently skips.
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 W=$(fixture e7)
 
 mkdir -p "$W/src"; touch "$W/src/a.go" "$W/src/a_test.go"

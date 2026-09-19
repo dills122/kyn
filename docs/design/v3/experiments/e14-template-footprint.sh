@@ -3,7 +3,7 @@
 # the demanded path comes from the template. When the template does not use the
 # per-file variables, the key over-partitions and one file is demanded many
 # times.
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 
 probe() { # $1=label $2=template
   W=$(fixture "e14-$1")

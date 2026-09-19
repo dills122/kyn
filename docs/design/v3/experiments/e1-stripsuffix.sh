@@ -4,7 +4,7 @@
 # `stripSuffixes` feeds the instance key (familyID + {dir}/{base}), so it decides
 # how many instances exist -- not just how a template renders. A v3 inline rule
 # has no `stripSuffixes`, so this measures what the inline form cannot express.
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 W=$(fixture e1)
 
 mkdir -p "$W/internal/order"

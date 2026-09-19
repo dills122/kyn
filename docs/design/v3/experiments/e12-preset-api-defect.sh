@@ -3,7 +3,7 @@
 # (which collapses handler+service into ONE instance) with a "{name}" template
 # (which differs per source file). The two disagree, so an ordinary change set
 # hits the kin-agreement guard and the whole run fails with exit 2.
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 W=$(fixture e12)
 
 "$KYN" init --cwd "$W" --preset api >/dev/null

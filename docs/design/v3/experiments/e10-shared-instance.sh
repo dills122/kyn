@@ -2,7 +2,7 @@
 # OS9: cardinality contract. Two rules over one family share instances.
 # Results = rules x instances, and every result carries the same familyId /
 # familyName. Any v3 model must reproduce these counts and this grouping.
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 W=$(fixture e10)
 
 mkdir -p "$W/src"
