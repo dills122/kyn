@@ -190,11 +190,50 @@ axes stay two fields:
 
 ```yaml
 when:   always | related-existed | related-absent   # applicability
-expect: in-change-set | not-in-change-set | exists | missing
+expect: in-change-set | not-in-change-set | exists | missing | none
 ```
 
 `expect` accepts a list, AND-combined, which is how the one genuinely compound
 v2 form is expressed without inventing a fused name.
+
+### `expect: none` — informational rules
+
+Independent review 2 (R2-4) found that v2 supports a rule with `emit` and no
+assertion. It yields `status: info`, adds a flag, is specified in
+`docs/spec.md:480`, and ships in `docs/site/recipes/frontend.md`. Making
+`expect` required left it unexpressible, and falsified this design set's claim
+that atomic multi-path rules were the only capability loss.
+
+`expect` stays **required**, and informational rules write it explicitly:
+
+```yaml
+rules:
+  payment-touch:
+    match: ["internal/payment/**/*.go"]
+    related: "{dir}/OWNERS"
+    when: related-existed
+    expect: none
+    emit: [paymentReviewRequired]
+```
+
+Making `expect` optional instead would restore v2 parity with less typing, and
+was rejected: a rule that loses its `expect` line to an editing slip would
+silently become informational. Explicit `expect: none` cannot happen by
+omission, which is the same principle behind the unused-pattern error and the
+`stripSuffixes` rule.
+
+Two constraints come with it.
+
+**`severity` must be `info`.** Measured: a v2 emit-only rule with
+`severity: error` reports `errors: 1` alongside `failed: 0` and `ok: true` — a
+rule that cannot fail inflating the error count. That is the OS12 pattern a
+third time, so `expect: none` defaults `severity` to `info` and rejects anything
+else.
+
+**At least one of `message` or `emit` is required.** With neither, the rule
+produces nothing a reader or a machine can act on, and `--dry-run-resolve`
+already reports which files matched what. The generated default message from D7
+is also meaningless here, since there is no expectation to describe.
 
 ### Mapping
 

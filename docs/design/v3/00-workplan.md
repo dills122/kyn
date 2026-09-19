@@ -2,9 +2,8 @@
 
 Status: active. Design only — no implementation is authorized.
 
-One question is open (item 12, informational rules). Independent review 2 is
-recorded below; the PR body's earlier claim that no questions remained is
-superseded by it.
+Independent reviews 1 and 2 are recorded below, with every finding settled.
+Review 3 is the next gate.
 
 This tracks the findings raised against
 [`../../reviews/v3-config-proposal.md`](../../reviews/v3-config-proposal.md) by
@@ -119,7 +118,7 @@ things the design set had asserted wrongly rather than merely left vague.
 | R2-1 | Rule and pattern IDs collide in one shape-ID space | Settled — D21 |
 | R2-2 | `instanceName` undefined when rules sharing a pattern have different constant `related` paths | Settled — D22 |
 | R2-3 | `existsNow OR vanishedInChange` is not existence at base; `related-absent` never specified | Settled — D23 |
-| R2-4 | v2 emit-only informational rules are a second capability loss | **Open** — see open questions |
+| R2-4 | v2 emit-only informational rules are a second capability loss | Settled — D26 |
 | R2-5 | `status<TAB>path` cannot encode a git rename | Settled — D24 |
 | R2-6 | Git-backed experiment scripts hide fixture failures | Settled — D25 |
 
@@ -249,6 +248,7 @@ Recorded here as they close; each is backed by an experiment or a code citation.
 | D23 | The gate is defined over a tri-state `relatedState` ∈ `present` \| `vanished` \| `absent`, replacing the misnamed `existedAtBase` boolean. `related-existed` fires on present and vanished; `related-absent` fires on absent. Refines D5. | R2-3. The boolean was true for a file added in the change under evaluation, which never existed at base, and left `related-absent` undefined. |
 | D24 | `--files-from` accepts `git diff --name-status -M` output verbatim, three-field rename form included. Supersedes D9's two-column form. | R2-5. A rename carries two paths that both matter — the destination joins the change set, the source makes the related path `vanished` — and two columns cannot hold them. Git's own format needs no second grammar. |
 | D25 | Experiment scripts route every fixture git call through a helper that requires and validates `$W`; `cd` is banned; `source lib.sh` is guarded. `set -e` is deliberately not used. | R2-6. The scripts could run `git add -A && git commit` against the invoking repository when a fixture failed. `set -e` was tried and aborted 10 of 13 scripts on the non-zero kyn exits they exist to measure. |
+| D26 | Informational rules are written `expect: none`, not by omitting `expect`. `severity` must be `info`, and at least one of `message` or `emit` is required. | R2-4, maintainer decision 2026-09-19. Explicit cannot happen by an editing slip. Measured: an emit-only rule with `severity: error` reports `errors: 1` with `failed: 0` and `ok: true` — the OS12 pattern a third time. |
 
 ## Status
 

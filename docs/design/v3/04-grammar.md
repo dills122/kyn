@@ -90,14 +90,16 @@ capability a rule lacks (D12).
 | `expect` | yes | | assertion, or AND-combined list |
 | `when` | no | `always` | applicability gate |
 | `on` | no | all statuses | source change statuses |
-| `severity` | no | `error` | `info` \| `warn` \| `error` |
+| `severity` | no | `error`, or `info` when `expect: none` | `info` \| `warn` \| `error` |
 | `message` | no | generated (D7) | |
 | `emit` | no | | informational flags; flat, replacing `actions.emit` |
 | `description` | no | | see below |
 
 `when` ∈ `always` \| `related-existed` \| `related-absent`, evaluated against the
 tri-state in [`02-semantics.md`](02-semantics.md) §3.
-`expect` ∈ `in-change-set` \| `not-in-change-set` \| `exists` \| `missing`.
+`expect` ∈ `in-change-set` \| `not-in-change-set` \| `exists` \| `missing` \|
+`none`. `none` marks an informational rule — see
+[`02-semantics.md`](02-semantics.md) §6.
 
 Dropped from v2 with reason:
 
@@ -140,7 +142,9 @@ Revised from the proposal's list, with the measured results folded in.
 | 13 | **New** — all rules using one shape must share a footprint signature | D22; keeps `instanceName` unique by construction. Vacuous for inline rules |
 | 14 | **New** — `stripSuffixes` is an error when no rule using that shape references `{base}` | D22; footprint keying makes it inert otherwise, and OS6/OS10 are the record of how long inert constructs survive |
 
-Rules 12–14 all come from independent review 2. Rule 14 is the one that is easy
+| 15 | **New** — `expect: none` requires `severity: info` and at least one of `message` or `emit` | D26; an emit-only rule with `severity: error` reports `errors: 1` while `ok: true`, and one with neither a message nor a flag produces nothing |
+
+Rules 12–15 all come from independent review 2. Rule 14 is the one that is easy
 to skip and should not be: without it, footprint keying trades OS11's
 contradiction for a fresh way to write a declaration that does nothing.
 
@@ -200,7 +204,7 @@ forever. A gap in the sequence costs nothing.
 | 4 | Which expectation names? | D6: `in-change-set`, `not-in-change-set`, `exists`, `missing`, gated by `when`. |
 | 5 | Unused patterns — error, warning, or allowed? | Error (validation rule 7). |
 | 6 | Full v2 parity before release? | No. v1 and v2 are deleted rather than deprecated, and the one gap — atomic multi-path rules — is unused. |
-| 7 | What expanded form handles emit, multiple kin, advanced applicability? | None in v3.0. `emit` is flat and per-rule; multi-path is reserved, not built. |
+| 7 | What expanded form handles emit, multiple kin, advanced applicability? | None in v3.0. `emit` is flat and per-rule, and informational rules write `expect: none` (D26); multi-path is reserved, not built. |
 | 8 | Generated messages by default? | Yes, constrained by D7. |
 | 9 | Deprecation window; v1→v3 direct? | Neither. v1 and v2 are removed outright; the four presets are rewritten by hand. |
 | 10 | Reserve `imports`? | Omit entirely. Reserving a key with no semantics invites the same inert-construct problem OS6 and OS10 document. |
