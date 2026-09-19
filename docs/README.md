@@ -15,8 +15,19 @@ Repository documentation for Kyn users, maintainers, and historical design work.
 - [release.md](release.md): release artifacts, container image, and install flow
 - [migration-v1-to-v2.md](migration-v1-to-v2.md): migration strategy and command usage
 
+## Active Design Work
+
+Unapproved. Nothing in this section describes shipped behavior.
+
+- [design/v3/](design/v3/): v3 configuration design — workplan, gates, and measured baseline
+- [design/v3/01-observed-semantics.md](design/v3/01-observed-semantics.md): experimentally measured v2 semantics, including two shipping defects
+- [v3 configuration proposal](reviews/v3-config-proposal.md): the exploratory proposal under review
+- [v3 independent review 1](reviews/v3-config-independent-review-1.md): first independent readiness verdict
+- [v3 review 3 bootstrap](reviews/v3-config-review-3-bootstrap.md): frozen scope for the third independent pass
+
 ## Historical Design and Planning
 
+- [v0.1.3 onboarding review](reviews/v0.1.3-onboarding.md): usability findings, reproduced first-run behavior, and proposed documentation improvements
 - [related-file-policy-exploration.md](related-file-policy-exploration.md): unapproved candidates for deeper related-file policy capabilities
 - [spec.md](spec.md): original product specification; not the current CLI reference
 - [ci.md](ci.md): earlier CI examples retained for repository history
