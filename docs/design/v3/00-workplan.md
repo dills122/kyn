@@ -67,8 +67,8 @@ the rule aloud. The four presets went from 39/27/22/22 non-blank lines in v2 to
 | D35 | Reports drop `shapeId`/`familyId`; results carry `ruleId` and `instanceName` and sort by them. `explain` clauses use the field names (`skipIf.missing`, `expect.touched`) | 2026-11-13, following D28 |
 | D36 | `expect` stays required; there is no default assertion | 2026-11-13. Explicit over implicit |
 
-D29's `why` and `changeType`, and D36, were adopted on the author's
-recommendation and await explicit maintainer confirmation.
+D29's `why` and `changeType`, and D36, were confirmed by the maintainer on
+2026-11-13.
 
 ## Superseded decisions
 
@@ -145,10 +145,9 @@ had not been accepted too readily.
 
 ## Open items
 
-1. Maintainer confirmation of `why`, `changeType`, and required `expect` (D29,
-   D36).
-2. An independent review of the 2026-11-13 revision.
-3. The `api` preset must choose between one shared test per handler/service
+1. An independent review of the 2026-11-13 revision. Scope is frozen in
+   [`../../reviews/v3-config-review-4-bootstrap.md`](../../reviews/v3-config-review-4-bootstrap.md).
+2. The `api` preset must choose between one shared test per handler/service
    pair and one test per file ([`06`](06-cutover.md)).
-4. `docs/site/getting-started.md` teaches v2 (PR #49) and will need a v3
+3. `docs/site/getting-started.md` teaches v2 (PR #49) and will need a v3
    rewrite at cutover.
