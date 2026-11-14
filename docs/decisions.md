@@ -12,7 +12,7 @@ This file captures product and implementation decisions locked for MVP.
 > - **Family Instance Deduplication** and the `{dir}/{base}` instance key
 >   over-partition when the related-path template ignores the source file name.
 >   Refined by decision D17 — see
->   [design/v3/03-instance-and-identity.md](design/v3/03-instance-and-identity.md).
+>   [design/v3/03-instances-and-reports.md](design/v3/03-instances-and-reports.md).
 >
 > Everything else — exit codes, input modes, deterministic ordering — still
 > holds. Config-version specifics (`families`, `kin`, `groups`) describe v1/v2,

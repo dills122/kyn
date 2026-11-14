@@ -1,122 +1,123 @@
-# G4 — Cutover
+# Cutover
 
-Status: proposed. Closes gate G4 in [`00-workplan.md`](00-workplan.md).
+Status: proposed. Kyn has no users yet, so v1 and v2 are removed outright
+rather than migrated. There is no `v2 → v3` converter and no deprecation
+window.
 
-> This document replaced `06-migration.md`. The
-> [scope change](00-workplan.md#scope-change-2026-09-10) retires v1 and v2
-> outright rather than migrating off them, so the gate changed from "prove every
-> migration equivalent" to "delete the old versions and rewrite what depended on
-> them". The migration analysis that is still load-bearing is preserved below.
+## Inventory
 
-## What IR3 asked, and what remains of it
+Measured by searching the repository, not listed from memory.
 
-IR3's objection was that the proposal claimed a v2 family becomes a pattern plus
-one rule per related path, when v2 permits multi-kin applicability, cross-kin
-clauses and atomic multi-assertion rules that this cannot represent.
-
-The objection was correct, and the answer is no longer a migration subset. There
-is nothing to migrate. What survives is the **capability question**: does v3
-lose something v2 could express?
-
-Yes, in exactly one place — atomic multi-path rules — and it is unused. Measured
-across the four `kyn init` presets, `docs/site/recipes/*` and
-`docs/site/config.md`, every kin clause names exactly one kin. The only
-multi-path syntax anywhere in the repository is `kinChangedAny` in
-`docs/related-file-policy-exploration.md`, which is explicitly unapproved and
-was never implemented. See
-[`04-grammar.md`](04-grammar.md#known-capability-limit).
-
-## Removal list
+### Code
 
 | Component | Action |
 | --- | --- |
-| `internal/config` v1/v2 structs, aliases, `Validate` | Replace with a v3 document type plus the normalized `Policy` from [`03-instance-and-identity.md`](03-instance-and-identity.md) §8 |
-| `internal/config/migrate.go`, `MigrateV1ToV2` | Delete |
-| `internal/cli/config_migrate.go`, `kyn config migrate` | Delete |
-| `internal/family` — `Family`, `KinMap`, `GroupMap` | Replace with source shapes and a single `related` template |
-| `docs/migration-v1-to-v2.md` | Retire to historical, or delete |
-| `docs/site/config.md` | Rewrite for the v3 grammar |
-| `e2e/workflows_test.go:95` v1→v2 end-to-end test | Delete; its role is taken by the G5 suite |
+| `internal/config`: v1/v2 structs, aliases, `Validate`, `MigrateV1ToV2` | Replace with the v3 document and the normalized model in [`03-instances-and-reports.md`](03-instances-and-reports.md) §7 |
+| `internal/family` | Replace: captures, template resolution, instance keys |
+| `internal/matcher` | Extend: capture-aware globs (`{name}`, `{**name}`) |
+| `internal/changes` | Retain deleted paths and rename sources; accept `--name-status` lines in `--files-from` |
+| `internal/rules`, `internal/report` | The three states, `skipIf`, skipped status, headline, renamed fields |
+| `internal/cli/config_migrate.go`, `kyn config migrate` | Delete. A CLI surface removal, justified because both ends of the migration are gone |
+| `internal/cli/init.go` | Four presets rewritten |
 
-Deleting `kyn config migrate` is a CLI surface removal, which the repository
-steering guards. It is justified here only because the command's sole purpose
-was moving between versions that no longer exist.
+### Fixtures and tests
 
-## Preset rewrite
+| Item | Count |
+| --- | --- |
+| `e2e/projects/*/kyn.config.yaml` | 4 |
+| `e2e/projects/*/testdata/*.golden` | 8 |
+| `e2e/projects/*/scenarios.json` | 4 |
+| `internal/report/testdata/*.golden` | 13 |
+| `testdata/angular/kyn.config.yaml` | 1 |
+| Inline v1/v2 configs in `internal/cli/execute_test.go` | 16 |
+| Inline in `internal/cli/output_stream_test.go` | 2 |
+| Inline in `internal/config/load_test.go` | 3 |
+| `e2e/workflows_test.go` v1→v2 migration test | delete |
 
-All four presets become v3 by hand. Three are direct; one must be fixed first.
+Every golden changes. One example,
+`e2e/projects/terraform-iac/testdata/module-changed-readme-not-updated-warns-only.golden`,
+changes three ways at once: `PASS` becomes `NON-BLOCKING`, the `Family:` line
+goes, and `Instance: terraform/network/main` becomes `terraform/network`. That
+file currently records the OS12 defect as a contract fixture.
 
-| Preset | v3 shape | Note |
-| --- | --- | --- |
-| `web-ui` | 1 pattern + 2 rules | Two rules share a shape, so the pattern earns its place — this is the example that justifies `patterns` existing at all |
-| `api` | 1 inline rule | **Fix OS11 first**, see below |
-| `proto` | 1 inline rule | |
-| `iac` | 1 inline rule | Demands one file from many instances, see below |
+Goldens are external-contract fixtures under the repository steering.
+Re-recording them is one deliberate, reviewed event, done once the report
+decisions here are implemented, not incrementally.
 
-### `api` must be fixed, not transcribed
+### Documentation
 
-OS11: the shipped preset sets `stripSuffixes: ["_handler", "_service"]` while
-templating with `{name}`. The two contradict — `stripSuffixes` collapses handler
-and service into one instance, `{name}` resolves differently for each — and an
-ordinary change set fails with exit 2.
+| File | Action |
+| --- | --- |
+| `README.md`, `docs/site/config.md`, `docs/site/concepts.md`, `docs/site/troubleshooting.md`, `docs/site/recipes/*.md` | Rewrite for v3 |
+| `docs/site/getting-started.md` | Rewrite for v3 (the v2 walkthrough is PR #49) |
+| `docs/spec.md`, `docs/mvp-v2.md`, `docs/mvp-tasks.md`, `docs/related-file-policy-exploration.md` | Historical; add a superseded banner |
+| `docs/migration-v1-to-v2.md`, `docs/decisions.md` | Already bannered |
+| `docs/site/releases/v0.1.3.md` | Leave; it describes a past release |
 
-Transcribing it into v3 would carry the defect across. The evident intent is
-that each handler and service has its own `_test.go`, so the v3 preset drops
-`stripSuffixes` entirely:
+## `e2e/projects` becomes the conformance corpus
+
+`e2e/e2e_test.go` already walks each project, runs the real binary, and
+compares rendered output and exit codes across output modes. That is the
+harness [`07-conformance.md`](07-conformance.md) needs. It is extended, not
+duplicated: the four projects are rewritten for v3 and new projects are added
+for the conformance matrix.
+
+## Presets
+
+All four are rewritten by hand.
 
 ```yaml
-version: 3
+# web-ui
+rules:
+  story-sync:
+    match: "src/**/{name}.component.{ts,html}"
+    related: "{dir}/{name}.stories.ts"
+    expect: touched
+    skipIf: missing
+    message: "Component changed but its story did not."
+  tests-sync:
+    match: "src/**/{name}.component.{ts,html}"
+    related: "{dir}/{name}.spec.ts"
+    expect: touched
+    skipIf: missing
+    severity: warn
+    message: "Component changed but its test did not."
+```
 
+```yaml
+# api
 rules:
   api-tests-sync:
-    match: ["internal/**/*_handler.go", "internal/**/*_service.go"]
+    match: "internal/**/{name}_{handler,service}.go"
     related: "{dir}/{name}_test.go"
-    when: related-existed
-    expect: in-change-set
-    message: "API source changed but its test did not."
+    expect: touched
+    skipIf: missing
 ```
 
-This is also the clearest argument for D12: had `stripSuffixes` and the template
-been adjacent in one rule rather than split across a family and its kin map, the
-contradiction would have been visible when the preset was written.
+The v2 `api` preset contradicts itself and fails with exit 2 when a handler and
+a service change together (OS11). It is not transcribed. The v3 form above
+states one reading plainly: a handler and service that share a name share one
+test. The other reading, one test per file, is `match:
+"internal/**/{name}.go"` with an exclude for `*_test.go`. The preset must pick
+one and say which in a comment.
 
-### `iac` demands one file from many instances
+`proto` and `iac` are direct: `proto/**/{name}.proto` to
+`gen/{dir}/{name}.pb.go`, and `terraform/**/*.tf` to `{dir}/README.md`.
 
-Its template `{dir}/README.md` contains no `{base}`, so two `.tf` files in one
-directory produce two instances that both demand the same README — two failures
-for one file:
+Preset rules:
 
-```text
-[terraform-module] terraform/vpc/main       readme: terraform/vpc/README.md
-[terraform-module] terraform/vpc/variables  readme: terraform/vpc/README.md
-```
+1. Nothing decorative. v2 accepted three constructs that do nothing (OS6,
+   OS10), and the presets taught two of them.
+2. `skipIf: missing` is written out wherever a preset is lenient, because the
+   preset is where people learn what it means.
+3. Each preset carries a one-line comment per rule saying what it enforces.
 
-Previously this had to be preserved exactly, because migration could not change
-behavior. That constraint is gone, so it becomes a live question: should reports
-deduplicate results whose resolved `related` path is identical within a shape?
+## Order of work
 
-Deferred, not decided — it is a report-shaping question, tracked as an open item
-in the workplan. Note that deduplicating changes result *counts*, so it must be
-settled before the G5 goldens are recorded, not after.
-
-## Starter-config policy
-
-The presets are the first v3 most people will read, so they are specification by
-example. Two rules for their rewrite:
-
-1. **No inert constructs.** OS6 and OS10 measured three things v2 accepts that do
-   nothing, two of which the presets taught. Nothing in a v3 preset may be
-   decorative.
-2. **`when` is written explicitly wherever the intent is lenient.** D6 removed
-   the silent skip by defaulting `when: always`. A preset that wants
-   `related-existed` must say so, since the preset is where users learn what the
-   field means.
-
-## What G4 does not settle
-
-- The conformance suite — gate G5.
-- Whether `--dry-run-resolve` deduplicates identical related paths.
-- Whether `docs/migration-v1-to-v2.md` and `docs/decisions.md` are retired or
-  annotated. Both describe behavior that will no longer exist, and
-  `docs/decisions.md` in particular is cited throughout this design set as the
-  source of the `D`-exclusion rule that D5 overturns.
+1. Fix OS7 (sorted iteration) and add the determinism guard. Everything else is
+   tested on top of it.
+2. Capture-aware matcher and instance keys.
+3. Change collection: removals, rename sources, `--name-status` input.
+4. Evaluation and reports.
+5. Presets, e2e projects, goldens re-recorded once.
+6. Documentation.

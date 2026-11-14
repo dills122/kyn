@@ -119,8 +119,7 @@ This is a capability gap, not a naming problem. Renaming `changed` to
 `in-change-set` makes the vocabulary honest; it does not make deletion
 observable.
 
-Maintainer decision (2026-09-09): close the gap. The design is in
-[`02-semantics.md`](02-semantics.md) section 4.
+The gap is closed in [`02-semantics.md`](02-semantics.md) §2 and §3.
 
 ## OS8 — Renaming the related file away is equally invisible
 
@@ -342,11 +341,69 @@ Two separate problems:
    `stripSuffixes`. The guard fires correctly, but its explanation sends the user
    looking at extensions.
 
+## OS9 — Result cardinality is rules × instances
+
+Source: [`e10-shared-instance.sh`](experiments/e10-shared-instance.sh)
+
+One family, two rules, three changed source files of which two collapse into
+one instance:
+
+```text
+[web-component] src/a     sources: a.component.html, a.component.ts
+[web-component] src/b     sources: b.component.ts
+```
+
+produces four results, one per (rule, instance), sorted by `familyId`, then
+`familyName`, then `ruleId`:
+
+| ruleId | familyId | familyName |
+| --- | --- | --- |
+| `spec-sync` | `web-component` | `src/a` |
+| `story-sync` | `web-component` | `src/a` |
+| `spec-sync` | `web-component` | `src/b` |
+| `story-sync` | `web-component` | `src/b` |
+
+Several source files resolving to one instance yield one result listing all of
+them, not one result each.
+
+## OS14 — Informational rules, and their effect on the severity counters
+
+Source: [`e15-emit-only.sh`](experiments/e15-emit-only.sh)
+
+A v2 rule with `actions.emit` and no assertion is valid. It reports
+`status: info`, never fails, and adds its flag. It is specified behavior
+(`docs/spec.md:480`) and ships in `docs/site/recipes/frontend.md`.
+
+Its declared `severity` still feeds the severity counters:
+
+| `severity` | `ok` | `failed` | `infos` | `warnings` | `errors` | result status |
+| --- | --- | --- | --- | --- | --- | --- |
+| `info` | true | 0 | 1 | 0 | 0 | `info` |
+| `warn` | true | 0 | 0 | 1 | 0 | `info` |
+| `error` | true | 0 | 0 | 0 | 1 | `info` |
+
+A rule that cannot fail reports `errors: 1`, and with `severity: error` a
+result whose status is `info` is counted under `errors` while `infos` stays 0.
+Same family as OS12: counters that do not mean what they appear to.
+
+Flags are added whenever a rule applies, pass or fail
+(`internal/rules/evaluator.go:47`), so "raise a flag only when the related file
+is absent" needs an applicability gate; it cannot be written as an assertion.
+
+## OS15 — YAML anchors pass through the strict loader
+
+Source: [`e16-yaml-anchors.sh`](experiments/e16-yaml-anchors.sh)
+
+A glob list declared once with `&anchor` and reused with `*alias` loads and
+resolves correctly under `KnownFields(true)`. Sharing a list between
+declarations needs no Kyn feature.
+
 ## OS10 — `rule.description` is parsed and never read
 
 `Rule.Description` is declared
 ([`internal/config/config.go:33`](../../../internal/config/config.go)) and, via
-`KnownFields(true)`, is an accepted field — a config using it loads (OS9 matrix).
+`KnownFields(true)`, is an accepted field — a config using it loads
+([`05-compatibility-matrix.md`](05-compatibility-matrix.md), row 13).
 Nothing reads it. `grep -rn '\.Description' internal/report internal/rules
 internal/cli` returns no hits.
 
@@ -410,16 +467,18 @@ each validation and resolution pass. It also sets a hard constraint on v3: the
 normalized policy model must be an **ordered slice sorted by ID**, never a Go
 map, or every v3 rule and pattern inherits this defect.
 
-## Consequences for the v3 design
+## Where each observation is addressed
 
-| Observation | Consequence |
+| Observation | Addressed in |
 | --- | --- |
-| OS1, OS2 | The expectation vocabulary is a small closed grid, not an open enum. The proposal's combinatorial-growth risk is smaller than feared. |
-| OS3, OS8 | Deletion blindness must be an explicit product decision before the vocabulary is frozen. Naming alone cannot fix it, and a fix that handles only `D` leaves the rename half open. |
-| OS4 | `stripSuffixes` must be available to the inline form, or the inline form must be declared single-shape-only and migration must refuse to flatten multi-shape families. |
-| OS5 | v3 must either auto-exclude resolved related paths from source matching, or make an unmatched/self-matched source a loud error. |
-| OS13 | Derive the instance key from the variables the `related` template actually uses, not from the source basename. Fixes the over-partition and makes the template-agreement error class unreachable. |
-| OS12 | Report headline must agree with the counts. Settle before the G5 goldens are recorded, since the headline is in every text fixture. |
-| OS11 | Fix the preset and the guard's hint text in G0. It is also the sharpest concrete evidence for CR1: `stripSuffixes` and the template must be designed together, so they belong at the same level. |
-| OS6, OS10 | Migration drops non-`source` groups with proven zero behavior change. `kyn init` should stop emitting them now, independently of v3. `description` is inert and should either be wired into SARIF or dropped. |
-| OS7 | Normalized model is an ordered slice. Fix the existing defect first so v3 differential tests have a stable baseline. |
+| OS1, OS2 — what the assertions actually read | [`02-semantics.md`](02-semantics.md) §1, §4 |
+| OS3, OS8 — deletion and rename blindness | [`02-semantics.md`](02-semantics.md) §2, §3 |
+| OS4, OS11 — `stripSuffixes` decides grouping; the `api` preset contradicts itself | Captures in `match`, [`04-grammar.md`](04-grammar.md); instance keys, [`03-instances-and-reports.md`](03-instances-and-reports.md) §1 |
+| OS5 — the common form matches its own related file | Validation rule 9, [`04-grammar.md`](04-grammar.md) |
+| OS6, OS10 — constructs that are accepted and do nothing | Removed, or made functional (`why`), [`04-grammar.md`](04-grammar.md) |
+| OS7 — non-deterministic error selection | First item in [`06-cutover.md`](06-cutover.md) and [`07-conformance.md`](07-conformance.md) |
+| OS9 — rules × instances | [`03-instances-and-reports.md`](03-instances-and-reports.md) §1 |
+| OS12 — `PASS` above a failure count | [`03-instances-and-reports.md`](03-instances-and-reports.md) §6 |
+| OS13 — one file demanded once per source | [`03-instances-and-reports.md`](03-instances-and-reports.md) §1 |
+| OS14 — informational rules and counters | [`02-semantics.md`](02-semantics.md) §5, §8 |
+| OS15 — YAML anchors work | [`04-grammar.md`](04-grammar.md), Sharing globs |

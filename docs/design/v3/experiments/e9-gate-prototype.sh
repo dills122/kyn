@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Validates the G1 gate design (02-semantics.md section 4) WITHOUT changing Kyn.
+# Validates the gate design (02-semantics.md) WITHOUT changing Kyn.
 #
-# Claim under test: "existedAtBase" is derivable from the git output Kyn already
-# runs -- `git diff --name-status -M <base>...<head>` -- with no extra git call.
+# Claim under test: the related path's state -- exists / removed-by-this-change /
+# missing -- is derivable from the git output Kyn already runs,
+# `git diff --name-status -M <base>...<head>`, with no extra git call.
 #
-# This simulates the proposed gate over four scenarios and compares it to the
-# gate Kyn ships today.
+# Simulates both gates (`skipIf: missing`, `skipIf: exists`) over five scenarios
+# and compares `skipIf: missing` with the gate Kyn ships today.
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 
 REL="src/a_test.go"
@@ -41,21 +42,24 @@ scenario() { # $1=label $2=setup-commands
   done <<< "$diff"
 
   local exists_now=N; [ -f "$W/$REL" ] && exists_now=Y
-  local existed_at_base=N
-  { [ "$exists_now" = Y ] || [ "$vanished" = Y ]; } && existed_at_base=Y
+  local state=missing
+  if [ "$exists_now" = Y ]; then state=exists
+  elif [ "$vanished" = Y ]; then state=removed; fi
 
-  # gate -> outcome, for `when: related-existed` + `expect: in-change-set`
-  local old new
-  [ "$exists_now"      = Y ] && old=$([ "$in_change_set" = Y ] && echo pass || echo FAIL) || old="skipped"
-  [ "$existed_at_base" = Y ] && new=$([ "$in_change_set" = Y ] && echo pass || echo FAIL) || new="skipped"
+  # outcomes for `expect: touched`
+  local verdict; verdict=$([ "$in_change_set" = Y ] && echo pass || echo FAIL)
+  local old skip_missing skip_exists
+  [ "$exists_now" = Y ] && old=$verdict || old=skipped
+  [ "$state" = missing ] && skip_missing=skipped || skip_missing=$verdict
+  [ "$state" = missing ] && skip_exists=$verdict || skip_exists=skipped
 
-  printf '%-22s %-9s %-9s %-9s %-11s %-9s %s\n' \
-    "$1" "$exists_now" "$vanished" "$in_change_set" "$existed_at_base" "$old" "$new"
+  printf '%-20s %-8s %-6s %-9s %-15s %s\n' \
+    "$1" "$state" "$in_change_set" "$old" "$skip_missing" "$skip_exists"
 }
 
-printf '%-22s %-9s %-9s %-9s %-11s %-9s %s\n' \
-  SCENARIO EXISTS-NOW VANISHED IN-CS EXISTED-BASE "OLD-GATE" "NEW-GATE"
-printf '%s\n' "-------------------------------------------------------------------------------------------"
+printf '%-20s %-8s %-6s %-9s %-15s %s\n' \
+  SCENARIO STATE IN-CS OLD-GATE skipIf:missing skipIf:exists
+printf '%s\n' "--------------------------------------------------------------------------------"
 
 scenario "related-untouched"  'echo a2 >> "$W/src/a.go"'
 scenario "related-updated"    'echo a2 >> "$W/src/a.go"; echo t2 >> "$W/src/a_test.go"'

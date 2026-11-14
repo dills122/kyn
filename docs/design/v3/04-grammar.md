@@ -1,228 +1,237 @@
-# G3 — v3 grammar
+# v3 grammar
 
-Status: proposed. Closes gate G3 with
-[`05-compatibility-matrix.md`](05-compatibility-matrix.md).
+Status: proposed. This is the current shape; the history of how it got here is
+in [`00-workplan.md`](00-workplan.md). Nothing is implemented.
 
-Follows from the semantics frozen in [`02-semantics.md`](02-semantics.md) and
-the instance model in [`03-instance-and-identity.md`](03-instance-and-identity.md).
-Nothing here is safe to implement before the G5 conformance suite exists.
+The goal is a config a developer can read aloud: *when files like this change,
+that file is expected to be touched too.*
 
-## Common form
+## The common rule
 
 ```yaml
 version: 3
 
 rules:
   handler-test:
-    match: ["internal/**/*_handler.go"]
-    related: "{dir}/{name}_test.go"
-    expect: in-change-set
+    match: "internal/**/{name}_handler.go"
+    related: "{dir}/{name}_handler_test.go"
+    expect: touched
+    skipIf: missing
 ```
 
-> When a path matching `internal/**/*_handler.go` changes, its related test path
-> must be part of the change set.
+> When a handler changes, its test is expected to be touched in the same
+> change. Handlers that have no test yet are skipped.
 
-No pattern, no family, no group, no named kin — the proposal's success
-criterion 1.
+Drop `skipIf` and the rule is strict: every handler must have a test, and it
+must be touched.
 
-Note what changed from the proposal's version of this example: `expect:
-changed-if-present` became `expect: in-change-set`, with **no** `when`. Per D6
-the rule now fires unconditionally rather than silently skipping when the test
-does not exist. A user who wants the lenient behavior writes it down:
+## Fields
+
+| Field | Required | Default | Meaning |
+| --- | --- | --- | --- |
+| `match` | yes | | Glob, or list of globs, selecting source files. May bind variables |
+| `exclude` | no | | Glob, or list, removed from `match` |
+| `related` | yes, unless `expect: none` | | Path template for the related file |
+| `expect` | yes | | What must be true of the related file |
+| `skipIf` | no | never skip | Skip the rule based on whether the related file is there |
+| `changeType` | no | all | Only apply when a matched source was `added`, `modified` or `renamed` |
+| `severity` | no | `error` | `info`, `warn` or `error` |
+| `message` | no | generated | Shown when the rule fails |
+| `why` | no | | Why the rule exists. Carried to SARIF `fullDescription` and `explain` |
+| `flags` | no | | Names added to the report's `flags` list whenever the rule applies |
+
+Rule IDs are the mapping keys under `rules`. Every list-valued field also
+accepts a single string.
+
+### `match` binds variables
+
+A `{name}` in a glob captures what it matches, and `related` reuses it.
+
+| Syntax | Matches | Example |
+| --- | --- | --- |
+| `*`, `**`, `{a,b}` | standard glob wildcards and alternation, not captured | `src/**/*.{ts,html}` |
+| `{name}` | one or more characters within a single path segment | `{name}.component.ts` |
+| `{**name}` | one or more whole path segments | `src/main/java/{**pkg}/{name}.java` |
+| `{dir}` | built in: the directory of the matched file | used in `related` only |
+
+A brace group containing a comma is alternation; one without is a capture.
 
 ```yaml
-    when: related-existed
-    expect: in-change-set
+story-sync:
+  match: "src/**/{name}.component.{ts,html}"
+  related: "{dir}/{name}.stories.ts"
 ```
 
-## Reuse form
+`button.component.ts` and `button.component.html` both bind `name=button`, so
+they are one instance demanding one story.
+
+`{**name}` is what makes mirrored trees expressible, which v2 could not do:
 
 ```yaml
-version: 3
+java-test:
+  match: "src/main/java/{**pkg}/{name}.java"
+  related: "src/test/java/{pkg}/{name}Test.java"
+```
 
-patterns:
-  web-component:
-    match:
-      - "src/**/*.component.ts"
-      - "src/**/*.component.html"
-    exclude: ["src/**/generated/**"]
-    stripSuffixes: [".component"]
+Captures replace v2's `{base}`, `{name}`, `{ext}`, `{file}` and
+`baseName.stripSuffixes`. The variable is named where it is matched, so there
+is no second place for it to disagree — the defect behind OS11.
 
+### `expect`
+
+| Value | True when the related path |
+| --- | --- |
+| `touched` | is part of this change (added, modified, or a rename destination) |
+| `untouched` | is not part of this change |
+| `exists` | is present in the working tree |
+| `missing` | is not present in the working tree |
+| `none` | no assertion; the rule is informational |
+
+A list is AND-combined. Kyn observes paths, never content: `touched` means the
+path is in the change, not that its content is correct.
+
+Plain `expect: touched` is the form to reach for. `[exists, touched]` differs
+from it only when the diff and the working tree disagree (the file is in the
+diff but not on disk), so it is rarely needed.
+
+`untouched` passes for a file this change deleted, because a deleted path is
+not part of the change set. To require "present and unmodified", write
+`expect: [exists, untouched]`.
+
+### `skipIf`
+
+| Value | The rule is skipped when the related file |
+| --- | --- |
+| `missing` | was not there before this change and is not there now |
+| `exists` | is there, or was removed by this change |
+
+A file **deleted or renamed away by the change is never "missing"**. That is
+what stops a rule being silenced by deleting the file it protects (OS3, OS8).
+The three underlying states are defined in
+[`02-semantics.md`](02-semantics.md).
+
+`skipIf: exists` is for the inverse rule — act only when the related file is
+absent:
+
+```yaml
+needs-story:
+  match: "src/**/{name}.component.ts"
+  related: "{dir}/{name}.stories.ts"
+  expect: none
+  skipIf: exists
+  flags: [needsStory]
+```
+
+Skipped results are reported; see [`03-instances-and-reports.md`](03-instances-and-reports.md).
+
+### Informational rules
+
+`expect: none` makes a rule informational: it never fails, reports status
+`info`, and adds its `flags`.
+
+```yaml
+payments-review:
+  match: "internal/payments/**"
+  expect: none
+  flags: [paymentsReviewRequired]
+  message: "Payments code changed."
+```
+
+`related` is optional here, because "this code was touched" needs no second
+file. `expect` stays required so that a rule cannot become informational by
+losing a line.
+
+## Validation
+
+All of these fail with exit 2 and name the rule and field.
+
+| # | Rule |
+| --- | --- |
+| 1 | Unknown fields are rejected. Duplicate rule IDs are rejected by the YAML decoder, with line numbers |
+| 2 | `match` has at least one glob; every glob in one rule binds the same capture names |
+| 3 | A glob has at most one `{**name}`; capture names are unique within a glob; `dir` is reserved |
+| 4 | `related` uses only `{dir}` and names that `match` captures |
+| 5 | `related` uses at most one variable that can contain `/` (`{dir}` or the `{**name}` capture) |
+| 6 | `expect` is required; `none` cannot be combined with other values; lists are deduplicated and sorted |
+| 7 | `related` is required unless `expect: none`; `skipIf` requires `related` |
+| 8 | `expect: none` requires `severity: info` (its default) and at least one of `message` or `flags` |
+| 9 | A resolved `related` path that matches its own rule's `match` and is not excluded is an error. Detected at resolve time, when a concrete path exists |
+| 10 | Resolved paths must stay inside `--cwd` |
+| 11 | Rule IDs are sorted before every validation and resolution pass, so the first error reported is stable |
+
+Rule 5 keeps instance names unique; the reasoning is in
+[`03-instances-and-reports.md`](03-instances-and-reports.md). Rule 9's error
+tells the author what to do:
+
+```text
+rule "go-test": related path "src/a_test.go" also matches this rule's own
+match; add an exclude or narrow the match
+```
+
+Rule 11 is not style. OS7 measured the current code reporting three different
+errors across thirty identical runs.
+
+## Sharing globs
+
+There is no `patterns` block and no rule-to-rule reference. Two rules over the
+same sources repeat the `match` line, which with captures is one line.
+
+If a long glob list must be shared, YAML anchors already work through Kyn's
+strict loader (OS15):
+
+```yaml
 rules:
   story-sync:
-    use: web-component
-    related: "{dir}/{base}.stories.ts"
-    when: related-existed
-    expect: in-change-set
-
-  test-sync:
-    use: web-component
-    related: "{dir}/{base}.spec.ts"
-    expect: [exists, in-change-set]
-    severity: warn
-    message: "Include the component test in this change."
+    match: &components ["src/**/{name}.component.ts", "lib/**/{name}.component.ts"]
+    related: "{dir}/{name}.stories.ts"
+    expect: touched
+  spec-sync:
+    match: *components
+    related: "{dir}/{name}.spec.ts"
+    expect: touched
 ```
 
-Both rules share one source shape, so they share instances and reproduce the
-measured cardinality contract (OS9): two rules × two instances = four results,
-grouped by shape and sorted `shapeId`, `instanceName`, `ruleId`.
+## What v3 cannot express
 
-## Field reference
+Two v2 capabilities are not carried over. No configuration in this repository
+uses either (four presets, three recipes, `docs/site/config.md`,
+`docs/site/concepts.md`, `testdata/`, `e2e/projects/`).
 
-### `patterns.<id>` — a named source shape
-
-| Field | Required | Notes |
+| Limit | v2 form | Why it is out |
 | --- | --- | --- |
-| `match` | yes | ≥1 glob |
-| `exclude` | no | |
-| `stripSuffixes` | no | feeds the instance key, not just the template |
+| Atomic multi-path rules | `if.kinExists: [story, spec]` with `assert.kinChanged: [story, spec]`: skipped as one unit if either is missing | One `related` per rule. Two rules evaluate independently |
+| Gating on one path, asserting on another | `if.kinExists: [figma]` with `assert.kinChanged: [story]` | `skipIf` reads the rule's own `related` path |
 
-A pattern is a named bundle of exactly these three fields and carries no
-capability a rule lacks (D12).
+These are the limits found so far, by three reviews. The list has been wrong
+twice, so it is not claimed to be complete. `expect` is list-shaped and
+`related` could become list-shaped later, so the first limit can be lifted
+additively.
 
-### `rules.<id>`
+One capability is gained: mirrored source and test trees, via `{**name}`.
 
-| Field | Required | Default | Notes |
-| --- | --- | --- | --- |
-| `match` / `exclude` / `stripSuffixes` | one of these or `use` | | inline source shape |
-| `use` | one of these or inline | | pattern reference |
-| `related` | yes | | path template |
-| `expect` | yes | | assertion, or AND-combined list |
-| `when` | no | `always` | applicability gate |
-| `on` | no | all statuses | source change statuses |
-| `severity` | no | `error`, or `info` when `expect: none` | `info` \| `warn` \| `error` |
-| `message` | no | generated (D7) | |
-| `emit` | no | | informational flags; flat, replacing `actions.emit` |
-| `description` | no | | see below |
+## Naming
 
-`when` ∈ `always` \| `related-existed` \| `related-absent`, evaluated against the
-tri-state in [`02-semantics.md`](02-semantics.md) §3.
-`expect` ∈ `in-change-set` \| `not-in-change-set` \| `exists` \| `missing` \|
-`none`. `none` marks an informational rule — see
-[`02-semantics.md`](02-semantics.md) §6.
-
-Dropped from v2 with reason:
-
-- **`changedAny`** — OS6 proved `if.changedAny: [source]` is a no-op, and
-  validation already rejects every other group name. A source change is the
-  implicit trigger.
-- **`groups`** — only `groups.source` was ever read (OS6). It becomes the rule's
-  or pattern's `match`/`exclude`.
-- **`families`, `kin`** — replaced by the source shape plus `related`.
-
-### `description` survives, and becomes functional
-
-OS10 found `description` is accepted, validated and never read; SARIF fills both
-its description slots with the message instead.
-
-Keep the field and wire it into SARIF `fullDescription` and `explain`. The
-original argument was compatibility — dropping it would break configs that set
-it. With no such configs the field is kept on merit instead: a policy file
-benefits from recording *why* a rule exists, separately from the message shown
-when it fails, and SARIF already has the slot for it.
-
-## Validation rules
-
-Revised from the proposal's list, with the measured results folded in.
-
-| # | Rule | Source |
-| --- | --- | --- |
-| 1 | `use` and inline `match`/`exclude`/`stripSuffixes` are mutually exclusive | proposal |
-| 2 | Exactly one pattern reference per rule | proposal |
-| 3 | Patterns cannot reference or extend patterns | proposal |
-| 4 | A rule cannot override any field of the pattern it uses | proposal |
-| 5 | Unknown pattern reference is an error | proposal |
-| 6 | Duplicate rule or pattern IDs — **already free** | D3; `yaml.v3` rejects duplicate mapping keys with line numbers |
-| 7 | An unused pattern is an **error**, not a warning | OS6: v2's lesson is that inert-but-valid constructs mislead for years |
-| 8 | Empty match lists, path traversal, invalid template variables, multi-extension template disagreement all retain strict validation | proposal, `internal/family/resolver.go:117` |
-| 9 | Rule and pattern IDs sorted before every normalization, validation and resolution pass | D1; OS7 shows the unsorted version is already non-deterministic |
-| 10 | **New** — a resolved `related` path matching its own rule's source shape is an error, exit 2 | D8, OS5 |
-| 11 | **New** — `expect` lists are deduplicated and sorted during normalization | D1 |
-| 12 | **New** — rule and pattern IDs share one namespace and must be globally unique | D21; two ID spaces feeding one shape ID space would otherwise collide |
-| 13 | **New** — all rules using one shape must share a footprint signature | D22; keeps `instanceName` unique by construction. Vacuous for inline rules |
-| 14 | **New** — `stripSuffixes` is an error when no rule using that shape references `{base}` | D22; footprint keying makes it inert otherwise, and OS6/OS10 are the record of how long inert constructs survive |
-
-| 15 | **New** — `expect: none` requires `severity: info` and at least one of `message` or `emit` | D26; an emit-only rule with `severity: error` reports `errors: 1` while `ok: true`, and one with neither a message nor a flag produces nothing |
-
-Rules 12–15 all come from independent review 2. Rule 14 is the one that is easy
-to skip and should not be: without it, footprint keying trades OS11's
-contradiction for a fresh way to write a declaration that does nothing.
-
-Rule 9 is not a style preference. OS7 measured the current unsorted behavior
-producing three different error messages across thirty identical runs.
-
-## Known capability limit
-
-v3.0 deliberately cannot express a rule whose applicability or assertions span
-**several** related paths atomically. The v2 shape:
-
-```yaml
-if:     { kinExists: [story, spec] }
-assert: { kinChanged: [story, spec] }
-actions: { emit: [reviewRequired] }
-```
-
-skips as one unit when either path is absent, and emits once. Two v3 rules
-evaluate independently, so counts and flags differ.
-
-Originally this had an escape hatch — such configs stayed on v2. The
-[scope change](00-workplan.md#scope-change-2026-09-10) removed it, so this is now
-a real capability limit rather than a migration boundary.
-
-Accepted on evidence: **no config uses it.** Every kin clause across the four
-presets, `docs/site/recipes/*`, and `docs/site/config.md` names exactly one kin.
-The only multi-path syntax anywhere in the repository is `kinChangedAny` in
-`docs/related-file-policy-exploration.md`, which is explicitly unapproved and was
-never implemented.
-
-Reserve the space rather than filling it: `expect` is already list-shaped, so
-adding a list-shaped `related` later is additive and does not break the grammar.
-Do not add it in v3.0.
-
-## Naming (CR6)
-
-`version: 3` is a **configuration schema** version and is unrelated to the
-product version, which is `v0.1.x`. Once the product reaches 1.0 the phrase
-"kyn v3" becomes ambiguous.
-
-Convention: the file says `version: 3`; prose calls it **the rule-centric
-format**. Reserve "v1/v2/v3" for the `version:` key alone, and say "Kyn 0.1.4"
-for releases.
-
-Keep the number at `3` even though v1 and v2 are being deleted. Restarting at
-`1` would collide with the original v1 in git history, in `docs/decisions.md`,
-and in `docs/migration-v1-to-v2.md`, and would make `version: 1` ambiguous
-forever. A gap in the sequence costs nothing.
-
-## Proposal open questions — answers
-
-| # | Question | Answer |
-| --- | --- | --- |
-| 1 | `patterns`/`use` or `sources`/`source`? | `patterns`/`use`. `source` is already overloaded — `groups.source`, `changedAny: [source]`, `SourceFiles` — and reusing it would collide with report vocabulary. |
-| 2 | `rules` as mapping or sequence? | Mapping (D3). Duplicate detection and line numbers are already free. |
-| 3 | One related path per rule? | Yes. `expect` takes a list of assertions; multiple related *paths* means multiple rules. Atomic multi-path rules are a known capability limit, accepted because no config uses one. |
-| 4 | Which expectation names? | D6: `in-change-set`, `not-in-change-set`, `exists`, `missing`, gated by `when`. |
-| 5 | Unused patterns — error, warning, or allowed? | Error (validation rule 7). |
-| 6 | Full v2 parity before release? | No. v1 and v2 are deleted rather than deprecated, and the one gap — atomic multi-path rules — is unused. |
-| 7 | What expanded form handles emit, multiple kin, advanced applicability? | None in v3.0. `emit` is flat and per-rule, and informational rules write `expect: none` (D26); multi-path is reserved, not built. |
-| 8 | Generated messages by default? | Yes, constrained by D7. |
-| 9 | Deprecation window; v1→v3 direct? | Neither. v1 and v2 are removed outright; the four presets are rewritten by hand. |
-| 10 | Reserve `imports`? | Omit entirely. Reserving a key with no semantics invites the same inert-construct problem OS6 and OS10 document. |
+`version: 3` is the config schema version and is unrelated to the product
+version. Prose calls this the rule-centric format. The number stays `3` even
+though v1 and v2 are removed, because restarting at `1` would collide with the
+original v1 in history and documentation.
 
 ## JSON Schema
 
-Approved as a deliverable, to be written once this grammar freezes.
+A schema ships once this grammar freezes, generated from or CI-checked against
+the loader. It covers shape and enums; cross-field rules (2 to 8) and the
+resolve-time rule (9) stay with the loader, which remains the authority.
 
-It buys editor completion and inline validation for a format whose whole premise
-is that the common case should be obvious to write. Two constraints:
+## Worked scenarios
 
-- **Generated from the same source as the loader**, or checked against it in CI.
-  A schema that drifts from the validator is worse than none, because it
-  green-lights configs the binary rejects.
-- **It cannot express every rule.** Validation rules 7 and 10 — unused pattern,
-  self-match — are cross-field and resolve-time respectively. The schema covers
-  shape and enums; the loader remains the authority.
+[`experiments/sim/scenarios.yaml`](experiments/sim/scenarios.yaml) holds 21
+realistic configurations with change sets, run by a small simulator of these
+semantics:
 
-## What G3 does not settle
+```bash
+go run docs/design/v3/experiments/sim/main.go docs/design/v3/experiments/sim/scenarios.yaml
+```
 
-- The conformance suite — gate G5.
+The simulator is a model of the design, not Kyn code. It exists so the shape
+can be tried before anything is built, and it is what surfaced optional
+`related` for informational rules and the `{**name}` capture.

@@ -3,7 +3,7 @@
 Status: measured. Answers IR5.
 
 > **Superseded as a constraint.** The
-> [scope change](00-workplan.md#scope-change-2026-09-10) retires v1 and v2
+> [decision to cut over](00-workplan.md#two-changes-of-direction) retires v1 and v2
 > instead of carrying them, so "do not break shapes that load today" no longer
 > binds. This document is kept as measured evidence and for the three findings
 > below, which still apply to v3.
@@ -69,8 +69,7 @@ Both must appear as loader fixtures before the shared decoder is replaced.
 ### Rows 8 and 13 are incidental, not contractual
 
 Both load, and both do nothing (OS6, OS10). They are accidents of a permissive
-struct plus `KnownFields`, not promises. v3 need not carry them, and the G4
-migration drops them under D2.
+struct plus `KnownFields`, not promises. v3 does not carry them.
 
 Row 8 has an odd consequence worth naming: validation *requires* every declared
 group to carry a non-empty `include` (row 7's sibling check), so v2 enforces
@@ -84,8 +83,8 @@ An omitted `version` reports:
 invalid config: unsupported config version 0; expected version 1 or 2
 ```
 
-No user wrote `0`. The zero value leaks into the message. Fix belongs in G0
-alongside the other error-quality work: report a missing `version` as missing.
+No user wrote `0`. The zero value leaks into the message. Fix it during the v3
+build: report a missing `version` as missing.
 
 ### Rows 14, 15 and 16 are the v3 deltas
 

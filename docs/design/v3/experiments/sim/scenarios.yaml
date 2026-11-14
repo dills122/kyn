@@ -1,0 +1,261 @@
+# Scenarios for the v3 shape, run by sim/main.go. `disk` is what exists after the
+# change; `changes` are `git diff --name-status` lines.
+- name: "1. Go handler changed, test not updated"
+  config: |
+    version: 3
+    rules:
+      handler-test:
+        match: "internal/**/{name}_handler.go"
+        related: "{dir}/{name}_handler_test.go"
+        expect: touched
+        skipIf: missing
+  disk: [internal/order/order_handler.go, internal/order/order_handler_test.go]
+  changes: ["M internal/order/order_handler.go"]
+
+- name: "2. Same rule, handler has no test yet (lenient)"
+  config: |
+    version: 3
+    rules:
+      handler-test:
+        match: "internal/**/{name}_handler.go"
+        related: "{dir}/{name}_handler_test.go"
+        expect: touched
+        skipIf: missing
+  disk: [internal/cart/cart_handler.go]
+  changes: ["M internal/cart/cart_handler.go"]
+
+- name: "3. Same rule, test DELETED in the same change"
+  config: |
+    version: 3
+    rules:
+      handler-test:
+        match: "internal/**/{name}_handler.go"
+        related: "{dir}/{name}_handler_test.go"
+        expect: touched
+        skipIf: missing
+  disk: [internal/order/order_handler.go]
+  changes: ["M internal/order/order_handler.go", "D internal/order/order_handler_test.go"]
+
+- name: "4. Angular component: .ts and .html both changed, story + spec"
+  config: |
+    version: 3
+    rules:
+      story-sync:
+        match: "src/**/{name}.component.{ts,html}"
+        related: "{dir}/{name}.stories.ts"
+        expect: touched
+        skipIf: missing
+      spec-sync:
+        match: "src/**/{name}.component.{ts,html}"
+        related: "{dir}/{name}.spec.ts"
+        expect: touched
+        skipIf: missing
+        severity: warn
+  disk: [src/ui/button.component.ts, src/ui/button.component.html, src/ui/button.stories.ts, src/ui/button.spec.ts]
+  changes: ["M src/ui/button.component.ts", "M src/ui/button.component.html", "M src/ui/button.stories.ts"]
+
+- name: "5. New files must ship with a test (strict, added only)"
+  config: |
+    version: 3
+    rules:
+      new-code-needs-test:
+        match: "src/**/{name}.ts"
+        exclude: "src/**/*.test.ts"
+        related: "{dir}/{name}.test.ts"
+        expect: touched
+        changeType: added
+        message: "New modules ship with a test."
+  disk: [src/a/parser.ts, src/a/lexer.ts, src/a/lexer.test.ts, src/a/old.ts]
+  changes: ["A src/a/parser.ts", "A src/a/lexer.ts", "A src/a/lexer.test.ts", "M src/a/old.ts"]
+
+- name: "6. Proto changed, generated code not regenerated"
+  config: |
+    version: 3
+    rules:
+      proto-gen:
+        match: "proto/**/{name}.proto"
+        related: "gen/{dir}/{name}.pb.go"
+        expect: touched
+        message: "Regenerate the Go output."
+  disk: [proto/billing/invoice.proto, gen/proto/billing/invoice.pb.go]
+  changes: ["M proto/billing/invoice.proto"]
+
+- name: "7. Terraform module: two files changed, one README"
+  config: |
+    version: 3
+    rules:
+      module-readme:
+        match: "terraform/**/*.tf"
+        related: "{dir}/README.md"
+        expect: touched
+        skipIf: missing
+        severity: warn
+  disk: [terraform/vpc/main.tf, terraform/vpc/variables.tf, terraform/vpc/README.md]
+  changes: ["M terraform/vpc/main.tf", "M terraform/vpc/variables.tf"]
+
+- name: "8. Any source change needs a changelog entry"
+  config: |
+    version: 3
+    rules:
+      changelog:
+        match: "src/**"
+        related: "CHANGELOG.md"
+        expect: touched
+  disk: [src/a.go, src/b/c.go, src/b/d.go, CHANGELOG.md]
+  changes: ["M src/a.go", "M src/b/c.go", "A src/b/d.go"]
+
+- name: "9. Lockfile must move with its manifest (monorepo)"
+  config: |
+    version: 3
+    rules:
+      lockfile:
+        match: "**/package.json"
+        related: "{dir}/package-lock.json"
+        expect: touched
+        skipIf: missing
+  disk: [package.json, package-lock.json, apps/web/package.json, apps/web/package-lock.json]
+  changes: ["M package.json", "M package-lock.json", "M apps/web/package.json"]
+
+- name: "10. Translations: English changed, French must follow"
+  config: |
+    version: 3
+    rules:
+      fr-in-sync:
+        match: "locales/en/{name}.json"
+        related: "locales/fr/{name}.json"
+        expect: touched
+  disk: [locales/en/checkout.json, locales/en/home.json, locales/fr/home.json]
+  changes: ["M locales/en/checkout.json", "M locales/en/home.json", "M locales/fr/home.json"]
+
+- name: "11. Flag only, no related path: payments code touched -> request review"
+  config: |
+    version: 3
+    rules:
+      payments-review:
+        match: "internal/payments/**"
+        expect: none
+        flags: [paymentsReviewRequired]
+        message: "Payments code changed."
+  disk: [internal/payments/charge.go]
+  changes: ["M internal/payments/charge.go"]
+
+- name: "12. Flag only when a component has NO story yet"
+  config: |
+    version: 3
+    rules:
+      needs-story:
+        match: "src/**/{name}.component.ts"
+        related: "{dir}/{name}.stories.ts"
+        expect: none
+        skipIf: exists
+        flags: [needsStory]
+        message: "Component has no story."
+  disk: [src/ui/button.component.ts, src/ui/button.stories.ts, src/ui/card.component.ts]
+  changes: ["M src/ui/button.component.ts", "M src/ui/card.component.ts"]
+
+- name: "13. Schema changed: the initial migration must stay untouched"
+  config: |
+    version: 3
+    rules:
+      snapshot-frozen:
+        match: "db/schema.sql"
+        related: "db/migrations/0001_init.sql"
+        expect: untouched
+        message: "Do not rewrite the initial migration; add a new one."
+  disk: [db/schema.sql, db/migrations/0001_init.sql]
+  changes: ["M db/schema.sql", "M db/migrations/0001_init.sql"]
+
+- name: "14. GOTCHA: broad match that also matches its own related file"
+  config: |
+    version: 3
+    rules:
+      go-test:
+        match: "src/**/{name}.go"
+        related: "{dir}/{name}_test.go"
+        expect: touched
+        skipIf: missing
+  disk: [src/a.go, src/a_test.go]
+  changes: ["M src/a.go", "M src/a_test.go"]
+
+- name: "15. GOTCHA fixed with exclude"
+  config: |
+    version: 3
+    rules:
+      go-test:
+        match: "src/**/{name}.go"
+        exclude: "**/*_test.go"
+        related: "{dir}/{name}_test.go"
+        expect: touched
+        skipIf: missing
+  disk: [src/a.go, src/a_test.go]
+  changes: ["M src/a.go", "M src/a_test.go"]
+
+- name: "16. GOTCHA: typo'd variable in related"
+  config: |
+    version: 3
+    rules:
+      story-sync:
+        match: "src/**/{name}.component.ts"
+        related: "{dir}/{nmae}.stories.ts"
+        expect: touched
+  disk: [src/ui/button.component.ts]
+  changes: ["M src/ui/button.component.ts"]
+
+- name: "17. Mirrored test tree (Java/Maven layout)"
+  config: |
+    version: 3
+    rules:
+      java-test:
+        match: "src/main/java/{**pkg}/{name}.java"
+        related: "src/test/java/{pkg}/{name}Test.java"
+        expect: touched
+        skipIf: missing
+  disk: [src/main/java/com/acme/billing/Invoice.java, src/test/java/com/acme/billing/InvoiceTest.java]
+  changes: ["M src/main/java/com/acme/billing/Invoice.java"]
+
+- name: "18. Mirrored test tree (Python layout)"
+  config: |
+    version: 3
+    rules:
+      py-test:
+        match: "src/{**pkg}/{name}.py"
+        related: "tests/{pkg}/test_{name}.py"
+        expect: touched
+        skipIf: missing
+  disk: [src/acme/billing/invoice.py, tests/acme/billing/test_invoice.py]
+  changes: ["M src/acme/billing/invoice.py", "M tests/acme/billing/test_invoice.py"]
+
+- name: "19. Test renamed away while its source changed"
+  config: |
+    version: 3
+    rules:
+      handler-test:
+        match: "internal/**/{name}_handler.go"
+        related: "{dir}/{name}_handler_test.go"
+        expect: touched
+        skipIf: missing
+  disk: [internal/order/order_handler.go, internal/order/misc_test.go]
+  changes: ["M internal/order/order_handler.go", "R100 internal/order/order_handler_test.go internal/order/misc_test.go"]
+
+- name: "20. Strict list form: related must exist on disk AND be touched"
+  config: |
+    version: 3
+    rules:
+      proto-gen:
+        match: "proto/**/{name}.proto"
+        related: "gen/{dir}/{name}.pb.go"
+        expect: [exists, touched]
+  disk: [proto/billing/invoice.proto]
+  changes: ["M proto/billing/invoice.proto", "A gen/proto/billing/invoice.pb.go"]
+
+- name: "21. GOTCHA: flag-only rule with skipIf but no related path"
+  config: |
+    version: 3
+    rules:
+      payments-review:
+        match: "internal/payments/**"
+        expect: none
+        skipIf: missing
+        flags: [paymentsReviewRequired]
+  disk: [internal/payments/charge.go]
+  changes: ["M internal/payments/charge.go"]
