@@ -57,19 +57,20 @@ no-match.
 
 | Group | Cases |
 | --- | --- |
-| Binding | the longest-first rule: `{name}.{kind}.ts` on `user.profile.component.ts`; the same with a `**/` before it; every row cross-checked against an enumerating reference matcher, which is the definition |
-| Captures | `{name}` within a segment; leading dot; dotted values; a value of `.` or `..` |
+| Binding | the longest-first rule: `{name}.{kind}.ts` on `user.profile.component.ts`; the same with a `**/` before it; the earliest-start tie-break (`src/**/{n}/**` on `src/auth/user/a.ts` binds `auth`, on `src/user/auth/a.ts` binds `user`, and a longer name still wins); length counted in code points; every row cross-checked against an enumerating reference matcher, which is the definition |
+| Captures | `{name}` within a segment; leading dot; dotted values; a value of `.` or `..`; a lazy `*` next to a greedy capture (`src/*-{n}.go`) |
+| Characters | a non-ASCII literal; `?` against one multi-byte character; NFD input against an NFC glob does not match; `*` and `?` match a leading dot |
 | `{**name}` | zero segments; one; many; trailing form needs one or more; a file at the root |
 | Alternation | `{ts,html}` is not captured; `{ts}` is a capture; order of alternatives never changes a binding |
 | `**` | `src/**` does not match the file `src`; `**/x` matches `x`; a bare `**` matches every path |
 | Several globs | agreeing bindings; **disagreeing bindings are an error**; the same name as `{x}` and `{**x}` is an error in either order; reordering the list changes nothing |
 | Exclude | removes a source; also stops a related path counting as a self-match |
 | Instance names | one case per row of [`03-instances-and-reports.md`](03-instances-and-reports.md) §2, including a root file next to a directory literally named `(root)` |
-| Invalid globs | one case per load-time error in [`04-grammar.md`](04-grammar.md): unclosed or unmatched brace, nested braces, `[`, `\`, wildcard or empty alternative, partial-segment `**` or `{**x}`, `.`/`..`/empty segment, leading or trailing `/`, invalid name, `dir`, duplicate capture, a capture touching another capture, `*`, `?` or an alternation, capture in exclude, two `{**x}`, exclude identical to a match |
-| Invalid templates | empty, glob characters, `\`, `.` or `..`, absolute, trailing `/`, unknown variable, adjacent variables, two variables that can contain `/`, unused capture, a constant path inside its own match |
-| Resolution | one-pass substitution (a value of `{dir}` stays literal); empty segments dropped; a resolved path that is empty or has a `.`/`..` segment is an error |
+| Invalid globs | one case per load-time error in [`04-grammar.md`](04-grammar.md): unclosed or unmatched brace, nested braces, `[`, `\`, wildcard or empty alternative, partial-segment `**` or `{**x}`, `.`/`..`/empty segment, `{..,a}` and `{.,a}`, leading or trailing `/`, a `/` inside `{}`, leading or trailing whitespace, invalid name, `dir`, duplicate capture, a capture touching another capture, `*`, `?` or an alternation, capture in exclude, two `{**x}`, exclude identical to a match |
+| Invalid templates | empty, glob characters, `\`, `.` or `..`, absolute, trailing `/`, unknown variable, adjacent variables, two variables that can contain `/`, `{dir}` or `{**x}` in part of a segment, a template made only of those, unused capture, a constant path inside its own match or inside its match minus its exclude |
+| Resolution | one-pass substitution (a value of `{dir}` stays literal); empty segments dropped; a resolved path that is empty, has a `.`/`..` segment, a `\` or a drive prefix is an error |
 
-The simulator's scenarios 14 to 92 are the starting point. They are a draft of
+The simulator's scenarios are the starting point. They are a draft of
 the expected results, not an oracle.
 
 ## Layer 1: semantics, exhaustive
@@ -80,9 +81,11 @@ the expected results, not an oracle.
 | `expect` | `touched`, `untouched`, `exists`, `missing`, `none`, `[exists, touched]` | 6 |
 | related path | `exists`+touched, `exists`+untouched, `removed` by delete, `removed` by rename, `missing`+untouched, `missing`+touched | 6 |
 
-3 × 6 × 6 = 108, less the 18 cells with `skipIf: exists` and an `expect` that
-includes `exists` or `touched`, which validation rejects (rule 7), leaves **90
-cells**. Each runs in git mode and is asserted on `explain` JSON, `check` JSON
+3 × 6 × 6 = 108, less the 18 cells that rule 7 rejects because the rule could
+never pass (`skipIf: exists` with `touched`, `exists` or `[exists, touched]`; the
+six `expect` values chosen here reach no other rejected combination), leaves
+**90 cells**. Rule 7 itself gets its own table: every `skipIf` × every `expect`
+list, checked against an independent enumeration of the five reachable pairs. Each runs in git mode and is asserted on `explain` JSON, `check` JSON
 and the exit code.
 
 The related-path rows are the six reachable combinations from
@@ -126,24 +129,29 @@ resolve preview.
 
 Severity crossed with `--fail-on` is what reaches all three headlines; each is
 asserted against its condition. Input mode is where the plain-path loss in
-[`02-semantics.md`](02-semantics.md) §6 is pinned down: with `--files`, a deleted
-related file is skipped under `skipIf: missing` and passes `untouched`, where git
-mode fails both; `skipIf: exists` and `expect: missing` behave the same in both.
+[`02-semantics.md`](02-semantics.md) §6 is pinned down, both halves: a deleted
+related file that is **not listed** is skipped under `skipIf: missing` and passes
+`untouched`, where git mode fails both; one that **is listed** passes `touched`
+and fails `untouched`, where git mode fails both. `skipIf: exists` and
+`expect: missing` behave the same in both.
 
 Also covered here: `--files-from` line parsing (a tab means name-status; an
-unknown status is an error naming the line; identical repeated lines are
-harmless; conflicting lines for one path, or a `..` segment, are errors) and a
+unknown status, including `C`, is an error naming the line; identical repeated
+lines are harmless; conflicting lines for one path are errors; so are a `..`
+segment, a backslash, a drive prefix, surrounding whitespace, invalid UTF-8 and a
+quoted path; blank lines and CRLF are tolerated; a name with a space) and a
 non-ASCII filename, which must match its rule (OS16).
 
 Resolve-time rules 9 to 11 get a case each where `changeType` or `skipIf` would
-skip the instance, because they must still fire. The three plain-path
+skip the instance, because they must still fire. The four plain-path
 differences in [`02-semantics.md`](02-semantics.md) §6 are asserted as a table,
-including a plain-mode source that is not on disk creating no instance.
+including a plain-mode source that is not on disk creating no instance while the
+same source in git mode creates one.
 
 ## Corpus
 
 - the four rewritten presets and the documented recipes
-- the 87 scenarios in
+- the 115 scenarios in
   [`experiments/sim/scenarios.yaml`](experiments/sim/scenarios.yaml), promoted
   to real projects; each already states its expected outcome, but the simulator
   and the scenarios share an author, so they are a draft, not an oracle

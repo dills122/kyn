@@ -756,10 +756,10 @@
     rules:
       r:
         match: "src/{n}x.go"
-        related: "docs/{n}-{dir}.md"
+        related: "docs/{n}/{dir}/x.md"
         expect: touched
-  disk: ["src/{dir}x.go", "docs/{dir}-src.md"]
-  changes: ["M src/{dir}x.go", "M docs/{dir}-src.md"]
+  disk: ["src/{dir}x.go", "docs/{dir}/src/x.md"]
+  changes: ["M src/{dir}x.go", "M docs/{dir}/src/x.md"]
   want: {results: ["PASS r {dir}/src"], headline: PASS}
 
 - name: "69 Empty leading {dir} does not make the path absolute"
@@ -1005,7 +1005,7 @@
 
 # ---- input modes -------------------------------------------------------------
 
-- name: "90 Plain mode: a listed source that is not on disk creates no instance, as in git mode"
+- name: "90 Plain mode: a listed source that is not on disk creates no instance"
   mode: plain
   config: |
     version: 3
@@ -1065,3 +1065,361 @@
         expect: touched
   changes: ["M src/../a.go"]
   want: {error: "invalid input path"}
+
+# ---- review 6 ----------------------------------------------------------------
+
+- name: "93 Binding tie: equal-length captures, the leftmost start wins"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/**/{n}/**"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: [src/auth/user/a.ts]
+  changes: ["M src/auth/user/a.ts"]
+  want: {results: ["SKIPPED r auth"], headline: PASS}
+
+- name: "93b Binding tie: leftmost start wins whichever name is first"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/**/{n}/**"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: [src/user/auth/a.ts]
+  changes: ["M src/user/auth/a.ts"]
+  want: {results: ["SKIPPED r user"], headline: PASS}
+
+- name: "93c Binding: a longer capture still beats an earlier one"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/**/{n}/**"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: [src/auth/login/a.ts]
+  changes: ["M src/auth/login/a.ts"]
+  want: {results: ["SKIPPED r login"], headline: PASS}
+
+- name: "93d Binding: length counts code points, not bytes"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/**/{n}/**"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: ["src/é/ab/a.ts"]
+  changes: ["M src/é/ab/a.ts"]
+  want: {results: ["SKIPPED r ab"], headline: PASS}
+
+- name: "94 Plain mode: a deleted related file that is also listed counts as touched, so touched passes"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        exclude: "src/*_test.go"
+        related: "src/{n}_test.go"
+        expect: touched
+  disk: [src/a.go]
+  changes: ["src/a.go", "src/a_test.go"]
+  want: {results: ["PASS r a"], headline: PASS}
+
+- name: "94b Git mode, same change: the deleted related file fails touched"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        exclude: "src/*_test.go"
+        related: "src/{n}_test.go"
+        expect: touched
+  disk: [src/a.go]
+  changes: ["M src/a.go", "D src/a_test.go"]
+  want: {results: ["FAIL r a"], headline: FAIL}
+
+- name: "94c Plain mode: a deleted related file that is also listed fails untouched"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        exclude: "src/*_test.go"
+        related: "src/{n}_test.go"
+        expect: untouched
+  disk: [src/a.go]
+  changes: ["src/a.go", "src/a_test.go"]
+  want: {results: ["FAIL r a"], headline: FAIL}
+
+- name: "94d Plain mode: a deleted related file that is not listed passes untouched"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        exclude: "src/*_test.go"
+        related: "src/{n}_test.go"
+        expect: untouched
+  disk: [src/a.go]
+  changes: ["src/a.go"]
+  want: {results: ["PASS r a"], headline: PASS}
+
+- name: "94e Plain mode: skipIf missing skips a deleted related file whether or not it is listed"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        exclude: "src/*_test.go"
+        related: "src/{n}_test.go"
+        expect: touched
+        skipIf: missing
+  disk: [src/a.go]
+  changes: ["src/a.go", "src/a_test.go"]
+  want: {results: ["SKIPPED r a"], headline: PASS}
+
+- name: "95 Git mode: an added source that is not on disk still creates an instance"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  disk: []
+  changes: ["A src/a.go"]
+  want: {results: ["FAIL r a"], headline: FAIL}
+
+- name: "96 A non-ASCII literal matches"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/é.go"
+        related: "docs/x.md"
+        expect: touched
+  disk: ["src/é.go"]
+  changes: ["M src/é.go"]
+  want: {results: ["FAIL r (all)"], headline: FAIL}
+
+- name: "97 ? matches one code point, not one byte"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/?.go"
+        related: "docs/x.md"
+        expect: touched
+  disk: ["src/é.go"]
+  changes: ["M src/é.go"]
+  want: {results: ["FAIL r (all)"], headline: FAIL}
+
+- name: "98 No Unicode normalization: NFD input does not match an NFC glob"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/\u00e9.go"
+        related: "docs/x.md"
+        expect: touched
+  disk: ["src/e\u0301.go"]
+  changes: ["M src/e\u0301.go"]
+  want: {results: [], headline: PASS}
+
+- name: "99 {..,a} is rejected like a literal .."
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{..,a}/x.go"
+        related: "docs/x.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "can expand to"}
+
+- name: "100 {.,a} is rejected like a literal ."
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{.,a}/x.go"
+        related: "docs/x.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "can expand to"}
+
+- name: "101 A glob with trailing whitespace is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/** "
+        related: "docs/x.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "whitespace"}
+
+- name: "102 A / inside braces is named, not called unclosed"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{a,b/c}.go"
+        related: "docs/x.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "inside {}"}
+
+- name: "103 skipIf missing with [touched, missing] can never pass"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: [touched, missing]
+        skipIf: missing
+  disk: []
+  changes: []
+  want: {error: "can never pass"}
+
+- name: "104 [touched, missing] passes only when the diff and the tree disagree"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: [touched, missing]
+  disk: []
+  changes: []
+  want: {error: "disagree"}
+
+- name: "105 {dir} must fill a whole segment of related"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "{dir}-{n}.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "whole path segment"}
+
+- name: "105b related made only of {dir} could resolve to nothing"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/*.go"
+        related: "{dir}"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "can resolve to nothing"}
+
+- name: "106 A backslash in an input path is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  disk: []
+  changes: ["M src/a\\b.go"]
+  want: {error: "invalid input path"}
+
+- name: "107 A resolved path that looks like a drive is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{a}-{b}.go"
+        related: "{a}:{b}.md"
+        expect: touched
+  disk: ["src/C-x.go"]
+  changes: ["M src/C-x.go"]
+  want: {error: "Windows drive"}
+
+- name: "108 Plain mode: a line in git quoting is rejected, not silently dropped"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  disk: []
+  changes: ["\"src/a.go\""]
+  want: {error: "invalid input path"}
+
+- name: "109 CRLF line endings and blank lines are tolerated"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: [src/a.go]
+  changes: ["M\tsrc/a.go\r", ""]
+  want: {results: ["SKIPPED r a"], headline: PASS}
+
+- name: "110 A TAB separates the fields, so a name can contain a space"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: ["src/my file.go"]
+  changes: ["M\tsrc/my file.go"]
+  want: {results: ["SKIPPED r my file"], headline: PASS}
+
+- name: "110b A plain path can contain a space"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: ["src/my file.go"]
+  changes: ["src/my file.go"]
+  want: {results: ["SKIPPED r my file"], headline: PASS}
+
+- name: "111 A file named .x.go binds n=. and aborts the run: rule 11 is run-level"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "{n}x.go"
+        related: "docs/{n}/index.md"
+        expect: touched
+  disk: [.x.go]
+  changes: ["M .x.go"]
+  want: {error: "resolves to an invalid path"}

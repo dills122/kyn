@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 )
@@ -147,13 +148,17 @@ func (g *glob) kinds() []string {
 }
 
 // compileGlob parses a match/exclude glob in the v3 dialect (04-grammar.md,
-// "Globs") and returns a config error for every construct outside it.
+// "Globs") and returns a config error for every construct outside it. Text is
+// read as Unicode code points: `?` is one code point, and "longest" counts them.
 func compileGlob(g string, allowCaptures bool) (*glob, error) {
 	bad := func(format string, a ...any) (*glob, error) {
 		return nil, fmt.Errorf("glob %q: "+format, append([]any{g}, a...)...)
 	}
 	if g == "" {
 		return bad("is empty")
+	}
+	if !utf8.ValidString(g) {
+		return bad("is not valid UTF-8")
 	}
 	if strings.HasPrefix(g, "/") {
 		return bad("must be relative to the repository root")
@@ -164,6 +169,23 @@ func compileGlob(g string, allowCaptures bool) (*glob, error) {
 	if strings.Contains(g, `\`) {
 		return bad("backslash escapes are not supported")
 	}
+	// A / inside a brace group can never be part of an alternative or a capture
+	// name. Report it by name instead of letting the split below call it unclosed.
+	depth := 0
+	for i, c := range g {
+		switch c {
+		case '{':
+			depth++
+		case '}':
+			if depth > 0 {
+				depth--
+			}
+		case '/':
+			if depth > 0 && strings.Contains(g[i:], "}") {
+				return bad("a / inside {} is not supported: alternatives and capture names cannot contain a path separator")
+			}
+		}
+	}
 	out := &glob{}
 	seen := map[string]bool{}
 	capture := func(name string, multi bool) error {
@@ -171,7 +193,7 @@ func compileGlob(g string, allowCaptures bool) (*glob, error) {
 			return fmt.Errorf("glob %q: captures are not allowed in exclude", g)
 		}
 		if !nameRe.MatchString(name) {
-			return fmt.Errorf("glob %q: %q is not a valid capture name (letters, digits and underscore, not starting with a digit)", g, name)
+			return fmt.Errorf("glob %q: %q is not a valid capture name (ASCII letters, digits and underscore, not starting with a digit)", g, name)
 		}
 		if name == "dir" {
 			return fmt.Errorf("glob %q: dir is reserved and cannot be captured", g)
@@ -193,6 +215,8 @@ func compileGlob(g string, allowCaptures bool) (*glob, error) {
 		switch {
 		case seg == "":
 			return bad("has an empty path segment")
+		case seg != strings.TrimSpace(seg):
+			return bad("segment %q has leading or trailing whitespace", seg)
 		case seg == "." || seg == "..":
 			return bad("must not contain a %q segment", seg)
 		case seg == "**":
@@ -222,7 +246,7 @@ func compileGlob(g string, allowCaptures bool) (*glob, error) {
 
 		var st []token
 		for i := 0; i < len(seg); {
-			c := seg[i]
+			c, size := utf8.DecodeRuneInString(seg[i:])
 			switch c {
 			case '*':
 				st = append(st, token{k: tStar})
@@ -262,7 +286,7 @@ func compileGlob(g string, allowCaptures bool) (*glob, error) {
 				i = end + 1
 			default:
 				st = append(st, token{k: tLit, s: string(c)})
-				i++
+				i += size
 			}
 		}
 		for i, t := range st {
@@ -281,6 +305,9 @@ func compileGlob(g string, allowCaptures bool) (*glob, error) {
 				}
 			}
 		}
+		if dots := dotSegment(st); dots != "" {
+			return bad("a segment can expand to %q through its alternatives; globs name repository paths", dots)
+		}
 		out.toks = append(out.toks, st...)
 		if !last {
 			out.toks = append(out.toks, token{k: tLit, s: "/"})
@@ -289,18 +316,64 @@ func compileGlob(g string, allowCaptures bool) (*glob, error) {
 	return out, nil
 }
 
+// dotSegment reports "." or ".." if a segment made only of literals and
+// alternatives can expand to it, so `{..,a}` is rejected like a literal `..`.
+func dotSegment(st []token) string {
+	cur := map[string]bool{"": true}
+	for _, t := range st {
+		next := map[string]bool{}
+		for s := range cur {
+			switch t.k {
+			case tLit:
+				next[s+t.s] = true
+			case tAlt:
+				for _, a := range t.alts {
+					next[s+a] = true
+				}
+			default:
+				return ""
+			}
+		}
+		for s := range next {
+			if len(s) > 2 {
+				delete(next, s) // longer than ".." can never be one
+			}
+		}
+		cur = next
+	}
+	for _, d := range []string{".", ".."} {
+		if cur[d] {
+			return d
+		}
+	}
+	return ""
+}
+
+type capv struct {
+	s     string
+	start int
+}
+
 // bind is the reference matcher: it enumerates every way the glob can match p
-// and returns the parse whose captures are longest, comparing the first capture
-// first. This is the normative definition of binding in 04-grammar.md; an
-// implementation may use any algorithm that returns the same answer.
+// and returns the best parse. Best is: longest captures (in code points),
+// comparing the first capture first; if every length is equal, the parse whose
+// captures start earliest, again first capture first. This is the normative
+// definition of binding in 04-grammar.md; an implementation may use any
+// algorithm that returns the same answer.
 func (g *glob) bind(p string) ([]string, bool) {
-	var best []string
+	var best []capv
 	found := false
-	var caps []string
-	better := func(a, b []string) bool {
+	var caps []capv
+	better := func(a, b []capv) bool {
 		for i := range a {
-			if len(a[i]) != len(b[i]) {
-				return len(a[i]) > len(b[i])
+			la, lb := utf8.RuneCountInString(a[i].s), utf8.RuneCountInString(b[i].s)
+			if la != lb {
+				return la > lb
+			}
+		}
+		for i := range a {
+			if a[i].start != b[i].start {
+				return a[i].start < b[i].start
 			}
 		}
 		return false
@@ -310,7 +383,7 @@ func (g *glob) bind(p string) ([]string, bool) {
 		if ti == len(g.toks) {
 			if pos == len(p) {
 				if !found || better(caps, best) {
-					best = append([]string(nil), caps...)
+					best = append([]capv(nil), caps...)
 					found = true
 				}
 			}
@@ -323,15 +396,18 @@ func (g *glob) bind(p string) ([]string, bool) {
 				walk(ti+1, pos+len(t.s))
 			}
 		case tStar:
-			for end := pos; ; end++ {
+			for end := pos; ; {
 				walk(ti+1, end)
 				if end >= len(p) || p[end] == '/' {
 					break
 				}
+				_, sz := utf8.DecodeRuneInString(p[end:])
+				end += sz
 			}
 		case tQ:
 			if pos < len(p) && p[pos] != '/' {
-				walk(ti+1, pos+1)
+				_, sz := utf8.DecodeRuneInString(p[pos:])
+				walk(ti+1, pos+sz)
 			}
 		case tAlt:
 			for _, a := range t.alts {
@@ -340,15 +416,17 @@ func (g *glob) bind(p string) ([]string, bool) {
 				}
 			}
 		case tCap:
-			for end := pos + 1; end <= len(p) && p[end-1] != '/'; end++ {
-				caps = append(caps, p[pos:end])
+			for end := pos; end < len(p) && p[end] != '/'; {
+				_, sz := utf8.DecodeRuneInString(p[end:])
+				end += sz
+				caps = append(caps, capv{p[pos:end], pos})
 				walk(ti+1, end)
 				caps = caps[:len(caps)-1]
 			}
 		case tSegs, tMCap:
 			push := func(v string) {
 				if t.k == tMCap {
-					caps = append(caps, v)
+					caps = append(caps, capv{v, pos})
 				}
 			}
 			pop := func() {
@@ -376,14 +454,18 @@ func (g *glob) bind(p string) ([]string, bool) {
 			}
 		case tMCapTail:
 			if pos < len(p) {
-				caps = append(caps, p[pos:])
+				caps = append(caps, capv{p[pos:], pos})
 				walk(ti+1, len(p))
 				caps = caps[:len(caps)-1]
 			}
 		}
 	}
 	walk(0, 0)
-	return best, found
+	var out []string
+	for _, c := range best {
+		out = append(out, c.s)
+	}
+	return out, found
 }
 
 // ---- related templates ------------------------------------------------------
@@ -434,6 +516,28 @@ func templateVars(tpl string) ([]string, error) {
 	return vars, nil
 }
 
+// wholeSegments requires {dir} and the {**name} capture to fill a whole path
+// segment of related, and requires related to contain something else, so it can
+// never resolve to nothing. Without this, "{dir}.md" becomes ".md" at the root.
+func wholeSegments(tpl, multi string) error {
+	bare := 0
+	segs := strings.Split(tpl, "/")
+	for _, sg := range segs {
+		hasSlashy := strings.Contains(sg, "{dir}") || (multi != "" && strings.Contains(sg, "{"+multi+"}"))
+		if !hasSlashy {
+			bare++
+			continue
+		}
+		if sg != "{dir}" && sg != "{"+multi+"}" {
+			return fmt.Errorf("related %q: {dir} and {**name} must fill a whole path segment, because either can be empty", tpl)
+		}
+	}
+	if bare == 0 {
+		return fmt.Errorf("related %q is made only of {dir} and {**name}, so it can resolve to nothing; add a file name", tpl)
+	}
+	return nil
+}
+
 // resolveRelated substitutes every variable in one pass (a captured value is
 // never rescanned), drops empty segments, and rejects a result that is empty or
 // has a "." or ".." segment. Rule 11 in 04-grammar.md.
@@ -452,12 +556,26 @@ func resolveRelated(tpl string, vals map[string]string) (string, error) {
 	if len(segs) == 0 {
 		return "", fmt.Errorf("related %q resolves to an invalid path: it is empty", tpl)
 	}
-	return strings.Join(segs, "/"), nil
+	out := strings.Join(segs, "/")
+	if strings.Contains(out, `\`) {
+		return "", fmt.Errorf("related %q resolves to an invalid path %q: it contains a backslash, a path separator on Windows", tpl, out)
+	}
+	if driveRe.MatchString(segs[0]) {
+		return "", fmt.Errorf("related %q resolves to an invalid path %q: its first segment looks like a Windows drive", tpl, out)
+	}
+	return out, nil
 }
 
-// badInputPath reports an input path that is not relative and clean.
+var driveRe = regexp.MustCompile(`^[A-Za-z]:`)
+
+// badInputPath reports an input path that is not a clean repository path:
+// relative, valid UTF-8, no empty, "." or ".." segment, no backslash, no Windows
+// drive prefix, no surrounding whitespace, and not git's quoted form.
 func badInputPath(p string) bool {
-	if p == "" || strings.HasPrefix(p, "/") {
+	if p == "" || strings.HasPrefix(p, "/") || strings.HasPrefix(p, `"`) || !utf8.ValidString(p) {
+		return true
+	}
+	if p != strings.TrimSpace(p) || strings.Contains(p, `\`) || driveRe.MatchString(p) {
 		return true
 	}
 	for _, s := range strings.Split(p, "/") {
@@ -557,7 +675,7 @@ func evaluate(sc Scenario) Outcome {
 	subject := map[string]string{} // path -> the line that named it
 	note := func(p, l string) error {
 		if badInputPath(p) {
-			return fmt.Errorf("invalid input path %q: must be relative, with no empty, . or .. segment", p)
+			return fmt.Errorf("invalid input path %q: must be relative and clean (no empty, . or .. segment, backslash, drive prefix, surrounding whitespace or git quoting, and valid UTF-8)", p)
 		}
 		if prev, ok := subject[p]; ok && prev != l {
 			return fmt.Errorf("path %q appears on more than one line (%q and %q); lines must not conflict", p, prev, l)
@@ -566,13 +684,25 @@ func evaluate(sc Scenario) Outcome {
 		return nil
 	}
 	for _, l := range sc.Changes {
-		f := strings.Fields(l)
+		l = strings.TrimSuffix(l, "\r") // CRLF input
+		if l == "" {
+			continue // blank lines are ignored
+		}
 		if sc.Mode == "plain" {
-			if err := note(f[0], l); err != nil {
+			if err := note(l, l); err != nil {
 				return cfgErr("%v", err)
 			}
-			touched[f[0]] = "modified"
+			touched[l] = "modified"
 			continue
+		}
+		// A TAB separates the fields of a name-status line. Scenarios may write
+		// a space instead when no path contains one.
+		f := strings.Split(l, "\t")
+		if len(f) == 1 {
+			f = strings.Fields(l)
+		}
+		if len(f) < 2 {
+			return cfgErr("unrecognised status line %q", l)
 		}
 		switch f[0][0] {
 		case 'A', 'M', 'T', 'D':
@@ -580,6 +710,9 @@ func evaluate(sc Scenario) Outcome {
 				return cfgErr("%v", err)
 			}
 		case 'R':
+			if len(f) < 3 {
+				return cfgErr("unrecognised status line %q", l)
+			}
 			if err := note(f[1], l); err != nil {
 				return cfgErr("%v", err)
 			}
@@ -682,11 +815,10 @@ func evaluate(sc Scenario) Outcome {
 		if !c.hasRelat && r.SkipIf != "" {
 			return fail("skipIf needs a related path")
 		}
-		if r.SkipIf == "exists" && set["exists"] {
-			return fail("skipIf: exists with expect: exists can never pass: the rule only applies when the related file is not there")
-		}
-		if r.SkipIf == "exists" && set["touched"] {
-			return fail("skipIf: exists with expect: touched can pass only when the diff and the working tree disagree: the rule applies only when the related file is not there")
+		if c.hasRelat && !none {
+			if msg := passability(r.SkipIf, set); msg != "" {
+				return fail("skipIf %q with expect %v %s", r.SkipIf, c.expect, msg)
+			}
 		}
 
 		var names []string
@@ -710,7 +842,7 @@ func evaluate(sc Scenario) Outcome {
 				return fail("%v", err)
 			}
 			if contains(r.Match, g) {
-				return fail("exclude %q is identical to a match glob, so it removes every match", g)
+				return fail("exclude %q is identical to a match glob: delete that match glob instead", g)
 			}
 			c.exclude = append(c.exclude, cg)
 		}
@@ -731,6 +863,9 @@ func evaluate(sc Scenario) Outcome {
 			}
 			if slashy > 1 {
 				return fail("related uses more than one variable that can contain /; use at most one of {dir} and the {**name} capture")
+			}
+			if err := wholeSegments(c.related, c.match[0].multiName()); err != nil {
+				return fail("%v", err)
 			}
 		}
 		for _, n := range names {
@@ -918,6 +1053,46 @@ func evaluate(sc Scenario) Outcome {
 	}
 	sort.Strings(out.Flags)
 	return out
+}
+
+// passability is rule 7. It enumerates the five reachable (state, touched)
+// pairs, drops the ones skipIf skips, and reports a rule that can never pass,
+// or that can pass only on the pair where the diff and the working tree disagree.
+func passability(skipIf string, set map[string]bool) string {
+	type pair struct {
+		state   string
+		touched bool
+	}
+	pairs := []pair{{"exists", true}, {"exists", false}, {"removed", false}, {"missing", false}, {"missing", true}}
+	var passing []pair
+	for _, p := range pairs {
+		if (skipIf == "missing" && p.state == "missing") || (skipIf == "exists" && p.state == "exists") {
+			continue
+		}
+		ok := true
+		if set["touched"] && !p.touched {
+			ok = false
+		}
+		if set["untouched"] && (p.touched || p.state == "removed") {
+			ok = false
+		}
+		if set["exists"] && p.state != "exists" {
+			ok = false
+		}
+		if set["missing"] && p.state == "exists" {
+			ok = false
+		}
+		if ok {
+			passing = append(passing, p)
+		}
+	}
+	if len(passing) == 0 {
+		return "can never pass: no state the rule applies to satisfies every expectation"
+	}
+	if len(passing) == 1 && passing[0] == (pair{"missing", true}) {
+		return "can pass only when the diff and the working tree disagree (the related file is in the diff but not on disk)"
+	}
+	return ""
 }
 
 func sorted(s []string) []string { c := append([]string(nil), s...); sort.Strings(c); return c }

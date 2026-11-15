@@ -28,7 +28,7 @@ got here is in the workplan.
 | [`05-compatibility-matrix.md`](05-compatibility-matrix.md) | v1/v2 shapes probed; historical |
 | [`00-workplan.md`](00-workplan.md) | Decision log, superseded decisions, review dispositions, open items |
 | [`experiments/`](experiments/) | Reproduction scripts and the scenario simulator |
-| [`../../reviews/`](../../reviews/) | The five independent reviews, recorded verbatim, and their frozen scopes |
+| [`../../reviews/`](../../reviews/) | The six independent reviews, recorded verbatim, and their frozen scopes |
 
 ## Running the experiments
 

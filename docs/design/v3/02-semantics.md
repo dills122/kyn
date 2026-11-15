@@ -59,13 +59,18 @@ for the deleted and renamed rows is measured by
 
 For `expect: touched`:
 
-| Scenario | State | Touched | Today | `skipIf: missing` | `skipIf: exists` |
-| --- | --- | --- | --- | --- | --- |
-| related untouched | `exists` | no | FAIL | FAIL | skipped |
-| related updated | `exists` | yes | pass | pass | skipped |
-| related **deleted** | `removed` | no | skipped | **FAIL** | FAIL |
-| related **renamed away** | `removed` | no | skipped | **FAIL** | FAIL |
-| related never existed | `missing` | no | skipped | skipped | FAIL |
+| Scenario | State | Touched | Today | `skipIf: missing` |
+| --- | --- | --- | --- | --- |
+| related untouched | `exists` | no | FAIL | FAIL |
+| related updated | `exists` | yes | pass | pass |
+| related **deleted** | `removed` | no | skipped | **FAIL** |
+| related **renamed away** | `removed` | no | skipped | **FAIL** |
+| related never existed | `missing` | no | skipped | skipped |
+
+There is no `skipIf: exists` column: that gate applies only when the related file
+is not there, so `expect: touched` under it is rejected at load (validation rule
+7 in [`04-grammar.md`](04-grammar.md)). `skipIf: exists` is for `none`,
+`untouched` and `missing`.
 
 Against today's behavior, `skipIf: missing` changes exactly the two rows it is
 meant to. The never-existed case still skips.
@@ -158,35 +163,49 @@ R100	src/old.go	src/new.go
 src/plain-path.go
 ```
 
-Plain single-path lines mean `modified`. Every path must be relative and clean:
-no leading `/`, and no empty, `.` or `..` segment, or the run fails naming the
-path. A path may appear on several lines only if the lines are identical;
-otherwise (`D x` and `A x`, or a rename destination that is also listed alone) the
-run fails naming the path, because no order of precedence is right. Git never
-emits such a diff.
+Plain single-path lines mean `modified`. Blank lines are ignored and a trailing
+CR is removed, so CRLF input works. Every path, in every input mode including
+`--files`, must be clean or the run fails naming it: valid UTF-8, relative, no
+empty, `.` or `..` segment, no `\`, no Windows drive prefix (`C:`), no leading or
+trailing whitespace, and not in git's quoted form (a leading `"`). Nothing is
+trimmed, converted or cleaned for the user: v2 turned `\` into `/` and stripped
+`./`, and v3 rejects both ([`06-cutover.md`](06-cutover.md)). A path may appear on
+several lines only if the lines are identical; otherwise (`D x` and `A x`, or a
+rename destination that is also listed alone) the run fails naming the path,
+because no order of precedence is right. Git never emits such a diff. The
+statuses are exactly the five above: Kyn never asks git for copies, so `C`, `U`
+and `X` are errors.
 
 Paths that git would quote (non-ASCII or special characters) are not supported in
-`--files-from`. Feed it `git -c core.quotePath=false ...`. Git mode itself must
-read paths with quoting disabled; v2 does not, which is OS16, and the cutover
+`--files-from`. Feed it `git -c core.quotePath=false ...`, which still quotes a
+tab, newline, `"` or `\`; those lines are rejected, not skipped. Git mode itself
+must read paths with quoting disabled; v2 does not, which is OS16, and the cutover
 fixes it ([`06-cutover.md`](06-cutover.md)).
 
 ### What plain-path modes lose
 
-Plain paths carry no removal information and no statuses. A policy tried with
-`--files` can therefore pass locally and fail in git-mode CI. There are three
-differences, and this is the whole list.
+Plain paths carry no removal information and no statuses, so a policy tried with
+`--files` can pass locally and fail in git-mode CI. The differences are not a
+list to memorize. They follow from two facts, and **when a row and the derivation
+disagree, the derivation is right**:
+
+1. The listed paths are the whole change set, and every one is `modified`.
+2. Nothing is `removed`: a path that is not on disk is `missing`.
 
 | # | Difference | Git mode | `--files`, or plain `--files-from` |
 | --- | --- | --- | --- |
-| 1 | A related file deleted by the change | state `removed`: `skipIf: missing` applies, `expect: untouched` fails | state `missing`: `skipIf: missing` **skips**, `expect: untouched` **passes** |
-| 2 | Source statuses | `added`, `modified`, `renamed` | all `modified`, so `changeType: [added]` never matches |
-| 3 | A listed source that is not on disk | a deleted source creates no instance | the path is dropped the same way, so a deleted source creates no instance either |
+| 1 | A related file deleted by the change and **not listed** | state `removed`: `skipIf: missing` applies, `expect: untouched` fails | state `missing`: `skipIf: missing` **skips**, `expect: untouched` **passes** |
+| 2 | A related file deleted by the change and **listed** (what `git diff --name-only` prints) | `removed`, not touched: `expect: touched` **fails**, `untouched` fails | `missing` and **touched**: `expect: touched` **passes**, `untouched` fails "was touched"; `skipIf: missing` skips |
+| 3 | Source statuses | `added`, `modified`, `renamed` | all `modified`, so `changeType: [added]` never matches |
+| 4 | A listed **source** that is not on disk | `D`, or the old name of a rename: no instance. `A` or `M` but absent from disk (a checkout without the file, OS1): an instance is created and its related path is evaluated | dropped, whatever it was, because a deleted source and a typo look the same |
 
-Everything else, including `skipIf: exists` and `expect: missing`, is the same in
-both. The tutorial must say so where `--files` is introduced. Inferring deletion
-from "listed but not on disk" for a related path was considered and rejected: it
-would turn typos into deletions. Row 3 drops only sources, which cannot resolve
-anyway.
+Row 2 reopens the delete-to-silence hole for a policy run on `--name-only`
+output: deleting the test makes `expect: touched` pass. Feed `--files-from` the
+`--name-status` form to close it. `skipIf: exists` and `expect: missing` behave
+the same in both. The tutorial must say so where `--files` is introduced.
+Inferring deletion from "listed but not on disk" for a related path was
+considered and rejected: it would turn typos into deletions. Row 4 drops only
+sources, which cannot be told apart from a typo.
 
 ## 7. `changeType`
 
@@ -201,7 +220,9 @@ checks have run, so a rule whose `changeType` excludes an instance still reports
 broken `related` ([`04-grammar.md`](04-grammar.md), rules 9 to 11).
 
 Deleted source files never create instances: a removed source has no
-working-tree path to match or resolve from. "Delete the handler, delete its
+working-tree path to match or resolve from. A source in the diff as added or
+modified but absent from the working tree does create one in git mode (§6, row
+4). "Delete the handler, delete its
 test" is therefore not expressible in v3.0.
 
 ## 8. Severity and exit code
