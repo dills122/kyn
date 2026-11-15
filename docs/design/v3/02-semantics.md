@@ -69,8 +69,8 @@ For `expect: touched`:
 
 There is no `skipIf: exists` column: that gate applies only when the related file
 is not there, so `expect: touched` under it is rejected at load (validation rule
-7 in [`04-grammar.md`](04-grammar.md)). `skipIf: exists` is for `none`,
-`untouched` and `missing`.
+7 in [`04-grammar.md`](04-grammar.md)). `skipIf: exists` is for `none` and
+`untouched`; with `missing` it could never fail, so validation rejects it.
 
 Against today's behavior, `skipIf: missing` changes exactly the two rows it is
 meant to. The never-existed case still skips.
@@ -139,6 +139,7 @@ this order:
 | the path is not there and was never there | `does not exist` |
 | the path is there but is not in the change | `not touched` |
 | the path is in the change but must not be | `was touched` |
+| the path exists but `expect: missing` | `exists but must not` |
 
 ## 6. Input modes
 
@@ -150,9 +151,14 @@ this order:
 
 ### `--files-from` format
 
-A line containing a TAB is a name-status line; a line with none is a plain path.
-The status field is one of `A`, `M`, `D`, `T`, or `R` followed by a score; any
-other status is an error naming the line. Both halves of a rename matter: the
+Each line is read on its own: a line containing a TAB is a name-status line, and
+a line with none is a plain path, so one file may mix both. The status field is
+exactly `A`, `M`, `D` or `T` with one more field (the path), or `R` followed by
+one to three digits (the score) with two more (the old and new paths). Anything
+else is an error naming the line: another status, a bare `R`, extra fields. `C`
+and `X` are errors because Kyn never asks git for copies or type changes in that
+form, and `U` (an unmerged path) because a conflicted change set is not one to
+enforce: the message says to resolve the merge first. Both halves of a rename matter: the
 destination joins the change set, the source is what makes a related path
 `removed`.
 
@@ -163,11 +169,14 @@ R100	src/old.go	src/new.go
 src/plain-path.go
 ```
 
-Plain single-path lines mean `modified`. Blank lines are ignored and a trailing
-CR is removed, so CRLF input works. Every path, in every input mode including
-`--files`, must be clean or the run fails naming it: valid UTF-8, relative, no
-empty, `.` or `..` segment, no `\`, no Windows drive prefix (`C:`), no leading or
-trailing whitespace, and not in git's quoted form (a leading `"`). Nothing is
+Plain single-path lines mean `modified`. Empty and whitespace-only lines are
+ignored, and a trailing CR is removed, so CRLF input works. Every path, in every
+input mode including `--files`, must be clean or the run fails naming it. The
+predicate is the one rule 11 applies to resolved paths: valid UTF-8, relative,
+no empty, `.` or `..` segment, no `\`, no control character or BOM, no segment
+that begins or ends with a blank character (so interior spaces are fine), and no
+first segment that begins with a letter and a colon; and for input only, not in
+git's quoted form (a leading `"`). Nothing is
 trimmed, converted or cleaned for the user: v2 turned `\` into `/` and stripped
 `./`, and v3 rejects both ([`06-cutover.md`](06-cutover.md)). A path may appear on
 several lines only if the lines are identical; otherwise (`D x` and `A x`, or a
@@ -186,11 +195,17 @@ fixes it ([`06-cutover.md`](06-cutover.md)).
 
 Plain paths carry no removal information and no statuses, so a policy tried with
 `--files` can pass locally and fail in git-mode CI. The differences are not a
-list to memorize. They follow from two facts, and **when a row and the derivation
-disagree, the derivation is right**:
+list to memorize: the table below follows from three facts about a plain-path
+line, and a difference that does not follow from them is a bug in this section.
 
 1. The listed paths are the whole change set, and every one is `modified`.
 2. Nothing is `removed`: a path that is not on disk is `missing`.
+3. A listed source that is not on disk is dropped. This one is a decision, not a
+   consequence: a deleted source and a mistyped path look the same in a plain
+   list, and evaluating a typo would fail every run. It is limited to sources;
+   dropping is never applied to a related path (see below).
+
+The facts apply per line, so in a mixed file only the plain lines are affected.
 
 | # | Difference | Git mode | `--files`, or plain `--files-from` |
 | --- | --- | --- | --- |
@@ -204,8 +219,8 @@ output: deleting the test makes `expect: touched` pass. Feed `--files-from` the
 `--name-status` form to close it. `skipIf: exists` and `expect: missing` behave
 the same in both. The tutorial must say so where `--files` is introduced.
 Inferring deletion from "listed but not on disk" for a related path was
-considered and rejected: it would turn typos into deletions. Row 4 drops only
-sources, which cannot be told apart from a typo.
+considered and rejected: it would turn typos into deletions. Fact 3 applies to
+sources only, and the recipe in [`04-grammar.md`](04-grammar.md) relies on it.
 
 ## 7. `changeType`
 
@@ -215,7 +230,7 @@ if **any** of its sources was added. Instances it excludes are reported as
 `skipped`, not dropped, so a rule that never applies is visible.
 
 `changeType` is meaningful in the first two input modes. In plain-path modes
-every source is `modified` (§6, row 2). It filters instances after the resolve-time
+every source is `modified` (§6, row 3). It filters instances after the resolve-time
 checks have run, so a rule whose `changeType` excludes an instance still reports a
 broken `related` ([`04-grammar.md`](04-grammar.md), rules 9 to 11).
 

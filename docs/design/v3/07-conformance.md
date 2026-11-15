@@ -57,7 +57,7 @@ no-match.
 
 | Group | Cases |
 | --- | --- |
-| Binding | the longest-first rule: `{name}.{kind}.ts` on `user.profile.component.ts`; the same with a `**/` before it; the earliest-start tie-break (`src/**/{n}/**` on `src/auth/user/a.ts` binds `auth`, on `src/user/auth/a.ts` binds `user`, and a longer name still wins); length counted in code points; every row cross-checked against an enumerating reference matcher, which is the definition |
+| Binding | the longest-first rule: `{name}.{kind}.ts` on `user.profile.component.ts`; the same with a `**/` before it; length counted in code points; a capture with `**` or `{**x}` on both sides is rejected, and a random-glob run (`-ties`) finds no two longest parses that bind different values; every row cross-checked against an enumerating reference matcher, which is the definition |
 | Captures | `{name}` within a segment; leading dot; dotted values; a value of `.` or `..`; a lazy `*` next to a greedy capture (`src/*-{n}.go`) |
 | Characters | a non-ASCII literal; `?` against one multi-byte character; NFD input against an NFC glob does not match; `*` and `?` match a leading dot |
 | `{**name}` | zero segments; one; many; trailing form needs one or more; a file at the root |
@@ -66,7 +66,7 @@ no-match.
 | Several globs | agreeing bindings; **disagreeing bindings are an error**; the same name as `{x}` and `{**x}` is an error in either order; reordering the list changes nothing |
 | Exclude | removes a source; also stops a related path counting as a self-match |
 | Instance names | one case per row of [`03-instances-and-reports.md`](03-instances-and-reports.md) §2, including a root file next to a directory literally named `(root)` |
-| Invalid globs | one case per load-time error in [`04-grammar.md`](04-grammar.md): unclosed or unmatched brace, nested braces, `[`, `\`, wildcard or empty alternative, partial-segment `**` or `{**x}`, `.`/`..`/empty segment, `{..,a}` and `{.,a}`, leading or trailing `/`, a `/` inside `{}`, leading or trailing whitespace, invalid name, `dir`, duplicate capture, a capture touching another capture, `*`, `?` or an alternation, capture in exclude, two `{**x}`, exclude identical to a match |
+| Invalid globs | one case per load-time error in [`04-grammar.md`](04-grammar.md): unclosed or unmatched brace, nested braces, `[`, `\`, wildcard or empty alternative, partial-segment `**` or `{**x}`, `.`/`..`/empty segment, `{..,a}` and `{.,a}`, leading or trailing `/`, a `/` inside `{}`, whitespace inside `{}` (`{ts, html}`), edge whitespace, a control character or BOM, invalid name, `dir`, duplicate capture, a capture touching another capture, `*`, `?` or an alternation, capture in exclude, two `{**x}`, exclude identical to a match |
 | Invalid templates | empty, glob characters, `\`, `.` or `..`, absolute, trailing `/`, unknown variable, adjacent variables, two variables that can contain `/`, `{dir}` or `{**x}` in part of a segment, a template made only of those, unused capture, a constant path inside its own match or inside its match minus its exclude |
 | Resolution | one-pass substitution (a value of `{dir}` stays literal); empty segments dropped; a resolved path that is empty, has a `.`/`..` segment, a `\` or a drive prefix is an error |
 
@@ -81,10 +81,10 @@ the expected results, not an oracle.
 | `expect` | `touched`, `untouched`, `exists`, `missing`, `none`, `[exists, touched]` | 6 |
 | related path | `exists`+touched, `exists`+untouched, `removed` by delete, `removed` by rename, `missing`+untouched, `missing`+touched | 6 |
 
-3 × 6 × 6 = 108, less the 18 cells that rule 7 rejects because the rule could
-never pass (`skipIf: exists` with `touched`, `exists` or `[exists, touched]`; the
-six `expect` values chosen here reach no other rejected combination), leaves
-**90 cells**. Rule 7 itself gets its own table: every `skipIf` × every `expect`
+3 × 6 × 6 = 108, less the 24 cells that rule 7 rejects, leaves **84 cells**. The
+rejected combinations are `skipIf: exists` with `touched`, `exists` or
+`[exists, touched]` (the rule could never pass) and with `missing` (it could never
+fail); the other `expect` values chosen here reach no rejected combination. Rule 7 itself gets its own table: every `skipIf` × every `expect`
 list, checked against an independent enumeration of the five reachable pairs. Each runs in git mode and is asserted on `explain` JSON, `check` JSON
 and the exit code.
 
@@ -151,7 +151,7 @@ same source in git mode creates one.
 ## Corpus
 
 - the four rewritten presets and the documented recipes
-- the 115 scenarios in
+- the 134 scenarios in
   [`experiments/sim/scenarios.yaml`](experiments/sim/scenarios.yaml), promoted
   to real projects; each already states its expected outcome, but the simulator
   and the scenarios share an author, so they are a draft, not an oracle
@@ -165,7 +165,7 @@ code.
 
 1. The determinism guard passes.
 2. Layer 0 passes, including every invalid-glob and invalid-template case.
-3. Layer 1 passes for all 90 cells, with the positive assertions above.
+3. Layer 1 passes for all 84 cells, with the positive assertions above.
 4. Layer 2 passes across all eight surfaces and all three headlines.
 5. Every invalid corpus config is rejected with the expected message.
 6. Goldens are recorded once, after 1 to 5, as a reviewed change.

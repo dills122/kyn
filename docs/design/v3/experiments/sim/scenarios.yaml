@@ -1068,7 +1068,7 @@
 
 # ---- review 6 ----------------------------------------------------------------
 
-- name: "93 Binding tie: equal-length captures, the leftmost start wins"
+- name: "93 A {name} capture between two ** segments is rejected: it would bind by directory-name length"
   config: |
     version: 3
     rules:
@@ -1076,49 +1076,46 @@
         match: "src/**/{n}/**"
         related: "docs/{n}.md"
         expect: touched
-        skipIf: missing
-  disk: [src/auth/user/a.ts]
-  changes: ["M src/auth/user/a.ts"]
-  want: {results: ["SKIPPED r auth"], headline: PASS}
+  disk: []
+  changes: []
+  want: {error: "between two ** segments"}
 
-- name: "93b Binding tie: leftmost start wins whichever name is first"
+- name: "93b The same with {**p} on one side is rejected too"
   config: |
     version: 3
     rules:
       r:
-        match: "src/**/{n}/**"
-        related: "docs/{n}.md"
+        match: "src/**/{n}/{**p}"
+        related: "docs/{n}/{p}.md"
         expect: touched
-        skipIf: missing
-  disk: [src/user/auth/a.ts]
-  changes: ["M src/user/auth/a.ts"]
-  want: {results: ["SKIPPED r user"], headline: PASS}
+  disk: []
+  changes: []
+  want: {error: "between two ** segments"}
 
-- name: "93c Binding: a longer capture still beats an earlier one"
+- name: "93c {**p} between two ** segments is rejected"
   config: |
     version: 3
     rules:
       r:
-        match: "src/**/{n}/**"
-        related: "docs/{n}.md"
+        match: "{y}/**/{**p}/**"
+        related: "docs/{y}/{p}.md"
         expect: touched
-        skipIf: missing
-  disk: [src/auth/login/a.ts]
-  changes: ["M src/auth/login/a.ts"]
-  want: {results: ["SKIPPED r login"], headline: PASS}
+  disk: []
+  changes: []
+  want: {error: "between two ** segments"}
 
-- name: "93d Binding: length counts code points, not bytes"
+- name: "93d ** on one side only is fine, and the capture binds the last segment"
   config: |
     version: 3
     rules:
       r:
-        match: "src/**/{n}/**"
+        match: "src/**/{n}/x.go"
         related: "docs/{n}.md"
         expect: touched
         skipIf: missing
-  disk: ["src/é/ab/a.ts"]
-  changes: ["M src/é/ab/a.ts"]
-  want: {results: ["SKIPPED r ab"], headline: PASS}
+  disk: [src/a/bb/x.go]
+  changes: ["M src/a/bb/x.go"]
+  want: {results: ["SKIPPED r bb"], headline: PASS}
 
 - name: "94 Plain mode: a deleted related file that is also listed counts as touched, so touched passes"
   mode: plain
@@ -1422,4 +1419,248 @@
         expect: touched
   disk: [.x.go]
   changes: ["M .x.go"]
+  want: {error: "resolves to an invalid path"}
+
+# ---- review 7 ----------------------------------------------------------------
+- name: "112 Plain mode: a listed source that is not on disk is dropped, a stated fact of plain input"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        exclude: "src/*_t.go"
+        related: "src/{n}_t.go"
+        expect: exists
+  disk: []
+  changes: ["src/a.go"]
+  want: {results: [], headline: PASS}
+
+- name: "112b Git mode, same change: the source is kept and its related path fails"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        exclude: "src/*_t.go"
+        related: "src/{n}_t.go"
+        expect: exists
+  disk: []
+  changes: ["M src/a.go"]
+  want: {results: ["FAIL r a"], headline: FAIL}
+
+- name: "112c Mixed file: a TAB line keeps an absent source, a plain line drops one"
+  mode: mixed
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        exclude: "src/*_t.go"
+        related: "src/{n}_t.go"
+        expect: exists
+  disk: []
+  changes: ["M\tsrc/a.go", "src/b.go"]
+  want: {results: ["FAIL r a"], headline: FAIL}
+
+- name: "113 Whitespace inside an alternation is rejected: {ts, html}"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.{ts, html}"
+        related: "docs/{n}.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "whitespace inside {}"}
+
+- name: "113b Whitespace at the end of an alternative is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.{ts,html }"
+        related: "docs/{n}.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "whitespace inside {}"}
+
+- name: "113c A control character in a glob is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.\u0001go"
+        related: "docs/{n}.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "control or invisible"}
+
+- name: "113d A byte order mark in a glob is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "\ufeffsrc/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "control or invisible"}
+
+- name: "113e Leading whitespace in related is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: " docs/{n}.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "leading or trailing whitespace"}
+
+- name: "113f A drive prefix written in related is rejected at load"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "C:{n}.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "Windows drive"}
+
+- name: "114 skipIf exists with expect missing can never fail"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: missing
+        skipIf: exists
+  disk: []
+  changes: []
+  want: {error: "can never fail"}
+
+- name: "114c skipIf missing with [untouched, missing] can never pass"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: [untouched, missing]
+        skipIf: missing
+  disk: []
+  changes: []
+  want: {error: "can never pass"}
+
+- name: "115 A status line with a malformed status is rejected, not read by its first letter"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: [src/a.go]
+  changes: ["MODIFIED\tsrc/a.go"]
+  want: {error: "unrecognised status"}
+
+- name: "115b A rename needs a score and two paths"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: [src/a.go]
+  changes: ["R\tsrc/a.go\tsrc/b.go"]
+  want: {error: "unrecognised status"}
+
+- name: "115c Extra fields are an error"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: [src/a.go]
+  changes: ["M\tsrc/a.go\textra"]
+  want: {error: "fields"}
+
+- name: "115d U (unmerged) is an error that says why"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: [src/a.go]
+  changes: ["U\tsrc/a.go"]
+  want: {error: "resolve the merge"}
+
+- name: "115e A whitespace-only line is ignored"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: [src/a.go]
+  changes: ["M\tsrc/a.go", "   "]
+  want: {results: ["SKIPPED r a"], headline: PASS}
+
+- name: "115f A byte order mark on a plain path is an error, not a silent never-match"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: [src/a.go]
+  changes: ["\ufeffsrc/a.go"]
+  want: {error: "invisible character"}
+
+
+- name: "115g A segment with trailing whitespace is rejected wherever the space is"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  disk: [src/a.go]
+  changes: ["M\tsrc/a /b.go"]
+  want: {error: "leading or trailing whitespace"}
+
+- name: "115h A resolved path with a segment ending in whitespace is rule 11"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}b.go"
+        related: "docs/{n}"
+        expect: touched
+  disk: ["src/a b.go"]
+  changes: ["M\tsrc/a b.go"]
   want: {error: "resolves to an invalid path"}

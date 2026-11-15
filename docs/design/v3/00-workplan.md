@@ -11,15 +11,15 @@ the current design and nothing else.
 | Area | State | Document |
 | --- | --- | --- |
 | Measured v2 baseline | 16 observations; 14 have a script, OS2 is derived from OS1 and OS10 is a source search | [`01`](01-observed-semantics.md) |
-| Semantics | Revised after review 6 (plain-path derivation, input cleaning) | [`02`](02-semantics.md) |
+| Semantics | Revised after review 7 (plain-path facts, input grammar) | [`02`](02-semantics.md) |
 | Instances and reports | Revised after review 4 | [`03`](03-instances-and-reports.md) |
-| Grammar and matching | Rewritten after review 5, tightened after review 6 (total binding, code points, validation by enumeration); **the review-6 fixes are not yet independently reviewed** | [`04`](04-grammar.md) |
+| Grammar and matching | Rewritten after review 5, tightened after reviews 6 and 7 (total binding by rejection, code points, validation by enumeration, one blank-character predicate); **the review-7 fixes are not yet independently reviewed** | [`04`](04-grammar.md) |
 | Cutover inventory | Measured and extended | [`06`](06-cutover.md) |
-| Conformance suite | Specified, with a matcher layer; 90 semantic cells | [`07`](07-conformance.md) |
-| Scenario simulator | 115 scenarios, each asserting its outcome; matcher is an enumerating reference over code points; mutation-tested | [`experiments/sim/`](experiments/sim/) |
+| Conformance suite | Specified, with a matcher layer; 84 semantic cells | [`07`](07-conformance.md) |
+| Scenario simulator | 134 scenarios, each asserting its outcome; matcher is an enumerating reference over code points; a random-glob run (`-ties`) checks binding is total; mutation-tested | [`experiments/sim/`](experiments/sim/) |
 | v1/v2 compatibility matrix | Historical evidence only | [`05`](05-compatibility-matrix.md) |
 
-Six independent reviews have run (recorded in
+Seven independent reviews have run (recorded in
 [`../../reviews/`](../../reviews/)). Review 4 judged the revised shape ready to
 advance once five P1 findings were closed, and closing them added the matching
 section. Review 5 attacked that section and found it was not implementable from
@@ -27,8 +27,9 @@ the text: seven P1 findings, all reproduced. They are closed below (D51 to D58)
 and the matching section was rewritten around a defined dialect. Review 6
 found the dialect implementable and no P0, but two P1s (binding not total with
 `**` around a capture; the plain-path "whole list" wrong a third time) and nine
-P2s, closed below (D59 to D65). Closing them changed the grammar again, so the
-next gate is a seventh review.
+P2s, closed below (D59 to D65). Review 7 found one P1 (a plain-path row
+contradicting its own derivation) and four P2s, closed as D66 to D70. The next
+gate is an eighth review.
 
 ## Two changes of direction
 
@@ -98,10 +99,15 @@ the rule aloud. The four presets went from 39/27/22/22 non-blank lines in v2 to
 | D59 | Binding is total: longest captures first, then **earliest start**, each first capture first. A named capture is greedy and `*` is not a capture (one sentence in `04`). Refines D52 | Review 6 P1-1: `src/**/{n}/**` tied on `auth`/`user` and the simulator silently chose by enumeration order. Rejecting the shape was the alternative; the tie-break is cheaper and `src/**/{feature}/**` is a realistic glob |
 | D60 | Plain modes are **derived**, not listed: the list is the whole change set, every path `modified`, nothing `removed`. Four rows follow in `02` §6, including a deleted related file that is also listed (`touched` passes, `untouched` fails) and a git-mode source absent from disk, which is **kept** (an instance is created) where plain mode drops it. Supersedes the list in D56 | Review 6 P1-2 and P2-1: "the whole list" was wrong a third time, and `--name-only` output reopened the delete-to-silence hole |
 | D61 | Matching is in Unicode code points: `?` is one, "longest" counts them, no normalization, `*` and `?` match a leading dot, capture names are ASCII. Input must be valid UTF-8 | Review 6 P2-3: the model compared bytes, so non-ASCII literals and `?` never matched |
-| D62 | Rule 7 is general: enumerate the five reachable (state, touched) pairs, drop those `skipIf` skips, and reject a rule that can never pass or can pass only on the disagreement pair. The `skipIf: exists` column of the `02` §3 table is removed. Layer 1 stays 90 cells. Supersedes the case list in D58 | Review 6 P2-4: `skipIf: missing` with `[touched, missing]` could never pass and was accepted |
+| D62 | Rule 7 is general: enumerate the five reachable (state, touched) pairs, drop those `skipIf` skips, and reject a rule that can never pass or can pass only on the disagreement pair. The `skipIf: exists` column of the `02` §3 table is removed. Layer 1 was 90 cells; D68 makes it 84. Supersedes the case list in D58 | Review 6 P2-4: `skipIf: missing` with `[touched, missing]` could never pass and was accepted |
 | D63 | More dialect rejections: an alternative that can spell `.` or `..`, whitespace-padded globs and segments, `/` inside `{}` (named, not "unclosed"). In `related`, `{dir}` and `{**x}` fill whole segments and a template of only those is rejected. Resolved paths may not contain `\` or start with a drive prefix. Refines D51 and D54 | Review 6 P2-5, P2-6, P2-8 |
 | D64 | **Input cleaning is a stated compatibility break.** v3 rejects, with exit 2, input paths with whitespace, `\`, `./`, a drive prefix, invalid UTF-8 or git quoting, for `--files` and `--files-from` alike; CRLF and blank lines are tolerated; `C`, `U` and `X` statuses are errors. The `ls-files` recipe gains `--fail-on-empty` and says it samples tracked, on-disk sources. Refines D57 | Review 6 P2-2, P2-9 |
 | D65 | A file name that makes a capture `.` or `..` (`.x.go` under `{n}x.go`) keeps rule 11 **run-level**, stated as a limit. OS-dependent behavior (case-insensitive filesystems, NFD, Windows trailing dots) is listed as undefended. `exclude` identical to a `match` glob stays rejected, reworded as pointless | Maintainer chose run-level on 2026-11-15; Review 6 P2-7, P2-8, P3 |
+| D66 | **Binding has no tie-break; ties are removed by rejection.** A capture, `{name}` or `{**name}`, may not have `**` or `{**name}` on both sides in one glob. Supersedes the earliest-start rule of D59. `-ties` in the simulator generates random globs and finds no two longest parses that bind different values in two million accepted globs, and finds thousands with the rejection removed | Review 7 P2-4: `src/**/{feature}/**` bound on directory-name length, so renaming an unrelated directory moved a file between instances. The earliest-start comparison never decided any accepted glob once the rejection existed, so it was dropped rather than kept untested. D59 was wrong that this was a realistic glob |
+| D67 | Plain-path differences follow from **three facts**: the list is the whole change set, all `modified`; nothing is `removed`; a listed source not on disk is dropped (a decision, stated as one, limited to sources). The "derivation wins" sentence is deleted. Refines D60 | Review 7 P1-1: row 4 contradicted the derivation, and the simulator followed the row |
+| D68 | Rule 7 also rejects a rule that **can never fail** (`skipIf: exists` with `missing`), so layer 1 is **84 cells**, not 90 (108 less 24). `02` stops recommending that combination. The five pairs are git-mode; plain-mode vacuity is stated, not rejected. Supersedes the count in D62 | Review 7 P2-2: an always-pass rule is the same defect class as an informational rule with an error severity |
+| D69 | One **blank-character predicate** (white space, BOM, control) for globs, `related`, and input paths: controls and BOM anywhere, no blank at a segment edge, none inside `{}` (`{ts, html}`), and rule 11 applies the same clean-path check to resolved paths. A first segment of a letter and a colon is rejected in `related` at load. `{**,a}` gets its own message. Refines D63 and D64 | Review 7 P2-1, P2-3 and P3s |
+| D70 | `--files-from` grammar is exact: each line stands alone (a file may mix status and plain lines); status is `A`, `M`, `D`, `T` with two fields or `R<1-3 digits>` with three; extra fields, `C`, `X` and `U` are errors; whitespace-only lines are ignored; a BOM is an error, not a silent never-match. `--files` cannot carry a comma (`06`). Refines D57 and D64 | Review 7 P2-3 |
 
 D29's `why` and `changeType`, and D36, were confirmed by the maintainer on
 2026-11-13.
@@ -279,13 +285,41 @@ mutations of the new decisions each turn scenarios red (the first attempt at the
 tie-break mutation stayed green, because enumeration order already preferred the
 earlier start; the scenario now needs the mutation to prefer a later one).
 
+### Independent review 7 (2026-11-15)
+
+A fresh-context review at `154ffaf` (design `580896e`), scope frozen in
+[`../../reviews/v3-config-review-7-bootstrap.md`](../../reviews/v3-config-review-7-bootstrap.md),
+recorded verbatim in
+[`../../reviews/v3-config-independent-review-7.md`](../../reviews/v3-config-independent-review-7.md).
+Verdict: not ready to freeze, but close. No P0, one P1. Its own rune-based
+matcher agreed with the simulator on about 20 million pairs (including non-ASCII
+and the tie-break), and its independent rule 7 checker agreed on every
+combination. It closed D59, D61, D65 and most of D64.
+
+| Sev | Finding | Disposition |
+| --- | --- | --- |
+| P1 | Plain-path row 4 contradicts the derivation that "wins" | D67 |
+| P2 | Whitespace rejection misses `{ts, html}`, `related`, BOM, controls | D69 |
+| P2 | `skipIf: exists` with `expect: missing` can never fail, and `02` recommends it | D68 |
+| P2 | `--files-from` grammar loose; model laxer than text (mixed files, statuses, blank lines, BOM, `U`, clean-path scope) | D70, D69 |
+| P2 | `src/**/{feature}/**` binds on directory-name length | D66 |
+| P3 | Stale row reference; `expect: missing` message not in the table; dead `\` check; `[untouched, missing]` mutation survivor; `C:{n}` static; `{**,a}` message; `--files` comma; plain-mode rule 7; empty `{**p}` start | Fixed or stated: `02`, `04`, `06`, scenarios 114c, 113f. The `\` check is now part of one shared predicate, so it is not separately testable |
+
+Two of the author's own claims failed while closing these, and were caught by
+the new `-ties` run before the review could: a first version of the rejection
+only covered `{name}`, and `{**p}` slid the same way; and the tie-break the
+author kept, to cover the rest, turned out never to decide any accepted glob.
+The simulator is at 134 scenarios and thirteen mutations of the new decisions
+each turn scenarios red (two survivors found on the way, a missing segment-edge
+whitespace case and a mutation that only failed to compile, were fixed).
+
 ## Open items
 
-1. **A seventh independent review.** Review 6's fixes added a tie-break, a
-   derivation for plain modes, a general rule 7, code-point semantics and an
-   input-cleaning break (D59 to D65). Every round so far has found that fixes
-   introduced new gaps. Scope it to `04` Globs, Binding, `related` and
-   Validation, and `02` §3 and §6.
+1. **An eighth independent review.** Review 7's fixes removed the tie-break,
+   rewrote §6 around three facts, tightened rule 7, and made one blank-character
+   predicate and an exact `--files-from` grammar (D66 to D70). Scope it to `04`
+   Binding, Globs and Validation, and `02` §3 and §6. If it returns only P3s,
+   freeze the matching section.
 2. **Two shipped defects, per the rule that a bad bug is fixed in place:** OS7
    (non-deterministic errors) and OS16 (non-ASCII filenames never match).
    Neither depends on v3, and both are in code v3 reuses. Decide whether they

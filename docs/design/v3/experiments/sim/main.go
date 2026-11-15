@@ -22,11 +22,13 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
@@ -160,6 +162,9 @@ func compileGlob(g string, allowCaptures bool) (*glob, error) {
 	if !utf8.ValidString(g) {
 		return bad("is not valid UTF-8")
 	}
+	if hasHidden(g) {
+		return bad("contains a control or invisible character")
+	}
 	if strings.HasPrefix(g, "/") {
 		return bad("must be relative to the repository root")
 	}
@@ -215,7 +220,7 @@ func compileGlob(g string, allowCaptures bool) (*glob, error) {
 		switch {
 		case seg == "":
 			return bad("has an empty path segment")
-		case seg != strings.TrimSpace(seg):
+		case edgeBlank(seg):
 			return bad("segment %q has leading or trailing whitespace", seg)
 		case seg == "." || seg == "..":
 			return bad("must not contain a %q segment", seg)
@@ -231,6 +236,9 @@ func compileGlob(g string, allowCaptures bool) (*glob, error) {
 				return bad("{**name} must fill whole path segments")
 			}
 			name := seg[3 : len(seg)-1]
+			if strings.Contains(name, ",") {
+				return bad("alternatives must be literal text: * is not allowed inside {}")
+			}
 			if err := capture(name, true); err != nil {
 				return nil, err
 			}
@@ -263,6 +271,9 @@ func compileGlob(g string, allowCaptures bool) (*glob, error) {
 				}
 				end += i
 				body := seg[i+1 : end]
+				if strings.IndexFunc(body, isBlank) >= 0 {
+					return bad("whitespace inside {}: %q", "{"+body+"}")
+				}
 				if strings.Contains(body, "{") {
 					return bad("nested braces are not supported")
 				}
@@ -313,6 +324,24 @@ func compileGlob(g string, allowCaptures bool) (*glob, error) {
 			out.toks = append(out.toks, token{k: tLit, s: "/"})
 		}
 	}
+	// A {name} capture with ** or {**x} on both sides would bind by
+	// directory-name length, so renaming an unrelated directory could move
+	// a file to another instance.
+	for i, t := range out.toks {
+		if t.k != tCap && t.k != tMCap {
+			continue
+		}
+		before, after := false, false
+		for _, u := range out.toks[:i] {
+			before = before || u.k == tSegs || u.k == tMCap
+		}
+		for _, u := range out.toks[i+1:] {
+			after = after || u.k == tSegs || u.k == tSegsTail || u.k == tMCap || u.k == tMCapTail
+		}
+		if before && after {
+			return bad("capture %q sits between two ** segments, so it would bind by directory-name length; put ** or {**name} on one side only", t.s)
+		}
+	}
 	return out, nil
 }
 
@@ -349,43 +378,41 @@ func dotSegment(st []token) string {
 	return ""
 }
 
+// A blank character is Unicode white space, a byte order mark, or a control
+// character. Controls and the BOM are rejected anywhere in a glob, a related
+// template or an input path; a segment may not begin or end with any blank
+// character; and none may appear inside {}.
+func isBlank(r rune) bool { return unicode.IsSpace(r) || r == 0xFEFF || unicode.IsControl(r) }
+
+func hasHidden(s string) bool {
+	for _, r := range s {
+		if r == 0xFEFF || unicode.IsControl(r) {
+			return true
+		}
+	}
+	return false
+}
+
+func edgeBlank(seg string) bool {
+	f, _ := utf8.DecodeRuneInString(seg)
+	l, _ := utf8.DecodeLastRuneInString(seg)
+	return seg != "" && (isBlank(f) || isBlank(l))
+}
+
+// parses enumerates every way the glob can match p, as the captured values.
 type capv struct {
 	s     string
 	start int
 }
 
-// bind is the reference matcher: it enumerates every way the glob can match p
-// and returns the best parse. Best is: longest captures (in code points),
-// comparing the first capture first; if every length is equal, the parse whose
-// captures start earliest, again first capture first. This is the normative
-// definition of binding in 04-grammar.md; an implementation may use any
-// algorithm that returns the same answer.
-func (g *glob) bind(p string) ([]string, bool) {
-	var best []capv
-	found := false
+func (g *glob) parses(p string) [][]capv {
+	var all [][]capv
 	var caps []capv
-	better := func(a, b []capv) bool {
-		for i := range a {
-			la, lb := utf8.RuneCountInString(a[i].s), utf8.RuneCountInString(b[i].s)
-			if la != lb {
-				return la > lb
-			}
-		}
-		for i := range a {
-			if a[i].start != b[i].start {
-				return a[i].start < b[i].start
-			}
-		}
-		return false
-	}
 	var walk func(ti, pos int)
 	walk = func(ti, pos int) {
 		if ti == len(g.toks) {
 			if pos == len(p) {
-				if !found || better(caps, best) {
-					best = append([]capv(nil), caps...)
-					found = true
-				}
+				all = append(all, append([]capv(nil), caps...))
 			}
 			return
 		}
@@ -461,6 +488,40 @@ func (g *glob) bind(p string) ([]string, bool) {
 		}
 	}
 	walk(0, 0)
+	return all
+}
+
+// cmpLen compares two parses by capture length in code points, first capture
+// first: 1 if a is longer, -1 if b is, 0 if every capture is the same length.
+func cmpLen(a, b []capv) int {
+	for i := range a {
+		la, lb := utf8.RuneCountInString(a[i].s), utf8.RuneCountInString(b[i].s)
+		if la != lb {
+			if la > lb {
+				return 1
+			}
+			return -1
+		}
+	}
+	return 0
+}
+
+// bind is the reference matcher: it enumerates every way the glob can match p
+// and returns the parse whose captures are longest, first capture first. This is
+// the normative definition of binding in 04-grammar.md; an implementation may
+// use any algorithm that returns the same answer. It is total only because
+// compileGlob rejects a capture between two ** segments: `-ties` checks that no
+// accepted glob has two longest parses that bind different values.
+func (g *glob) bind(p string) ([]string, bool) {
+	var best []capv
+	found := false
+	for _, c := range g.parses(p) {
+		if !found {
+			best, found = c, true
+		} else if cmpLen(c, best) > 0 {
+			best = c
+		}
+	}
 	var out []string
 	for _, c := range best {
 		out = append(out, c.s)
@@ -486,6 +547,17 @@ func templateVars(tpl string) ([]string, error) {
 	}
 	if strings.Contains(tpl, `\`) {
 		return nil, fmt.Errorf("related %q contains a backslash", tpl)
+	}
+	if hasHidden(tpl) {
+		return nil, fmt.Errorf("related %q contains a control or invisible character", tpl)
+	}
+	for i, seg := range strings.Split(tpl, "/") {
+		if edgeBlank(seg) {
+			return nil, fmt.Errorf("related %q: segment %q has leading or trailing whitespace", tpl, seg)
+		}
+		if i == 0 && driveRe.MatchString(seg) {
+			return nil, fmt.Errorf("related %q: its first segment looks like a Windows drive", tpl)
+		}
 	}
 	if strings.ContainsAny(strings.NewReplacer("{", "", "}", "").Replace(tpl), "*?[]") {
 		return nil, fmt.Errorf("related %q contains glob metacharacters; it names exactly one path", tpl)
@@ -545,45 +617,59 @@ func resolveRelated(tpl string, vals map[string]string) (string, error) {
 	s := varRe.ReplaceAllStringFunc(tpl, func(m string) string { return vals[m[1:len(m)-1]] })
 	var segs []string
 	for _, sg := range strings.Split(s, "/") {
-		if sg == "" {
-			continue
+		if sg != "" {
+			segs = append(segs, sg)
 		}
-		if sg == "." || sg == ".." {
-			return "", fmt.Errorf("related %q resolves to an invalid path %q: a captured value became a %q segment", tpl, s, sg)
-		}
-		segs = append(segs, sg)
 	}
 	if len(segs) == 0 {
 		return "", fmt.Errorf("related %q resolves to an invalid path: it is empty", tpl)
 	}
 	out := strings.Join(segs, "/")
-	if strings.Contains(out, `\`) {
-		return "", fmt.Errorf("related %q resolves to an invalid path %q: it contains a backslash, a path separator on Windows", tpl, out)
-	}
-	if driveRe.MatchString(segs[0]) {
-		return "", fmt.Errorf("related %q resolves to an invalid path %q: its first segment looks like a Windows drive", tpl, out)
+	if why := badPath(out); why != "" {
+		return "", fmt.Errorf("related %q resolves to an invalid path %q: %s", tpl, out, why)
 	}
 	return out, nil
 }
 
-var driveRe = regexp.MustCompile(`^[A-Za-z]:`)
-
-// badInputPath reports an input path that is not a clean repository path:
-// relative, valid UTF-8, no empty, "." or ".." segment, no backslash, no Windows
-// drive prefix, no surrounding whitespace, and not git's quoted form.
-func badInputPath(p string) bool {
-	if p == "" || strings.HasPrefix(p, "/") || strings.HasPrefix(p, `"`) || !utf8.ValidString(p) {
-		return true
+// badPath is the one predicate for a clean repository path, used for input
+// paths and for resolved related paths (rule 11). It returns why a path is not
+// clean, or "".
+func badPath(p string) string {
+	switch {
+	case p == "":
+		return "it is empty"
+	case !utf8.ValidString(p):
+		return "it is not valid UTF-8"
+	case hasHidden(p):
+		return "it contains a control or invisible character"
+	case strings.HasPrefix(p, "/"):
+		return "it is absolute"
+	case strings.Contains(p, `\`):
+		return "it contains a backslash, a path separator on Windows"
 	}
-	if p != strings.TrimSpace(p) || strings.Contains(p, `\`) || driveRe.MatchString(p) {
-		return true
-	}
-	for _, s := range strings.Split(p, "/") {
-		if s == "" || s == "." || s == ".." {
-			return true
+	for i, sg := range strings.Split(p, "/") {
+		switch {
+		case sg == "":
+			return "it has an empty segment"
+		case sg == "." || sg == "..":
+			return fmt.Sprintf("a segment is %q", sg)
+		case edgeBlank(sg):
+			return fmt.Sprintf("segment %q has leading or trailing whitespace", sg)
+		case i == 0 && driveRe.MatchString(sg):
+			return "its first segment looks like a Windows drive"
 		}
 	}
-	return false
+	return ""
+}
+
+var driveRe = regexp.MustCompile(`^[A-Za-z]:`)
+
+// badInputPath adds git's quoted form to badPath for paths read from input.
+func badInputPath(p string) string {
+	if strings.HasPrefix(p, `"`) {
+		return "it is in git's quoted form; feed git -c core.quotePath=false"
+	}
+	return badPath(p)
 }
 
 // ---- evaluation -------------------------------------------------------------
@@ -674,8 +760,8 @@ func evaluate(sc Scenario) Outcome {
 	vanished := map[string]bool{}
 	subject := map[string]string{} // path -> the line that named it
 	note := func(p, l string) error {
-		if badInputPath(p) {
-			return fmt.Errorf("invalid input path %q: must be relative and clean (no empty, . or .. segment, backslash, drive prefix, surrounding whitespace or git quoting, and valid UTF-8)", p)
+		if why := badInputPath(p); why != "" {
+			return fmt.Errorf("invalid input path %q: %s", p, why)
 		}
 		if prev, ok := subject[p]; ok && prev != l {
 			return fmt.Errorf("path %q appears on more than one line (%q and %q); lines must not conflict", p, prev, l)
@@ -683,44 +769,45 @@ func evaluate(sc Scenario) Outcome {
 		subject[p] = l
 		return nil
 	}
+	fromPlain := map[string]bool{} // sources that came from a plain-path line
+	statusRe := regexp.MustCompile(`^([AMDT]|R[0-9]{1,3})$`)
 	for _, l := range sc.Changes {
 		l = strings.TrimSuffix(l, "\r") // CRLF input
-		if l == "" {
-			continue // blank lines are ignored
+		if strings.TrimSpace(l) == "" {
+			continue // empty and whitespace-only lines are ignored
 		}
-		if sc.Mode == "plain" {
+		// Each line is read on its own: a TAB makes it a name-status line, no TAB a
+		// plain path. mode "plain" and "mixed" treat a TAB-less line as a path.
+		if !strings.Contains(l, "\t") && (sc.Mode == "plain" || sc.Mode == "mixed") {
 			if err := note(l, l); err != nil {
 				return cfgErr("%v", err)
 			}
 			touched[l] = "modified"
+			fromPlain[l] = true
 			continue
 		}
-		// A TAB separates the fields of a name-status line. Scenarios may write
-		// a space instead when no path contains one.
+		// Scenarios may write a space instead of a TAB when no path contains one.
 		f := strings.Split(l, "\t")
 		if len(f) == 1 {
 			f = strings.Fields(l)
 		}
-		if len(f) < 2 {
-			return cfgErr("unrecognised status line %q", l)
+		if !statusRe.MatchString(f[0]) {
+			if f[0] == "U" {
+				return cfgErr("unmerged path on line %q: resolve the merge first", l)
+			}
+			return cfgErr("unrecognised status %q on line %q: want A, M, D, T or R followed by a score", f[0], l)
 		}
-		switch f[0][0] {
-		case 'A', 'M', 'T', 'D':
-			if err := note(f[1], l); err != nil {
+		want := 2
+		if f[0][0] == 'R' {
+			want = 3
+		}
+		if len(f) != want {
+			return cfgErr("line %q has %d fields, want %d for status %s", l, len(f), want, f[0])
+		}
+		for _, q := range f[1:] {
+			if err := note(q, l); err != nil {
 				return cfgErr("%v", err)
 			}
-		case 'R':
-			if len(f) < 3 {
-				return cfgErr("unrecognised status line %q", l)
-			}
-			if err := note(f[1], l); err != nil {
-				return cfgErr("%v", err)
-			}
-			if err := note(f[2], l); err != nil {
-				return cfgErr("%v", err)
-			}
-		default:
-			return cfgErr("unrecognised status line %q", l)
 		}
 		switch f[0][0] {
 		case 'A':
@@ -899,7 +986,7 @@ func evaluate(sc Scenario) Outcome {
 		r := c.r
 		insts := map[string]*inst{}
 		for _, p := range paths {
-			if sc.Mode == "plain" && !disk[p] {
+			if fromPlain[p] && !disk[p] {
 				continue // a listed source that is not on disk cannot be matched, as with a deleted one in git mode
 			}
 			v, ok, err := c.bind(p)
@@ -1018,7 +1105,7 @@ func evaluate(sc Scenario) Outcome {
 					}
 				case "missing":
 					if state == "exists" {
-						bad = "exists"
+						bad = "exists but must not"
 					}
 				case "none":
 					status = "info"
@@ -1065,10 +1152,12 @@ func passability(skipIf string, set map[string]bool) string {
 	}
 	pairs := []pair{{"exists", true}, {"exists", false}, {"removed", false}, {"missing", false}, {"missing", true}}
 	var passing []pair
+	applicable := 0
 	for _, p := range pairs {
 		if (skipIf == "missing" && p.state == "missing") || (skipIf == "exists" && p.state == "exists") {
 			continue
 		}
+		applicable++
 		ok := true
 		if set["touched"] && !p.touched {
 			ok = false
@@ -1088,6 +1177,9 @@ func passability(skipIf string, set map[string]bool) string {
 	}
 	if len(passing) == 0 {
 		return "can never pass: no state the rule applies to satisfies every expectation"
+	}
+	if len(passing) == applicable {
+		return "can never fail: every state the rule applies to satisfies the expectation; use expect: none with flags to report it"
 	}
 	if len(passing) == 1 && passing[0] == (pair{"missing", true}) {
 		return "can pass only when the diff and the working tree disagree (the related file is in the diff but not on disk)"
@@ -1118,9 +1210,82 @@ func equal(a, b map[string]string) bool {
 
 // ---- driver -----------------------------------------------------------------
 
+// ties generates random globs, keeps those compileGlob accepts, and looks for a
+// path with two parses whose captures are equally long but bind different
+// values. Binding is total only if there are none.
+func ties(n int) {
+	rnd := rand.New(rand.NewSource(1))
+	segTok := []string{"a", "b", "é", "-", ".", "*", "?", "{x}", "{y}", "{z}", "{ts,html}", "{a,b}", "a{x}b", "{x}.{y}", "{x}-b", "a-{y}"}
+	special := []string{"**", "**", "{**p}"}
+	alpha := []string{"a", "b", "é", "-", "."}
+	acc, matched, bad := 0, 0, 0
+	for i := 0; i < n; i++ {
+		var segs []string
+		for j, k := 0, 1+rnd.Intn(4); j < k; j++ {
+			if rnd.Intn(3) == 0 {
+				segs = append(segs, special[rnd.Intn(len(special))])
+				continue
+			}
+			t := ""
+			for m, c := 0, 1+rnd.Intn(3); m < c; m++ {
+				t += segTok[rnd.Intn(len(segTok))]
+			}
+			segs = append(segs, t)
+		}
+		g, err := compileGlob(strings.Join(segs, "/"), true)
+		if err != nil {
+			continue
+		}
+		acc++
+		for q := 0; q < 40; q++ {
+			var ps []string
+			for j, k := 0, 1+rnd.Intn(5); j < k; j++ {
+				w := ""
+				for m, c := 0, 1+rnd.Intn(5); m < c; m++ {
+					w += alpha[rnd.Intn(len(alpha))]
+				}
+				ps = append(ps, w)
+			}
+			p := strings.Join(ps, "/")
+			all := g.parses(p)
+			if len(all) > 0 {
+				matched++
+			}
+			var top [][]capv
+			for _, c := range all {
+				switch {
+				case top == nil || cmpLen(c, top[0]) > 0:
+					top = [][]capv{c}
+				case cmpLen(c, top[0]) == 0:
+					top = append(top, c)
+				}
+			}
+			for x := 1; x < len(top); x++ {
+				if fmt.Sprint(top[x]) != fmt.Sprint(top[0]) {
+					bad++
+					if bad <= 5 {
+						fmt.Printf("TIE  glob %q path %q: %q\n", strings.Join(segs, "/"), p, top)
+					}
+					break
+				}
+			}
+		}
+	}
+	fmt.Printf("%d globs tried, %d accepted, %d matching (glob, path) pairs, %d with two longest parses that bind different values\n", n, acc, matched, bad)
+	if bad > 0 {
+		os.Exit(1)
+	}
+}
+
 func main() {
 	verbose := false
 	args := os.Args[1:]
+	if len(args) == 2 && args[0] == "-ties" {
+		var n int
+		fmt.Sscan(args[1], &n)
+		ties(n)
+		return
+	}
 	if len(args) > 0 && args[0] == "-v" {
 		verbose, args = true, args[1:]
 	}
