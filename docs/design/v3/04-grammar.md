@@ -60,8 +60,22 @@ anywhere, no segment that begins or ends with a blank character, and no first
 segment that begins with an ASCII letter and a colon. Interior spaces and
 interior format characters are fine, so `my file.go` and an emoji sequence with a
 joiner are legal names. Globs and templates additionally allow no blank character
-inside `{}`. Input paths additionally may not be in git's quoted form (a leading
-`"`).
+inside `{}`, and a glob's first segment may not begin with an ASCII letter and a
+colon, since no clean path can match it.
+
+Only those three categories are detected, against **Unicode 15.0** (the version
+in Go 1.22), and a conformance suite must pin the same one. Characters that merely
+look blank are accepted: U+2800 (Braille blank), U+3164, U+115F, U+034F, a lone
+U+FE0F. Legal names with a format character at a segment edge are rejected as a
+consequence of the Cf rule: a flag written as a tag sequence, a trailing
+right-to-left mark, a leading or trailing joiner. That is a known limit, kept
+because a silent never-match is worse. Paths read from `--files-from` and `--files`
+additionally may not be in git's quoted form (a leading `"`); git mode reads paths
+with quoting disabled, so there a leading `"` is part of a real name.
+
+The predicate runs on every changed path that is matched or resolved. A path that
+is only **removed** (a `D` path or a rename source) is a state key and is never
+matched, so it is exempt, and the change that renames a bad name away passes.
 
 Every rule below is checked when the config loads, except the three marked
 resolve-time.
@@ -90,6 +104,7 @@ A glob is relative and made of non-empty segments. These are rejected:
 | `**` that is not a whole segment (`a**b`) | doublestar reads it as `*` and does not cross a `/`; the simulator once read it as "anything". Requiring a whole segment leaves one meaning |
 | a leading `/`, a trailing `/`, an empty segment, a `.` or `..` segment, or an alternative that can make one (`{..,a}`, `{.,a}`) | a glob names repository-relative paths |
 | a blank character at the edge of a segment or inside `{}` (`{ts, html}` is the likely typo: the alternative would be `" html"`; a pasted zero-width space is another), or a control character or BOM anywhere | it can never match what was meant |
+| a first segment that begins with an ASCII letter and a colon (`c:{n}.go`, `c:/{n}`, `c:*`) | a drive prefix; no clean path can match it |
 | a `/` inside `{}`, or `*` in a `{**x,a}` | alternatives and capture names cannot hold a separator or a wildcard |
 | an unmatched `{` or `}`, or invalid UTF-8 | |
 
@@ -140,7 +155,7 @@ ties it prevents: `src/{**pkg}/{name}/**` and `src/**/{name}/{**rest}` do not ti
 for that stability reason. With the rule the comparison is total. The simulator
 checks that by generating random globs, keeping the accepted ones, and looking
 for a path with two longest parses that bind different values: two million globs
-tried, about one million accepted, none found, and thousands found with the rule
+tried, about one million of them accepted by the rejection rule, none found, and thousands found with the rule
 removed (`go run docs/design/v3/experiments/sim/main.go -ties 2000000`).
 
 A named capture is greedy and `*` is not a capture, so they behave differently
@@ -200,8 +215,8 @@ A template for exactly one path:
 
 - non-empty, relative, not ending in `/`, with no `.` or `..` segment, no `\` and
   no glob characters (`* ? [ ]`);
-- no control character, no BOM, no segment that begins or ends with a blank
-  character, and no first segment that begins with a letter and a colon;
+- a clean path once its variables are resolved: the same blank-character and
+  drive-prefix rules apply to the text (see Matching), and no `{}` holds a blank;
 - `{dir}` and a `{**name}` capture fill a whole segment, because either can be
   empty: `{dir}.md` would become `.md` at the root and is rejected. A template
   made only of such variables is rejected too, since it could resolve to nothing;
@@ -402,9 +417,11 @@ Things Kyn does not detect, and says so rather than guess:
   `touched`), a case-only rename looks like two files, and NFD and NFC names can
   be one file. Windows trailing dots and spaces are not handled either. Backslash
   and drive prefixes are rejected (rule 11), so those cannot reach a path.
-- A file whose name makes a capture `.` or `..` (`.x.go` under `{n}x.go`). Rule 11
-  stops the whole run, since the alternative is a per-instance error kind that no
-  other rule needs. It is rare, and the message names the path.
+- A file whose name makes a capture `.`, `..`, or a segment with a blank at its
+  edge (`.x.go` under `{n}x.go`; `a ` or a trailing joiner under `{n}.go`), so the
+  resolved path is not clean. Rule 11 stops the whole run, since the alternative
+  is a per-instance error kind that no other rule needs. It is rare, and the
+  message names the path.
 
 `expect` is list-shaped and `related` could become list-shaped later, so the
 first and third limits could be lifted additively.
@@ -430,9 +447,9 @@ authority.
 
 ## Worked scenarios
 
-[`experiments/sim/scenarios.yaml`](experiments/sim/scenarios.yaml) holds 150
+[`experiments/sim/scenarios.yaml`](experiments/sim/scenarios.yaml) holds 172
 scenarios: realistic policies with change sets, one for each validation rule,
-and one for each finding of the fifth to seventh reviews. Each states its expected outcome, and the simulator fails on a mismatch:
+and one for each finding of the fifth to ninth reviews. Each states its expected outcome, and the simulator fails on a mismatch:
 
 ```bash
 go run docs/design/v3/experiments/sim/main.go docs/design/v3/experiments/sim/scenarios.yaml

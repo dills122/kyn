@@ -1749,6 +1749,18 @@
   changes: ["R100\tsrc/a.go\tsrc/b.go", "R095\tsrc/x.go\tsrc/c.go"]
   want: {results: ["SKIPPED r b", "SKIPPED r c"], headline: PASS}
 
+- name: "117c A rename score of 101 is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  disk: []
+  changes: ["R101\tsrc/a.go\tsrc/b.go"]
+  want: {error: "0 to 100"}
+
 - name: "118 A zero-width space at the end of a glob is rejected"
   config: |
     version: 3
@@ -1861,7 +1873,8 @@
   changes: ["M src/a.go"]
   want: {results: ["PASS r a"], headline: PASS}
 
-- name: "117c A rename score of 101 is rejected"
+- name: "120 Two-letter git status codes are rejected: AM"
+  mode: plain
   config: |
     version: 3
     rules:
@@ -1869,6 +1882,291 @@
         match: "src/{n}.go"
         related: "docs/{n}.md"
         expect: touched
+        skipIf: missing
   disk: []
-  changes: ["R101\tsrc/a.go\tsrc/b.go"]
-  want: {error: "0 to 100"}
+  changes: ["AM src/a.go"]
+  want: {error: "instead of a TAB"}
+
+- name: "120b MM"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["MM src/a.go"]
+  want: {error: "instead of a TAB"}
+
+- name: "120c AD and RM"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["RM src/a.go"]
+  want: {error: "instead of a TAB"}
+
+- name: "120d C100 (a copy score)"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["C100 src/a.go"]
+  want: {error: "instead of a TAB"}
+
+- name: "120e Single token A"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["A src/a.go"]
+  want: {error: "instead of a TAB"}
+
+- name: "120f Single token T"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["T src/a.go"]
+  want: {error: "instead of a TAB"}
+
+- name: "120g Single token C"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["C src/a.go"]
+  want: {error: "instead of a TAB"}
+
+- name: "120h Single token X"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["X src/a.go"]
+  want: {error: "instead of a TAB"}
+
+- name: "120i Single token R with no score"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["R src/a.go"]
+  want: {error: "instead of a TAB"}
+
+- name: "120j Ignored files (!!)"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["!! src/a.go"]
+  want: {error: "instead of a TAB"}
+
+- name: "120k Unmerged pair UU says to resolve the merge"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["UU src/a.go"]
+  want: {error: "resolve the merge first"}
+
+- name: "120l Unmerged pair DU"
+  mode: mixed
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["DU src/a.go"]
+  want: {error: "resolve the merge first"}
+
+- name: "120m The error names the workaround"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["AM src/a.go"]
+  want: {error: "M<TAB>path"}
+
+- name: "120n A name that merely starts with a status-letter pair and no space is fine"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["src/AM.go"]
+  want: {results: [], headline: PASS}
+
+- name: "121 A deleted path with a space at its edge does not abort the run"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["D\told /x.txt"]
+  want: {results: [], headline: PASS}
+
+- name: "121b A rename source with a space at its edge does not abort the run"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["R100\told /x.txt\tsrc/b.go"]
+  want: {results: ["SKIPPED r b"], headline: PASS}
+
+- name: "121c A rename destination with a space at its edge still does"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["R100\tsrc/a.go\tnew /x.txt"]
+  want: {error: "leading or trailing whitespace"}
+
+- name: "121d A deleted path in git quoted form is still rejected for --files-from"
+  mode: files-from
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["D\t\"x.go\""]
+  want: {error: "quoted form"}
+
+- name: "121e In git mode a leading quote is a real name"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "{n}.md"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["M\t\"x\".md"]
+  want: {results: ["SKIPPED r \"x\""], headline: PASS}
+
+- name: "122 A glob whose first segment looks like a drive is rejected: c:{n}.go"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "c:{n}.go"
+        related: "docs/x.md"
+        expect: touched
+  disk: []
+  changes: ["M\tsrc/a.go"]
+  want: {error: "letter and a colon"}
+
+- name: "122b c:/{n}"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "c:/{n}"
+        related: "docs/x.md"
+        expect: touched
+  disk: []
+  changes: ["M\tsrc/a.go"]
+  want: {error: "letter and a colon"}
+
+- name: "122c c:*"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "c:*"
+        related: "docs/x.md"
+        expect: touched
+  disk: []
+  changes: ["M\tsrc/a.go"]
+  want: {error: "letter and a colon"}

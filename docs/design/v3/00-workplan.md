@@ -11,15 +11,15 @@ the current design and nothing else.
 | Area | State | Document |
 | --- | --- | --- |
 | Measured v2 baseline | 16 observations; 14 have a script, OS2 is derived from OS1 and OS10 is a source search | [`01`](01-observed-semantics.md) |
-| Semantics | Revised after review 8 (status-like lines, rename score) | [`02`](02-semantics.md) |
+| Semantics | Revised after review 9 (two-letter status codes, removed paths exempt from the clean-path check) | [`02`](02-semantics.md) |
 | Instances and reports | Revised after review 4 | [`03`](03-instances-and-reports.md) |
-| Grammar and matching | Rewritten after review 5, tightened after reviews 6 to 8 (total binding by rejection, code points, validation by enumeration, one blank-character predicate defined once); **the review-8 fixes are not yet independently reviewed** | [`04`](04-grammar.md) |
+| Grammar and matching | Rewritten after review 5, tightened after reviews 6 to 9 (total binding by rejection, code points, validation by enumeration, one blank-character predicate defined once); **frozen after review 9 and its P2/P3 fixes (D76 to D80); no tenth review is scheduled** | [`04`](04-grammar.md) |
 | Cutover inventory | Measured and extended | [`06`](06-cutover.md) |
 | Conformance suite | Specified, with a matcher layer; 84 semantic cells | [`07`](07-conformance.md) |
-| Scenario simulator | 150 scenarios, each asserting its outcome; matcher is an enumerating reference over code points; a random-glob run (`-ties`) checks binding is total; mutation-tested | [`experiments/sim/`](experiments/sim/) |
+| Scenario simulator | 172 scenarios, each asserting its outcome; matcher is an enumerating reference over code points; a random-glob run (`-ties`) checks binding is total; mutation-tested | [`experiments/sim/`](experiments/sim/) |
 | v1/v2 compatibility matrix | Historical evidence only | [`05`](05-compatibility-matrix.md) |
 
-Eight independent reviews have run (recorded in
+Nine independent reviews have run (recorded in
 [`../../reviews/`](../../reviews/)). Review 4 judged the revised shape ready to
 advance once five P1 findings were closed, and closing them added the matching
 section. Review 5 attacked that section and found it was not implementable from
@@ -30,8 +30,9 @@ found the dialect implementable and no P0, but two P1s (binding not total with
 P2s, closed below (D59 to D65). Review 7 found one P1 (a plain-path row
 contradicting its own derivation) and four P2s, closed as D66 to D70. Review 8
 found no P0 or P1, two P2s (a status line with spaces read as a path; zero-width
-characters not treated as blank) and a set of P3s, closed as D71 to D75. The next
-gate is a ninth, and last, review.
+characters not treated as blank) and a set of P3s, closed as D71 to D75. Review 9 found no P0 or P1, one P2 (two-letter git status
+codes still read as paths) and P3s, closed as D76 to D80. The matching section is
+frozen; a tenth review runs only if the maintainer asks.
 
 ## Two changes of direction
 
@@ -105,7 +106,7 @@ the rule aloud. The four presets went from 39/27/22/22 non-blank lines in v2 to
 | D63 | More dialect rejections: an alternative that can spell `.` or `..`, whitespace-padded globs and segments, `/` inside `{}` (named, not "unclosed"). In `related`, `{dir}` and `{**x}` fill whole segments and a template of only those is rejected. Resolved paths may not contain `\` or start with a drive prefix. Refines D51 and D54 | Review 6 P2-5, P2-6, P2-8 |
 | D64 | **Input cleaning is a stated compatibility break.** v3 rejects, with exit 2, input paths with whitespace, `\`, `./`, a drive prefix, invalid UTF-8 or git quoting, for `--files` and `--files-from` alike; CRLF and blank lines are tolerated; `C`, `U` and `X` statuses are errors. The `ls-files` recipe gains `--fail-on-empty` and says it samples tracked, on-disk sources. Refines D57 | Review 6 P2-2, P2-9 |
 | D65 | A file name that makes a capture `.` or `..` (`.x.go` under `{n}x.go`) keeps rule 11 **run-level**, stated as a limit. OS-dependent behavior (case-insensitive filesystems, NFD, Windows trailing dots) is listed as undefended. `exclude` identical to a `match` glob stays rejected, reworded as pointless | Maintainer chose run-level on 2026-11-15; Review 6 P2-7, P2-8, P3 |
-| D66 | **Binding has no tie-break; ties are removed by rejection.** A capture, `{name}` or `{**name}`, may not have `**` or `{**name}` on both sides in one glob. Supersedes the earliest-start rule of D59. `-ties` in the simulator generates random globs and finds no two longest parses that bind different values in two million accepted globs, and finds thousands with the rejection removed | Review 7 P2-4: `src/**/{feature}/**` bound on directory-name length, so renaming an unrelated directory moved a file between instances. The earliest-start comparison never decided any accepted glob once the rejection existed, so it was dropped rather than kept untested. D59 was wrong that this was a realistic glob |
+| D66 | **Binding has no tie-break; ties are removed by rejection.** A capture, `{name}` or `{**name}`, may not have `**` or `{**name}` on both sides in one glob. Supersedes the earliest-start rule of D59. `-ties` in the simulator generates random globs and finds no two longest parses that bind different values in about one million accepted of two million globs tried, and finds thousands with the rejection removed | Review 7 P2-4: `src/**/{feature}/**` bound on directory-name length, so renaming an unrelated directory moved a file between instances. The earliest-start comparison never decided any accepted glob once the rejection existed, so it was dropped rather than kept untested. D59 was wrong that this was a realistic glob |
 | D67 | Plain-path differences follow from **three facts**: the list is the whole change set, all `modified`; nothing is `removed`; a listed source not on disk is dropped (a decision, stated as one, limited to sources). The "derivation wins" sentence is deleted. Refines D60 | Review 7 P1-1: row 4 contradicted the derivation, and the simulator followed the row |
 | D68 | Rule 7 also rejects a rule that **can never fail** (`skipIf: exists` with `missing`), so layer 1 is **84 cells**, not 90 (108 less 24). `02` stops recommending that combination. The five pairs are git-mode; plain-mode vacuity is stated, not rejected. Supersedes the count in D62 | Review 7 P2-2: an always-pass rule is the same defect class as an informational rule with an error severity |
 | D69 | One **blank-character predicate** (white space, BOM, control) for globs, `related`, and input paths: controls and BOM anywhere, no blank at a segment edge, none inside `{}` (`{ts, html}`), and rule 11 applies the same clean-path check to resolved paths. A first segment of a letter and a colon is rejected in `related` at load. `{**,a}` gets its own message. Refines D63 and D64 | Review 7 P2-1, P2-3 and P3s |
@@ -115,6 +116,11 @@ the rule aloud. The four presets went from 39/27/22/22 non-blank lines in v2 to
 | D73 | A rename score is 0 to 100, as git prints it; `C`, `X` and every other status are errors for the stated reason that Kyn expects nothing else. Refines D70 | Review 8 P3-10 and P3-7: `R1000` was accepted, and the `T`/type-change wording was wrong |
 | D74 | **Disclosed, not narrowed:** the clean-path check is fatal for every changed path, matched or not, so a tracked name legal on Linux and macOS (`Q: and A.md`, `old /x.txt`, `a\b.txt`) fails every run that touches it. Stated in `02` §6 and `06`; no file in this repository is affected (measured). Maintainer chose disclosure on 2026-11-15 | Review 8 P3-9. Narrowing the check to resolved paths would weaken the guarantee for a rare case |
 | D75 | **The capture-between-`**` rule is kept as is**, reworded: it is a little wider than the ties it prevents, and `src/{**pkg}/{name}/**` and `src/**/{name}/{**rest}` are rejected for name-length stability, not because they tie. Rule 7's vacuity sentences list both plain-mode cases (`skipIf: missing` with `expect: missing` never passes, with `expect: exists` never fails); fact 3 states that no resolve-time check runs for a dropped source; the `-ties` count is stated as two million tried, about one million accepted. Maintainer chose to keep the rule on 2026-11-15 | Review 8 P3-1 to P3-5, P3-8. Relaxing it was supported by a random run, not a proof, and would have needed another review |
+| D76 | The status-like line rejection covers every shape `git status --short` and name-status can print: one letter from `A M D T U C X R`, any two from `M T A D R C U` (`AM`, `MM`, `RM`, unmerged pairs), `R` or `C` with digits, `??`, `!!`. Unmerged forms get "resolve the merge first"; the error names `M<TAB>path`; `--files` entries get the same check, with `--files-from` as the way out. Refines D71 | Review 9 P2-1: `AM src/a.go` (a new file edited after `git add`) was read as a file name and silently evaluated nothing |
+| D77 | **`D` paths and rename sources are exempt from the clean-path predicate**: they are state keys, never matched or resolved, so the change that renames a bad name away can pass. The leading-`"` rule applies to `--files-from` and `--files` only, for every path in them; git mode reads with quoting disabled, so a leading `"` is a real name. Narrows D74. Maintainer chose exempt on 2026-11-15 | Review 9 P2-2 (the fix-PR for a bad name was blocked by the abort) and P3: the quote message was wrong for git mode |
+| D78 | A glob whose first segment begins with an ASCII letter and a colon is rejected at load (`c:{n}.go`, `c:/{n}`, `c:*`), since no clean path matches it. A leading `"` in a glob stays legal, because a git-mode name can start with one | Review 9 P3 |
+| D79 | Disclosed: only `White_Space`, Cc and Cf are detected, against **Unicode 15.0** (Go 1.22), and look-alikes (U+2800, U+3164, U+115F, U+034F, lone U+FE0F) are accepted; real names with a Cf at a segment edge (tag-sequence flags, a trailing RLM, a joiner) are rejected as a consequence, and the Cf rule is kept; a capture can bind an edge-blank or Cf-edge value and stop the run under rule 11; `06` lists status-like and leading-`"` names; the `ls-files` recipe fails where a tracked name looks like a status token. Refines D72 and D74 | Review 9 P3 |
+| D80 | Text fixes: "fifth to ninth reviews", "two million accepted globs" (D66), "begins with a letter and a colon" now says ASCII letter, `related` bullets point at the clean-path definition instead of restating it, scenario 117c moved into order, one scenario per status token | Review 9 P3 |
 
 D29's `why` and `changeType`, and D36, were confirmed by the maintainer on
 2026-11-13.
@@ -349,12 +355,32 @@ run with a compile check and a panic check; one survivor (the rename-score cap,
 which `R1000` alone could not reach because the pattern already rejects four
 digits) needed scenario 117c.
 
+### Independent review 9 (2026-11-15)
+
+A fresh-context review at `8b882e8`, scope frozen in
+[`../../reviews/v3-config-review-9-bootstrap.md`](../../reviews/v3-config-review-9-bootstrap.md),
+recorded verbatim in
+[`../../reviews/v3-config-independent-review-9.md`](../../reviews/v3-config-independent-review-9.md).
+Verdict: freezable after one P2 and P3 edits. No P0, no P1. Its own clean-path
+predicate agreed with the simulator on every code point in six contexts and on
+3 million random strings; binding showed no ties in about 17 million pairs; its
+rule 7 check agreed.
+
+| Sev | Finding | Disposition |
+| --- | --- | --- |
+| P2 | Two-letter git status codes (`AM`, `MM`, `UU`, `C100`) are read as paths | D76 |
+| P2 | The clean-path check covers `D` paths and rename sources, so the PR that fixes a bad name cannot pass | D77, exempt |
+| P3 | Quote rule wrong for git mode; message lacks the workaround; `ls-files` recipe fails on status-like names | D76, D77, D79 |
+| P3 | Glob drive prefix not rejected | D78 |
+| P3 | Detection limits, Unicode version, Cf-edge names, capture-boundary aborts, `06` list | D79 |
+| P3 | Stale text; 117c out of order; token coverage | D80; 22 scenarios added (120 to 122c), 172 in all |
+
 ## Open items
 
-1. **A ninth, and last, independent review.** Review 8's fixes added a status-like
-   line rejection, Cf as blank, a rename-score cap, and a single definition of the
-   clean path (D71 to D75). It should confirm those and report whether the matching
-   section can be frozen. If it returns only P3s, freeze.
+1. **Matching section frozen after review 9.** Its fixes (D76 to D80) were applied
+   without a tenth review, as the maintainer asked for one last round. The
+   simulator's scenario for each new decision passes, but the new decisions were
+   not mutation-tested and no independent reader has seen them.
 2. **Two shipped defects, per the rule that a bad bug is fixed in place:** OS7
    (non-deterministic errors) and OS16 (non-ASCII filenames never match).
    Neither depends on v3, and both are in code v3 reuses. Decide whether they

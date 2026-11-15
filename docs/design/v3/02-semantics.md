@@ -162,13 +162,17 @@ path) is an error because a conflicted change set is not one to enforce, and the
 message says to resolve the merge first.
 
 A line with no TAB that **starts with a status token and a space** (`D src/a.go`,
-`M  src/b.go`, `?? src/c.go`, `R100 a b`) is rejected too, naming the line: it is
-a name-status line whose TAB became spaces, or `git status` output, and reading it
-as a file called `D src/a.go` would silently evaluate nothing. The tokens are
-`A M D T U C X`, `R` with digits, `??` and `!!`. A tracked file whose name really
-begins that way is fed through the status form (`M<TAB>M foo.go`). Both halves of a rename matter: the
-destination joins the change set, the source is what makes a related path
-`removed`.
+`M  src/b.go`, `?? src/c.go`, `AM src/d.go`, `R100 a b`) is rejected too, naming
+the line: it is a name-status line whose TAB became spaces, or `git status`
+output, and reading it as a file called `D src/a.go` would silently evaluate
+nothing. The tokens are one letter from `A M D T U C X R`; any two letters from
+`M T A D R C U` (`AM`, `MM`, `RM`, and the unmerged pairs `UU AA DD AU UA DU UD`);
+`R` or `C` with digits; `??` and `!!`. The unmerged ones get the "resolve the
+merge first" message. The error names the way out: a tracked file whose name
+really begins that way is fed through the status form (`M<TAB>M foo.go`). `--files`
+has no status form, so each of its comma-separated entries gets the same check and
+the way out is `--files-from`. Both halves of a rename matter: the destination
+joins the change set, the source is what makes a related path `removed`.
 
 ```text
 M	src/a.go
@@ -178,11 +182,15 @@ src/plain-path.go
 ```
 
 Plain single-path lines mean `modified`. Empty and whitespace-only lines are
-ignored, and a trailing CR is removed, so CRLF input works. Every path, in every
-input mode including `--files`, must be a **clean path** or the run fails naming
-it: the one predicate defined in [`04-grammar.md`](04-grammar.md) under Matching,
-which rule 11 also applies to resolved paths, plus, for input only, not in git's
-quoted form. This is fatal for every changed path, matched or not, so a
+ignored, and a trailing CR is removed, so CRLF input works. Every path that is added,
+modified, or a rename destination, in every input mode including `--files`, must
+be a **clean path** or the run fails naming it: the one predicate defined in
+[`04-grammar.md`](04-grammar.md) under Matching, which rule 11 also applies to
+resolved paths. A path that is only **removed** (a `D` path, a rename source)
+is a state key and is never matched, so it is exempt: the change that fixes a bad
+file name must be able to pass. For `--files-from` and `--files` (not git mode, which
+reads paths with quoting disabled) every path, removed ones included, also may not
+be in git's quoted form. This is fatal for every changed path, matched or not, so a
 repository that tracks a name like `Q: and A.md`, `old /x.txt` or `a\b.txt`
 (legal on Linux and macOS) fails every run whose change touches it
 ([`06-cutover.md`](06-cutover.md)). Nothing is
@@ -192,6 +200,11 @@ several lines only if the lines are identical; otherwise (`D x` and `A x`, or a
 rename destination that is also listed alone) the run fails naming the path,
 because no order of precedence is right. Git never emits such a diff. The
 statuses are exactly the five above; every other status is an error.
+
+The `git ls-files` recipe ([`04-grammar.md`](04-grammar.md)) feeds plain paths,
+so in a repository that tracks a name starting with a status token and a space
+(`M Notes.md`) it fails with the status-like error; use `--files-from` with the
+status form there.
 
 Paths that git would quote (non-ASCII or special characters) are not supported in
 `--files-from`. Feed it `git -c core.quotePath=false ...`, which still quotes a

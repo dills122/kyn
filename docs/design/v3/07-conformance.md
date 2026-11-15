@@ -139,7 +139,7 @@ Also covered here: `--files-from` line parsing (a tab means name-status; an
 unknown status, including `C`, is an error naming the line; identical repeated
 lines are harmless; conflicting lines for one path are errors; so are a `..`
 segment, a backslash, a drive prefix, surrounding whitespace, invalid UTF-8 and a
-quoted path; blank lines and CRLF are tolerated; a name with a space; a TAB-less line starting with a status token and a space is rejected; a rename score above 100 is rejected; a zero-width character at a segment edge is rejected and one in the middle is legal) and a
+quoted path; blank lines and CRLF are tolerated; a name with a space; a TAB-less line starting with a status token and a space is rejected, for every token including the two-letter ones and the unmerged pairs; a deleted path or rename source with an edge blank is accepted and a destination with one is not; a leading `"` is rejected for `--files-from` and `--files` and accepted in git mode; a rename score above 100 is rejected; a zero-width character at a segment edge is rejected and one in the middle is legal) and a
 non-ASCII filename, which must match its rule (OS16).
 
 Resolve-time rules 9 to 11 get a case each where `changeType` or `skipIf` would
@@ -151,7 +151,7 @@ same source in git mode creates one.
 ## Corpus
 
 - the four rewritten presets and the documented recipes
-- the 150 scenarios in
+- the 172 scenarios in
   [`experiments/sim/scenarios.yaml`](experiments/sim/scenarios.yaml), promoted
   to real projects; each already states its expected outcome, but the simulator
   and the scenarios share an author, so they are a draft, not an oracle

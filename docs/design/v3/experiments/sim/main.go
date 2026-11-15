@@ -74,7 +74,7 @@ type Scenario struct {
 	Config  string   `yaml:"config"`
 	Disk    []string `yaml:"disk"`    // files present after the change
 	Changes []string `yaml:"changes"` // git name-status lines, or bare paths when mode is plain
-	Mode    string   `yaml:"mode"`    // "" (git) or "plain"
+	Mode    string   `yaml:"mode"`    // "" (git), "files-from" (name-status lines fed to --files-from), "plain" or "mixed"
 	FailOn  string   `yaml:"failOn"`  // "" (error) or "warn"
 	Want    Want     `yaml:"want"`
 }
@@ -167,6 +167,9 @@ func compileGlob(g string, allowCaptures bool) (*glob, error) {
 	}
 	if strings.HasPrefix(g, "/") {
 		return bad("must be relative to the repository root")
+	}
+	if driveRe.MatchString(strings.SplitN(g, "/", 2)[0]) {
+		return bad("its first segment begins with a letter and a colon; no clean path matches it")
 	}
 	if strings.ContainsAny(g, "[]") {
 		return bad("character classes ([ ]) are not supported")
@@ -669,8 +672,8 @@ func badPath(p string) string {
 var driveRe = regexp.MustCompile(`^[A-Za-z]:`)
 
 // badInputPath adds git's quoted form to badPath for paths read from input.
-func badInputPath(p string) string {
-	if strings.HasPrefix(p, `"`) {
+func badInputPath(p string, quoteCheck bool) string {
+	if quoteCheck && strings.HasPrefix(p, `"`) {
 		return "it is in git's quoted form; feed git -c core.quotePath=false"
 	}
 	return badPath(p)
@@ -763,8 +766,16 @@ func evaluate(sc Scenario) Outcome {
 	touched := map[string]string{} // path -> added|modified|renamed
 	vanished := map[string]bool{}
 	subject := map[string]string{} // path -> the line that named it
-	note := func(p, l string) error {
-		if why := badInputPath(p); why != "" {
+	quoteCheck := sc.Mode != ""    // git mode reads paths with quoting disabled, so a leading " is a real name
+	// note records a path named by a line. A path that is only ever removed (a D
+	// path or a rename source) is a state key, never matched or resolved, so it
+	// skips the clean-path predicate; the quoted-form check still applies.
+	note := func(p, l string, removed bool) error {
+		if removed {
+			if quoteCheck && strings.HasPrefix(p, `"`) {
+				return fmt.Errorf("invalid input path %q: it is in git's quoted form; feed git -c core.quotePath=false", p)
+			}
+		} else if why := badInputPath(p, quoteCheck); why != "" {
 			return fmt.Errorf("invalid input path %q: %s", p, why)
 		}
 		if prev, ok := subject[p]; ok && prev != l {
@@ -777,7 +788,10 @@ func evaluate(sc Scenario) Outcome {
 	statusRe := regexp.MustCompile(`^([AMDT]|R[0-9]{1,3})$`)
 	// A TAB-less line that starts with a status token and a space is almost
 	// certainly a name-status line whose TAB became spaces, or git status output.
-	statusLike := regexp.MustCompile(`^([AMDTUCX]|R[0-9]+|\?\?|!!) `)
+	// Tokens: one letter, two letters from git's XY alphabet, ?? and !!, and R or
+	// C with a score.
+	statusLike := regexp.MustCompile(`^([AMDTUCXR]|[MTADRCU]{2}|[RC][0-9]+|\?\?|!!) `)
+	unmerged := regexp.MustCompile(`^(U|UU|AA|DD|AU|UA|DU|UD) `)
 	for _, l := range sc.Changes {
 		l = strings.TrimSuffix(l, "\r") // CRLF input
 		if strings.TrimSpace(l) == "" {
@@ -786,10 +800,13 @@ func evaluate(sc Scenario) Outcome {
 		// Each line is read on its own: a TAB makes it a name-status line, no TAB a
 		// plain path. mode "plain" and "mixed" treat a TAB-less line as a path.
 		if !strings.Contains(l, "\t") && (sc.Mode == "plain" || sc.Mode == "mixed") {
-			if statusLike.MatchString(l) {
-				return cfgErr("line %q looks like a status line with spaces instead of a TAB; a plain path may not start with a status token and a space", l)
+			if unmerged.MatchString(l) {
+				return cfgErr("line %q looks like an unmerged path with spaces instead of a TAB: resolve the merge first", l)
 			}
-			if err := note(l, l); err != nil {
+			if statusLike.MatchString(l) {
+				return cfgErr("line %q looks like a status line with spaces instead of a TAB; a plain path may not start with a status token and a space; to list a file named that way use M<TAB>path with --files-from", l)
+			}
+			if err := note(l, l, false); err != nil {
 				return cfgErr("%v", err)
 			}
 			touched[l] = "modified"
@@ -824,8 +841,9 @@ func evaluate(sc Scenario) Outcome {
 		if len(f) != want {
 			return cfgErr("line %q has %d fields, want %d for status %s", l, len(f), want, f[0])
 		}
-		for _, q := range f[1:] {
-			if err := note(q, l); err != nil {
+		for i, q := range f[1:] {
+			removed := f[0][0] == 'D' || (f[0][0] == 'R' && i == 0)
+			if err := note(q, l, removed); err != nil {
 				return cfgErr("%v", err)
 			}
 		}
