@@ -5,8 +5,8 @@ Status: proposed. Current state only; history is in
 
 ## 1. What an instance is
 
-A rule is evaluated once per **instance**: one related path, together with
-every changed source file that resolves to it.
+A rule is evaluated once per **instance**: the group of changed source files
+that agree on every variable the rule's `related` template uses.
 
 > A rule's instance key is the values of **exactly the variables its `related`
 > template uses**.
@@ -25,51 +25,66 @@ template that ignores the file name demands the same path once per source file
 failures). Deriving the key from the template makes that one failure listing
 three sources.
 
-Two consequences:
+Consequences:
 
-- Source files that agree on every variable `related` uses always resolve to
-  the same path. The "template resolves differently within one instance" error
+- Source files that agree on every variable `related` uses resolve to the same
+  path. The "template resolves differently within one instance" error
   (`internal/family/resolver.go:117`) cannot occur, and neither can the
   contradiction in the shipped `api` preset (OS11).
-- Instances belong to a rule. There is no shared grouping across rules; two
-  rules with the same `match` each produce their own, identically named,
-  instances. Result counts are the same as v2's rules × instances (OS9).
+- Instances belong to a rule. Two rules with the same `match` each produce
+  their own, identically named, instances. Result counts are the same as v2's
+  rules × instances (OS9).
+- The converse is not guaranteed. Two instances can demand the same path when
+  `related` joins variables with text that can also occur inside their values
+  (`docs/{a}-{b}.md`). That is reported as two failures, not hidden; see the
+  limits in [`04-grammar.md`](04-grammar.md).
+
+`related` may not contain `..`, so a template cannot reach the same file from
+different directories by walking back up.
 
 ## 2. Instance names
 
 `instanceName` is the key rendered for people: the variable values joined with
-`/`, in the order the variables first appear in `related`.
+`/`, in the order the variables first appear in `related`, with empty values
+left out. If nothing is left, the name is `.`. A rule that uses no variables has
+a single instance named `(all)`.
 
 | Case | Name |
 | --- | --- |
 | `{dir}/{name}.stories.ts`, `src/ui/button.component.ts` | `src/ui/button` |
 | `{dir}/README.md`, `terraform/vpc/main.tf` | `terraform/vpc` |
+| `{dir}/package-lock.json`, `package.json` at the root | `.` |
+| `{dir}/{name}.test.tsx`, `page.tsx` at the root | `page` |
+| `tests/{pkg}/test_{name}.py`, `src/app.py` | `app` |
 | `src/test/java/{pkg}/{name}Test.java` | `com/acme/billing/Invoice` |
 | no variables | `(all)` |
-| `{dir}` resolving to the repository root | `(root)` in place of the empty directory |
 
-The name is unique within a rule. Single-segment captures cannot contain `/`,
-and validation allows at most one variable that can (`{dir}` or a `{**name}`
-capture) in a `related` template, so the number of components is fixed and the
-join can be split back unambiguously. Without that rule two multi-segment
-values could render the same string (`p/q` + `r` and `p` + `q/r`).
+The name is unique within a rule. At most one variable in a template can contain
+`/` (`{dir}` or a `{**name}` capture; validation enforces this), so every other
+value is a single segment. The number of single-segment values is fixed by the
+template, which makes the join unambiguous: whatever remains after taking them
+is the one variable that can span segments, and an empty value contributes no
+component. `.` can only be produced when every value is empty, and a real
+directory is never named `.`. An earlier draft rendered the root as `(root)`,
+which collides with a real directory of that name (`(root)` is a common
+Next.js route group); scenario 21 pins the fix.
 
-Internally the key is the rule ID and the NUL-joined values; it is never
-reported.
+Without the one-variable rule, two multi-segment values could render the same
+string (`p/q` + `r` and `p` + `q/r`).
 
-Names are derived from source-side variables only, never from the resolved
-related path.
+Internally the key is the NUL-joined values; it is never reported. Names are
+derived from source-side variables only, never from the resolved related path.
 
 ## 3. Ordering
 
-Results sort by `ruleId`, then `instanceName`, byte-wise. Source files within
-an instance are sorted. Rule IDs are processed in sorted order, so the first
-error reported is also stable (OS7 is the record of what happens otherwise).
+Results sort by `ruleId`, then `instanceName`, byte-wise. Source files within an
+instance are sorted. Rule IDs are processed in sorted order, so the first error
+reported is also stable (OS7 is the record of what happens otherwise).
 
 ## 4. Report fields
 
-v3 removes the family vocabulary. There are no consumers to break, so fields
-are named for what they are.
+v3 removes the family vocabulary. There are no consumers to break, so fields are
+named for what they are.
 
 | Output | v2 | v3 |
 | --- | --- | --- |
@@ -78,7 +93,8 @@ are named for what they are.
 | `sarif` | `properties.familyId`, `familyName` on results; `familyId` on rules | `properties.instanceName` on results; nothing on rules |
 | `rdjson`, `checkstyle` | message suffix `(family instance: src/a)` | `(instance: src/a)` |
 | `--dry-run-resolve` | instances with a `kin` map | per rule: instances, each with `sources` and `related` |
-| RDJSON/Checkstyle location | first changed file, falling back to the family name as a path | first changed file; no fallback to the instance name, which is not a path |
+| RDJSON/Checkstyle location | first changed file, falling back to the family name as a path | first changed file; no fallback, since an instance name is not a path |
+| `--fail-on-empty` | "no family instances match" | fails when no rule produced any instance, skipped or not |
 
 `explain` traces name the fields the author wrote. Text sections are `SkipIf:`
 and `Expect:`; the JSON keys are `skipIf` and `expect`; clause strings are
@@ -98,10 +114,14 @@ applies is indistinguishable from a rule that passed.
 In v3:
 
 - `check` counts skips in text (`Skipped: N`) and JSON (`skipped`), always.
-- JSON `results` include skipped entries with `status: "skipped"`.
+- JSON `results` include skipped entries with `status: "skipped"` and a short
+  `reason`.
 - Text lists skipped results with `--show-passes`, alongside passes.
 - Machine formats that carry only failures (SARIF, RDJSON, Checkstyle) are
   unchanged.
+
+This covers instances excluded by `changeType` as well as by `skipIf`, so a rule
+that is configured but never applies shows up as skips rather than as silence.
 
 ## 6. Headline
 
@@ -126,9 +146,9 @@ type Policy struct {
 
 type Rule struct {
     ID         string
-    Match      []Glob   // compiled; each carries its capture names
+    Match      []Glob      // compiled; each carries its capture names
     Exclude    []Glob
-    Related    Template // empty for a related-less informational rule
+    Related    Template    // empty for a related-less informational rule
     Expect     []Assertion // sorted; or the single value none
     SkipIf     Gate        // never | missing | exists
     ChangeType []changes.Status

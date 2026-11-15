@@ -15,10 +15,11 @@ Measured by searching the repository, not listed from memory.
 | `internal/config`: v1/v2 structs, aliases, `Validate`, `MigrateV1ToV2` | Replace with the v3 document and the normalized model in [`03-instances-and-reports.md`](03-instances-and-reports.md) §7 |
 | `internal/family` | Replace: captures, template resolution, instance keys |
 | `internal/matcher` | Extend: capture-aware globs (`{name}`, `{**name}`) |
-| `internal/changes` | Retain deleted paths and rename sources; accept `--name-status` lines in `--files-from` |
+| `internal/changes` | Retain deleted paths and rename sources; accept `--name-status` lines in `--files-from`; read git output with quoting disabled (`-c core.quotePath=false`, or `-z`), which also fixes OS16 for v2-era behavior |
 | `internal/rules`, `internal/report` | The three states, `skipIf`, skipped status, headline, renamed fields |
 | `internal/cli/config_migrate.go`, `kyn config migrate` | Delete. A CLI surface removal, justified because both ends of the migration are gone |
-| `internal/cli/init.go` | Four presets rewritten |
+| `internal/cli/init.go` | Four presets rewritten; the `kin` and `families` wording in its help and next-steps text |
+| `internal/cli/check.go`, `explain.go` | Help text and flag descriptions that say "family" and "kin": command summaries, `--fail-on-empty` ("no family instances match"), `--dry-run-resolve` ("Resolve families/kin only") |
 
 ### Fixtures and tests
 
@@ -33,6 +34,7 @@ Measured by searching the repository, not listed from memory.
 | Inline in `internal/cli/output_stream_test.go` | 2 |
 | Inline in `internal/config/load_test.go` | 3 |
 | `e2e/workflows_test.go` v1→v2 migration test | delete |
+| Struct-based tests of the packages being replaced: `internal/config/validate_test.go`, `internal/config/migrate_test.go`, `internal/family/resolver_test.go`, `internal/rules/evaluator_test.go`, `internal/rules/explain_test.go` | rewritten or deleted with their packages |
 
 Every golden changes. One example,
 `e2e/projects/terraform-iac/testdata/module-changed-readme-not-updated-warns-only.golden`,
@@ -50,7 +52,7 @@ decisions here are implemented, not incrementally.
 | --- | --- |
 | `README.md`, `docs/site/config.md`, `docs/site/concepts.md`, `docs/site/troubleshooting.md`, `docs/site/recipes/*.md` | Rewrite for v3 |
 | `docs/site/getting-started.md` | Rewrite for v3 (the v2 walkthrough is PR #49) |
-| `docs/spec.md`, `docs/mvp-v2.md`, `docs/mvp-tasks.md`, `docs/related-file-policy-exploration.md` | Historical; add a superseded banner |
+| `docs/spec.md`, `docs/mvp-v2.md`, `docs/mvp-v2-tasks.md`, `docs/mvp-tasks.md`, `docs/related-file-policy-exploration.md` | Historical; add a superseded banner |
 | `docs/migration-v1-to-v2.md`, `docs/decisions.md` | Already bannered |
 | `docs/site/releases/v0.1.3.md` | Leave; it describes a past release |
 
@@ -58,9 +60,15 @@ decisions here are implemented, not incrementally.
 
 `e2e/e2e_test.go` already walks each project, runs the real binary, and
 compares rendered output and exit codes across output modes. That is the
-harness [`07-conformance.md`](07-conformance.md) needs. It is extended, not
-duplicated: the four projects are rewritten for v3 and new projects are added
-for the conformance matrix.
+harness [`07-conformance.md`](07-conformance.md) needs, and it is extended, not
+duplicated.
+
+It is not enough as it stands. Its projects are static directories driven by
+`--files`, with no git support, and the conformance matrix needs repositories
+with deletions, renames, and a checkout missing a file that exists on the head
+ref. The extension is a small helper that builds those repositories from a
+description, so each cell is data and not a hand-made directory. The four
+existing projects are rewritten for v3 and keep their static form.
 
 ## Presets
 

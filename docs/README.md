@@ -22,8 +22,7 @@ Unapproved. Nothing in this section describes shipped behavior.
 - [design/v3/](design/v3/): v3 configuration design — start with [the grammar](design/v3/04-grammar.md)
 - [design/v3/01-observed-semantics.md](design/v3/01-observed-semantics.md): experimentally measured v2 semantics, including two shipping defects
 - [v3 configuration proposal](reviews/v3-config-proposal.md): the exploratory proposal under review
-- [v3 independent review 1](reviews/v3-config-independent-review-1.md): first independent readiness verdict
-- [v3 review 3 bootstrap](reviews/v3-config-review-3-bootstrap.md): frozen scope for the third independent pass
+- [v3 independent reviews 1 to 4](reviews/): readiness verdicts, recorded verbatim ([1](reviews/v3-config-independent-review-1.md), [2](reviews/v3-config-independent-review-2.md), [3](reviews/v3-config-independent-review-3.md), [4](reviews/v3-config-independent-review-4.md))
 
 ## Historical Design and Planning
 

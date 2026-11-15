@@ -5,8 +5,15 @@
 # missing -- is derivable from the git output Kyn already runs,
 # `git diff --name-status -M <base>...<head>`, with no extra git call.
 #
-# Simulates both gates (`skipIf: missing`, `skipIf: exists`) over five scenarios
-# and compares `skipIf: missing` with the gate Kyn ships today.
+# What is measured and what is not: the related path's state and whether it is in
+# the change set are derived from REAL git output in a real repository. The
+# verdict columns (what each gate would do) are computed by this script from the
+# rules in 02-semantics.md; the kyn binary is never invoked. e4 and e8 are the
+# scripts that measure what the shipped binary does today for the deleted and
+# renamed rows.
+#
+# A removal never causes a skip: `skipIf: missing` skips only when the related
+# path is missing, `skipIf: exists` skips only when it exists.
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh" || { echo "FATAL: cannot source lib.sh next to this script" >&2; exit 1; }
 
 REL="src/a_test.go"
@@ -51,7 +58,7 @@ scenario() { # $1=label $2=setup-commands
   local old skip_missing skip_exists
   [ "$exists_now" = Y ] && old=$verdict || old=skipped
   [ "$state" = missing ] && skip_missing=skipped || skip_missing=$verdict
-  [ "$state" = missing ] && skip_exists=$verdict || skip_exists=skipped
+  [ "$state" = exists ] && skip_exists=skipped || skip_exists=$verdict
 
   printf '%-20s %-8s %-6s %-9s %-15s %s\n' \
     "$1" "$state" "$in_change_set" "$old" "$skip_missing" "$skip_exists"

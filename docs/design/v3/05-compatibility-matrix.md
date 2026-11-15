@@ -48,10 +48,10 @@ probed against the shipped binary; eleven load, nine are rejected.
 ### Row 18 is what makes v3 safe to add
 
 `KnownFields(true)` (`internal/config/load.go:76`) rejects any unrecognized
-top-level key, so a v1/v2 file containing `patterns:` fails today with a parse
-error rather than silently ignoring it. Introducing `patterns` and a mapping
-`rules` in v3 therefore cannot change the meaning of any existing file. There is
-no ambiguous overlap to design around.
+top-level key, so a v1/v2 file with an unfamiliar top-level block fails today
+with a parse error rather than silently ignoring it. A mapping-shaped `rules` in
+v3 therefore cannot change the meaning of any existing file: `version` decides
+which grammar applies and a v3 file is never read as v2.
 
 ### Row 5 and row 9 are the real compatibility surface
 
@@ -92,8 +92,7 @@ build: report a missing `version` as missing.
 - Row 15 — `severity` becomes optional in v3, defaulting to `error`. In v1/v2 it
   stays required; the empty-severity message (`has invalid severity ""`) has the
   same zero-value leak as row 17.
-- Row 16 — `version: 3` becomes valid. Nothing else changes about how 1 and 2
-  are handled.
+- Row 16 — `version: 3` becomes valid. v1 and v2 are removed at the cutover.
 
 ## What still applies to v3
 
@@ -101,13 +100,14 @@ The contractual/incidental column is now historical. Three findings survive the
 scope change:
 
 1. **Row 18 makes v3 safe to add.** `KnownFields(true)` already rejects unknown
-   top-level keys, so no v1/v2 file ever silently ignored a `patterns:` block.
+   top-level keys, so no v1/v2 file ever silently ignored an unfamiliar block.
    There is no ambiguous overlap to design around, whether or not v2 is kept.
 2. **Rows 6 and 10 are design lessons worth repeating.** Both reject an
    *ambiguous* combination — top-level `include` alongside `groups.source`, and
    `if` alongside `when` — with an explanatory message rather than silently
-   picking one. v3 should keep that habit: `use` alongside inline `match` is the
-   direct analogue, and validation rule 1 already covers it.
+   picking one. v3 keeps that habit: `expect: none` with other values, and
+   `touched` with `untouched`, are rejected the same way (validation rules 5
+   to 7).
 3. **Rows 15 and 17 are real error-quality bugs** that carry straight into v3 if
    the code is reused: a missing `version` reports `unsupported config version 0`
    and a missing `severity` reports `has invalid severity ""`. Both leak a Go

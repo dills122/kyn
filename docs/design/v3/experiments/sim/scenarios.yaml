@@ -1,6 +1,17 @@
-# Scenarios for the v3 shape, run by sim/main.go. `disk` is what exists after the
-# change; `changes` are `git diff --name-status` lines.
-- name: "1. Go handler changed, test not updated"
+# Scenarios for the v3 design, run by main.go. Each states its expected outcome
+# and the simulator fails on any mismatch.
+#
+#   disk      files present after the change
+#   changes   `git diff --name-status` lines (bare paths when mode: plain)
+#   want      results in output order as "STATUS rule instance", the headline,
+#             and the flags; or `error`, a substring of the expected config error
+#
+# Expected outcomes were worked out from 02-semantics.md and 04-grammar.md, not
+# copied from simulator output.
+
+# ---- common policies ---------------------------------------------------------
+
+- name: "01 Go handler changed, test not updated"
   config: |
     version: 3
     rules:
@@ -11,8 +22,9 @@
         skipIf: missing
   disk: [internal/order/order_handler.go, internal/order/order_handler_test.go]
   changes: ["M internal/order/order_handler.go"]
+  want: {results: ["FAIL handler-test internal/order/order"], headline: FAIL}
 
-- name: "2. Same rule, handler has no test yet (lenient)"
+- name: "02 Same rule, handler has no test yet: skipped"
   config: |
     version: 3
     rules:
@@ -23,8 +35,9 @@
         skipIf: missing
   disk: [internal/cart/cart_handler.go]
   changes: ["M internal/cart/cart_handler.go"]
+  want: {results: ["SKIPPED handler-test internal/cart/cart"], headline: PASS}
 
-- name: "3. Same rule, test DELETED in the same change"
+- name: "03 Test deleted in the same change: not skipped, fails"
   config: |
     version: 3
     rules:
@@ -35,8 +48,9 @@
         skipIf: missing
   disk: [internal/order/order_handler.go]
   changes: ["M internal/order/order_handler.go", "D internal/order/order_handler_test.go"]
+  want: {results: ["FAIL handler-test internal/order/order"], headline: FAIL}
 
-- name: "4. Angular component: .ts and .html both changed, story + spec"
+- name: "04 Component .ts and .html together: one instance, story passes, spec warns"
   config: |
     version: 3
     rules:
@@ -53,8 +67,11 @@
         severity: warn
   disk: [src/ui/button.component.ts, src/ui/button.component.html, src/ui/button.stories.ts, src/ui/button.spec.ts]
   changes: ["M src/ui/button.component.ts", "M src/ui/button.component.html", "M src/ui/button.stories.ts"]
+  want:
+    results: ["FAIL spec-sync src/ui/button", "PASS story-sync src/ui/button"]
+    headline: NON-BLOCKING
 
-- name: "5. New files must ship with a test (strict, added only)"
+- name: "05 New modules must ship with a test (changeType added); others skipped"
   config: |
     version: 3
     rules:
@@ -64,11 +81,16 @@
         related: "{dir}/{name}.test.ts"
         expect: touched
         changeType: added
-        message: "New modules ship with a test."
   disk: [src/a/parser.ts, src/a/lexer.ts, src/a/lexer.test.ts, src/a/old.ts]
   changes: ["A src/a/parser.ts", "A src/a/lexer.ts", "A src/a/lexer.test.ts", "M src/a/old.ts"]
+  want:
+    results:
+      - "PASS new-code-needs-test src/a/lexer"
+      - "SKIPPED new-code-needs-test src/a/old"
+      - "FAIL new-code-needs-test src/a/parser"
+    headline: FAIL
 
-- name: "6. Proto changed, generated code not regenerated"
+- name: "06 Proto changed, generated code not regenerated"
   config: |
     version: 3
     rules:
@@ -76,11 +98,11 @@
         match: "proto/**/{name}.proto"
         related: "gen/{dir}/{name}.pb.go"
         expect: touched
-        message: "Regenerate the Go output."
   disk: [proto/billing/invoice.proto, gen/proto/billing/invoice.pb.go]
   changes: ["M proto/billing/invoice.proto"]
+  want: {results: ["FAIL proto-gen proto/billing/invoice"], headline: FAIL}
 
-- name: "7. Terraform module: two files changed, one README"
+- name: "07 Terraform: two files in one module, one README: one failure"
   config: |
     version: 3
     rules:
@@ -92,8 +114,24 @@
         severity: warn
   disk: [terraform/vpc/main.tf, terraform/vpc/variables.tf, terraform/vpc/README.md]
   changes: ["M terraform/vpc/main.tf", "M terraform/vpc/variables.tf"]
+  want: {results: ["FAIL module-readme terraform/vpc"], headline: NON-BLOCKING}
 
-- name: "8. Any source change needs a changelog entry"
+- name: "07b Same, with --fail-on warn the warning blocks"
+  failOn: warn
+  config: |
+    version: 3
+    rules:
+      module-readme:
+        match: "terraform/**/*.tf"
+        related: "{dir}/README.md"
+        expect: touched
+        skipIf: missing
+        severity: warn
+  disk: [terraform/vpc/main.tf, terraform/vpc/README.md]
+  changes: ["M terraform/vpc/main.tf"]
+  want: {results: ["FAIL module-readme terraform/vpc"], headline: FAIL}
+
+- name: "08 Any source change needs a changelog entry: one failure for three files"
   config: |
     version: 3
     rules:
@@ -103,8 +141,9 @@
         expect: touched
   disk: [src/a.go, src/b/c.go, src/b/d.go, CHANGELOG.md]
   changes: ["M src/a.go", "M src/b/c.go", "A src/b/d.go"]
+  want: {results: ["FAIL changelog (all)"], headline: FAIL}
 
-- name: "9. Lockfile must move with its manifest (monorepo)"
+- name: "09 Monorepo lockfiles: root is instance '.', others by directory"
   config: |
     version: 3
     rules:
@@ -115,8 +154,9 @@
         skipIf: missing
   disk: [package.json, package-lock.json, apps/web/package.json, apps/web/package-lock.json]
   changes: ["M package.json", "M package-lock.json", "M apps/web/package.json"]
+  want: {results: ["PASS lockfile .", "FAIL lockfile apps/web"], headline: FAIL}
 
-- name: "10. Translations: English changed, French must follow"
+- name: "10 Translations: French must follow English"
   config: |
     version: 3
     rules:
@@ -126,8 +166,11 @@
         expect: touched
   disk: [locales/en/checkout.json, locales/en/home.json, locales/fr/home.json]
   changes: ["M locales/en/checkout.json", "M locales/en/home.json", "M locales/fr/home.json"]
+  want: {results: ["FAIL fr-in-sync checkout", "PASS fr-in-sync home"], headline: FAIL}
 
-- name: "11. Flag only, no related path: payments code touched -> request review"
+# ---- informational rules -----------------------------------------------------
+
+- name: "11 Flag only, no related path"
   config: |
     version: 3
     rules:
@@ -138,8 +181,9 @@
         message: "Payments code changed."
   disk: [internal/payments/charge.go]
   changes: ["M internal/payments/charge.go"]
+  want: {results: ["INFO payments-review (all)"], headline: PASS, flags: [paymentsReviewRequired]}
 
-- name: "12. Flag only when a component has NO story yet"
+- name: "12 Flag only when a component has no story yet"
   config: |
     version: 3
     rules:
@@ -149,23 +193,68 @@
         expect: none
         skipIf: exists
         flags: [needsStory]
-        message: "Component has no story."
   disk: [src/ui/button.component.ts, src/ui/button.stories.ts, src/ui/card.component.ts]
   changes: ["M src/ui/button.component.ts", "M src/ui/card.component.ts"]
+  want:
+    results: ["SKIPPED needs-story src/ui/button", "INFO needs-story src/ui/card"]
+    headline: PASS
+    flags: [needsStory]
 
-- name: "13. Schema changed: the initial migration must stay untouched"
+- name: "12b Same rule, story deleted in this change: a removal never causes a skip"
   config: |
     version: 3
     rules:
-      snapshot-frozen:
+      needs-story:
+        match: "src/**/{name}.component.ts"
+        related: "{dir}/{name}.stories.ts"
+        expect: none
+        skipIf: exists
+        flags: [needsStory]
+  disk: [src/ui/card.component.ts]
+  changes: ["M src/ui/card.component.ts", "D src/ui/card.stories.ts"]
+  want: {results: ["INFO needs-story src/ui/card"], headline: PASS, flags: [needsStory]}
+
+# ---- untouched ---------------------------------------------------------------
+
+- name: "13 Schema change must not rewrite the initial migration"
+  config: |
+    version: 3
+    rules:
+      migration-frozen:
         match: "db/schema.sql"
         related: "db/migrations/0001_init.sql"
         expect: untouched
-        message: "Do not rewrite the initial migration; add a new one."
   disk: [db/schema.sql, db/migrations/0001_init.sql]
   changes: ["M db/schema.sql", "M db/migrations/0001_init.sql"]
+  want: {results: ["FAIL migration-frozen (all)"], headline: FAIL}
 
-- name: "14. GOTCHA: broad match that also matches its own related file"
+- name: "13b Deleting the frozen migration also fails: untouched means unaffected"
+  config: |
+    version: 3
+    rules:
+      migration-frozen:
+        match: "db/schema.sql"
+        related: "db/migrations/0001_init.sql"
+        expect: untouched
+  disk: [db/schema.sql]
+  changes: ["M db/schema.sql", "D db/migrations/0001_init.sql"]
+  want: {results: ["FAIL migration-frozen (all)"], headline: FAIL}
+
+- name: "13c Frozen file left alone: passes"
+  config: |
+    version: 3
+    rules:
+      migration-frozen:
+        match: "db/schema.sql"
+        related: "db/migrations/0001_init.sql"
+        expect: untouched
+  disk: [db/schema.sql, db/migrations/0001_init.sql]
+  changes: ["M db/schema.sql"]
+  want: {results: ["PASS migration-frozen (all)"], headline: PASS}
+
+# ---- self-match and typos ----------------------------------------------------
+
+- name: "14 Broad match that also matches its own related file"
   config: |
     version: 3
     rules:
@@ -176,8 +265,9 @@
         skipIf: missing
   disk: [src/a.go, src/a_test.go]
   changes: ["M src/a.go", "M src/a_test.go"]
+  want: {error: "also matches this rule's own match"}
 
-- name: "15. GOTCHA fixed with exclude"
+- name: "15 Fixed with an exclude"
   config: |
     version: 3
     rules:
@@ -189,8 +279,9 @@
         skipIf: missing
   disk: [src/a.go, src/a_test.go]
   changes: ["M src/a.go", "M src/a_test.go"]
+  want: {results: ["PASS go-test src/a"], headline: PASS}
 
-- name: "16. GOTCHA: typo'd variable in related"
+- name: "16 Typo'd variable in related"
   config: |
     version: 3
     rules:
@@ -200,8 +291,11 @@
         expect: touched
   disk: [src/ui/button.component.ts]
   changes: ["M src/ui/button.component.ts"]
+  want: {error: "match does not capture it"}
 
-- name: "17. Mirrored test tree (Java/Maven layout)"
+# ---- mirrored trees and zero-segment captures --------------------------------
+
+- name: "17 Java mirrored test tree"
   config: |
     version: 3
     rules:
@@ -212,8 +306,9 @@
         skipIf: missing
   disk: [src/main/java/com/acme/billing/Invoice.java, src/test/java/com/acme/billing/InvoiceTest.java]
   changes: ["M src/main/java/com/acme/billing/Invoice.java"]
+  want: {results: ["FAIL java-test com/acme/billing/Invoice"], headline: FAIL}
 
-- name: "18. Mirrored test tree (Python layout)"
+- name: "18 Python mirrored tree, nested file passes"
   config: |
     version: 3
     rules:
@@ -224,8 +319,24 @@
         skipIf: missing
   disk: [src/acme/billing/invoice.py, tests/acme/billing/test_invoice.py]
   changes: ["M src/acme/billing/invoice.py", "M tests/acme/billing/test_invoice.py"]
+  want: {results: ["PASS py-test acme/billing/invoice"], headline: PASS}
 
-- name: "19. Test renamed away while its source changed"
+- name: "18b Python mirrored tree, top-level file: {**pkg} matches zero segments"
+  config: |
+    version: 3
+    rules:
+      py-test:
+        match: "src/{**pkg}/{name}.py"
+        related: "tests/{pkg}/test_{name}.py"
+        expect: touched
+        skipIf: missing
+  disk: [src/app.py, tests/test_app.py]
+  changes: ["M src/app.py"]
+  want: {results: ["FAIL py-test app"], headline: FAIL}
+
+# ---- strict list form and the diff/worktree disagreement ---------------------
+
+- name: "19 Test renamed away while its source changed"
   config: |
     version: 3
     rules:
@@ -236,8 +347,9 @@
         skipIf: missing
   disk: [internal/order/order_handler.go, internal/order/misc_test.go]
   changes: ["M internal/order/order_handler.go", "R100 internal/order/order_handler_test.go internal/order/misc_test.go"]
+  want: {results: ["FAIL handler-test internal/order/order"], headline: FAIL}
 
-- name: "20. Strict list form: related must exist on disk AND be touched"
+- name: "20 [exists, touched]: in the diff but not on disk fails"
   config: |
     version: 3
     rules:
@@ -247,8 +359,244 @@
         expect: [exists, touched]
   disk: [proto/billing/invoice.proto]
   changes: ["M proto/billing/invoice.proto", "A gen/proto/billing/invoice.pb.go"]
+  want: {results: ["FAIL proto-gen proto/billing/invoice"], headline: FAIL}
 
-- name: "21. GOTCHA: flag-only rule with skipIf but no related path"
+- name: "20b Plain touched on the same inputs passes: the one cell that separates them"
+  config: |
+    version: 3
+    rules:
+      proto-gen:
+        match: "proto/**/{name}.proto"
+        related: "gen/{dir}/{name}.pb.go"
+        expect: touched
+  disk: [proto/billing/invoice.proto]
+  changes: ["M proto/billing/invoice.proto", "A gen/proto/billing/invoice.pb.go"]
+  want: {results: ["PASS proto-gen proto/billing/invoice"], headline: PASS}
+
+# ---- instance names ----------------------------------------------------------
+
+- name: "21 Root-level file and a directory literally named (root) stay distinct"
+  config: |
+    version: 3
+    rules:
+      route-test:
+        match: "**/{name}.tsx"
+        exclude: "**/*.test.tsx"
+        related: "{dir}/{name}.test.tsx"
+        expect: touched
+        skipIf: missing
+  disk: [page.tsx, page.test.tsx, "(root)/page.tsx", "(root)/page.test.tsx"]
+  changes: ["M page.tsx", "M (root)/page.tsx"]
+  want: {results: ["FAIL route-test (root)/page", "FAIL route-test page"], headline: FAIL}
+
+# ---- input modes -------------------------------------------------------------
+
+- name: "22 Plain-path mode cannot see removals: skipIf missing skips a deleted test"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      handler-test:
+        match: "internal/**/{name}_handler.go"
+        related: "{dir}/{name}_handler_test.go"
+        expect: touched
+        skipIf: missing
+  disk: [internal/order/order_handler.go]
+  changes: ["internal/order/order_handler.go"]
+  want: {results: ["SKIPPED handler-test internal/order/order"], headline: PASS}
+
+- name: "22b Plain-path mode, skipIf exists: same result as git mode, no divergence"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      needs-story:
+        match: "src/**/{name}.component.ts"
+        related: "{dir}/{name}.stories.ts"
+        expect: none
+        skipIf: exists
+        flags: [needsStory]
+  disk: [src/ui/card.component.ts]
+  changes: ["src/ui/card.component.ts"]
+  want: {results: ["INFO needs-story src/ui/card"], headline: PASS, flags: [needsStory]}
+
+# ---- capture grammar errors --------------------------------------------------
+
+- name: "30 A single-name brace is a capture, so an unused one is an error"
+  config: |
+    version: 3
+    rules:
+      story-sync:
+        match: "src/**/{name}.component.{ts}"
+        related: "{dir}/{name}.stories.ts"
+        expect: touched
+  disk: [src/ui/button.component.ts]
+  changes: ["M src/ui/button.component.ts"]
+  want: {error: "never used in related"}
+
+- name: "31 One path matching two globs with different bindings"
+  config: |
+    version: 3
+    rules:
+      api-test:
+        match: ["internal/**/{name}_{handler,service}.go", "internal/**/{name}.go"]
+        related: "{dir}/{name}_test.go"
+        expect: touched
+  disk: [internal/order/order_handler.go]
+  changes: ["M internal/order/order_handler.go"]
+  want: {error: "different bindings"}
+
+- name: "32 Adjacent captures"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{a}{b}.go"
+        related: "{dir}/{a}.x"
+        expect: touched
+  want: {error: "adjacent captures"}
+
+- name: "33 Capture name with a dot"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{file.name}.go"
+        related: "{dir}/x.md"
+        expect: touched
+  want: {error: "not a valid capture name"}
+
+- name: "34 Capture in exclude"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{name}.go"
+        exclude: "src/{other}_test.go"
+        related: "{dir}/{name}.md"
+        expect: touched
+  want: {error: "captures are not allowed in exclude"}
+
+- name: "35 {**x} must fill whole path segments"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{**pkg}Impl/{name}.java"
+        related: "{pkg}/{name}.md"
+        expect: touched
+  want: {error: "whole path segments"}
+
+- name: "36 Two captures binding different names across globs"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: ["src/{a}.go", "lib/{b}.go"]
+        related: "{dir}/{a}.md"
+        expect: touched
+  want: {error: "same capture names"}
+
+- name: "37 dir is reserved"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{dir}.go"
+        related: "x.md"
+        expect: touched
+  want: {error: "dir is reserved"}
+
+- name: "38 Greedy captures: the first takes as much as it can"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{name}.{kind}.ts"
+        related: "docs/{name}-{kind}.md"
+        expect: touched
+  disk: [src/user.profile.component.ts, docs/user.profile-component.md]
+  changes: ["M src/user.profile.component.ts"]
+  want: {results: ["FAIL r user.profile/component"], headline: FAIL}
+
+- name: "39 Known limit: variables joined by text that can occur in their values"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{a}_{b}.go"
+        related: "docs/{a}-{b}.md"
+        expect: touched
+  disk: [src/x-y_z.go, src/x_y-z.go, docs/x-y-z.md]
+  changes: ["M src/x-y_z.go", "M src/x_y-z.go"]
+  want: {results: ["FAIL r x-y/z", "FAIL r x/y-z"], headline: FAIL}
+
+# ---- related template errors -------------------------------------------------
+
+- name: "40 Glob metacharacters in related"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{name}.go"
+        related: "{dir}/*.md"
+        expect: touched
+  want: {error: "glob metacharacters"}
+
+- name: "41 .. in related"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "pkg/**/{name}.go"
+        related: "{dir}/../{name}.md"
+        expect: touched
+  want: {error: "contains \"..\""}
+
+- name: "42 Two variables that can contain /"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{**pkg}/{name}.go"
+        related: "{dir}/{pkg}/{name}.md"
+        expect: touched
+  want: {error: "more than one variable that can contain /"}
+
+# ---- expect, skipIf and severity errors --------------------------------------
+
+- name: "50 touched and untouched together"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{name}.go"
+        related: "{dir}/{name}.md"
+        expect: [touched, untouched]
+  want: {error: "contradict"}
+
+- name: "51 exists and missing together"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{name}.go"
+        related: "{dir}/{name}.md"
+        expect: [exists, missing]
+  want: {error: "contradict"}
+
+- name: "52 skipIf exists with expect exists can never pass"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{name}.go"
+        related: "{dir}/{name}.md"
+        expect: exists
+        skipIf: exists
+  want: {error: "can never pass"}
+
+- name: "53 skipIf on a rule with no related path"
   config: |
     version: 3
     rules:
@@ -257,5 +605,58 @@
         expect: none
         skipIf: missing
         flags: [paymentsReviewRequired]
-  disk: [internal/payments/charge.go]
-  changes: ["M internal/payments/charge.go"]
+  want: {error: "skipIf needs a related path"}
+
+- name: "54 expect none with no message and no flags"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/**"
+        expect: none
+  want: {error: "at least one of message or flags"}
+
+- name: "55 expect none with severity error"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/**"
+        expect: none
+        severity: error
+        message: "m"
+  want: {error: "requires severity: info"}
+
+- name: "56 related is required unless expect is none"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/**"
+        expect: touched
+  want: {error: "related is required"}
+
+- name: "57 Misspelled field is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{name}.go"
+        related: "{dir}/{name}.md"
+        expect: touched
+        skipif: missing
+  want: {error: "not found"}
+
+- name: "58 Duplicate rule IDs are rejected by the YAML decoder"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{name}.go"
+        related: "{dir}/{name}.md"
+        expect: touched
+      r:
+        match: "lib/{name}.go"
+        related: "{dir}/{name}.md"
+        expect: touched
+  want: {error: "already defined"}

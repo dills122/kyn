@@ -2,15 +2,18 @@
 
 Status: measured ground truth. Not a proposal.
 
-Every statement here was produced by running the `kyn` binary built from this
-branch against a generated fixture, not by reading source. Reproduction scripts
-live in [`experiments/`](experiments/) and each observation cites the one that
-produced it.
+Statements here were produced by running the `kyn` binary built from this
+branch against a generated fixture. Reproduction scripts live in
+[`experiments/`](experiments/) and each observation cites the one that produced
+it. Two are exceptions and say so: OS2 is an analysis of OS1's table, and OS10
+is a search of the source.
 
-The purpose is to give the v3 design a factual baseline. Several proposal and
-review claims turned out to be understated, and two shipping defects surfaced
-that are independent of v3: non-deterministic error selection (OS7) and a policy
-gate that is silenced by deleting or renaming the file it protects (OS3, OS8).
+The purpose is to give the v3 design a factual baseline. It also turned up
+defects in shipped v0.1.3 that are independent of v3: non-deterministic error
+selection (OS7), a policy gate silenced by deleting or renaming the file it
+protects (OS3, OS8), a preset that fails on an ordinary change set (OS11), a
+`PASS` headline above a failure count (OS12), and non-ASCII filenames that never
+match any rule (OS16).
 
 ## Method
 
@@ -30,29 +33,29 @@ Each candidate v3 expectation, evaluated against every combination of *related
 path exists on disk* and *related path present in the change set*, in `--files`
 mode. `STATUS` is `explain`'s per-result status; `EXIT` is `check`'s exit code.
 
-| Expectation (v3 name) | V2 clauses | exists | in change set | status | exit |
+| Assertion | V2 clauses | exists | in change set | status | exit |
 | --- | --- | --- | --- | --- | --- |
-| `changed-if-present` | `if.kinExists` + `assert.kinChanged` | Y | Y | pass | 0 |
+| `if.kinExists` then `kinChanged` | `if.kinExists` + `assert.kinChanged` | Y | Y | pass | 0 |
 | | | Y | N | fail | 1 |
 | | | N | Y | **skipped** | 0 |
 | | | N | N | **skipped** | 0 |
-| `exists-and-changed` | `assert.kinExists` + `assert.kinChanged` | Y | Y | pass | 0 |
+| `kinExists` and `kinChanged` | `assert.kinExists` + `assert.kinChanged` | Y | Y | pass | 0 |
 | | | Y | N | fail | 1 |
 | | | N | Y | fail | 1 |
 | | | N | N | fail | 1 |
-| `changed` | `assert.kinChanged` | Y | Y | pass | 0 |
+| `kinChanged` | `assert.kinChanged` | Y | Y | pass | 0 |
 | | | Y | N | fail | 1 |
 | | | N | Y | **pass** | 0 |
 | | | N | N | fail | 1 |
-| `unchanged` | `assert.kinUnchanged` | Y | Y | fail | 1 |
+| `kinUnchanged` | `assert.kinUnchanged` | Y | Y | fail | 1 |
 | | | Y | N | pass | 0 |
 | | | N | Y | fail | 1 |
 | | | N | N | pass | 0 |
-| `exists` | `assert.kinExists` | Y | Y | pass | 0 |
+| `kinExists` | `assert.kinExists` | Y | Y | pass | 0 |
 | | | Y | N | pass | 0 |
 | | | N | Y | fail | 1 |
 | | | N | N | fail | 1 |
-| `missing` | `assert.kinMissing` | Y | Y | fail | 1 |
+| `kinMissing` | `assert.kinMissing` | Y | Y | fail | 1 |
 | | | Y | N | fail | 1 |
 | | | N | Y | pass | 0 |
 | | | N | N | pass | 0 |
@@ -61,40 +64,41 @@ mode. `STATUS` is `explain`'s per-result status; `EXIT` is `check`'s exit code.
 
 OS1 reduces cleanly. Reading the table by which axis each expectation consults:
 
-| Expectation | reads *exists* | reads *in change set* |
+| Assertion | reads *exists* | reads *in change set* |
 | --- | --- | --- |
-| `changed` | no | yes |
-| `unchanged` | no | yes (inverted) |
-| `exists` | yes | no |
-| `missing` | yes (inverted) | no |
-| `changed-if-present` | yes (as a gate) | yes |
-| `exists-and-changed` | yes (as an assertion) | yes |
+| `kinChanged` | no | yes |
+| `kinUnchanged` | no | yes (inverted) |
+| `kinExists` | yes | no |
+| `kinMissing` | yes (inverted) | no |
+| `if.kinExists` then `kinChanged` | yes (as a gate) | yes |
+| `kinExists` and `kinChanged` | yes (as an assertion) | yes |
 
 Four of the six read exactly one axis. The two compound forms differ from each
 other only in whether the existence check *gates* the rule (producing `skipped`)
 or *asserts* it (producing `fail`). This is the whole of the vocabulary, and it
 is a 2x2 with one axis optionally promoted to a gate — not an open-ended enum.
 
-`exists-and-changed` and `changed` differ in exactly one cell: `exists=N,
-in-change-set=Y`. That state is reachable when the selected diff and the working
+`kinExists` with `kinChanged`, and `kinChanged` alone, differ in exactly one
+cell: `exists=N, in-change-set=Y`. That state is reachable when the selected diff and the working
 tree disagree, for example `--base main --head origin/feature` evaluated from a
 checkout that does not contain the added file. The distinction is real but
-narrow, and any v3 documentation must say so explicitly or users will treat the
-two as synonyms.
+narrow, and any documentation must say so explicitly or users will treat the two
+as synonyms.
 
 ## OS3 — Kyn cannot observe deletion, and the default shape is silenced by it
 
 Source: [`e4-git-delete.sh`](experiments/e4-git-delete.sh)
 
-`docs/decisions.md` excludes `D` paths from the change set. The consequence is
+`docs/decisions.md` excludes `D` paths from the change set, and
+`internal/changes/git.go:63-64` discards them. The consequence is
 larger than a vocabulary problem. In a real git repository where the source file
 was modified and its related test was **deleted in the same commit**:
 
-| Expectation | result | exit |
+| Assertion | result | exit |
 | --- | --- | --- |
-| `changed-if-present` | **skipped** | 0 |
-| `unchanged` | **pass** | 0 |
-| `changed` | fail | 1 |
+| `if.kinExists` then `kinChanged` | **skipped** | 0 |
+| `kinUnchanged` | **pass** | 0 |
+| `kinChanged` | fail | 1 |
 
 `explain` renders the `unchanged` case as:
 
@@ -105,8 +109,7 @@ Assert:
 
 The file does not exist. The trace states that it is unchanged.
 
-`changed-if-present` is the shape every `kyn init` preset ships and the shape
-the v3 proposal nominates as the common default. Deleting the related test
+`if.kinExists` then `kinChanged` is the shape every `kyn init` preset ships. Deleting the related test
 silences the rule that exists to protect it, and `check` exits 0.
 
 OS8 shows the same hole for renames. No current rule form can express "the
@@ -115,9 +118,8 @@ enters the change set. `assert.kinExists` catches the
 after-effect — the path is gone from the working tree — but cannot attribute it
 to this diff.
 
-This is a capability gap, not a naming problem. Renaming `changed` to
-`in-change-set` makes the vocabulary honest; it does not make deletion
-observable.
+This is a capability gap, not a naming problem. Renaming `kinChanged` makes the
+vocabulary honest; it does not make deletion observable.
 
 The gap is closed in [`02-semantics.md`](02-semantics.md) §2 and §3.
 
@@ -127,7 +129,7 @@ Source: [`e8-rename-blindness.sh`](experiments/e8-rename-blindness.sh)
 
 `fromGitDiff` handles `R` by recording `fields[2]`, the rename destination, and
 discarding `fields[1]`, the source
-([`internal/changes/git.go:45`](../../../internal/changes/git.go)). The path the
+([`internal/changes/git.go:48-53`](../../../internal/changes/git.go)). The path the
 policy was watching simply disappears from Kyn's view.
 
 Source modified, related test renamed away in the same commit:
@@ -171,10 +173,8 @@ Given the shipped `api` preset shape — sources `order_handler.go` and
 
 Different policy, different result count, different demanded paths.
 
-The v3 proposal places `stripSuffixes` in `patterns` only, classified under
-"source-shape concerns". A v3 inline rule consequently has no way to express the
-shipped `api` preset, and any migration that drops the pattern indirection
-changes behavior.
+So `stripSuffixes` is not a presentation detail of the template: it decides the
+policy. It has to be designed together with the template that consumes it.
 
 ## OS5 — The common form self-matches, and OS3 hides it
 
@@ -195,13 +195,13 @@ Kin:
 ```
 
 The phantom instance demands `src/a_test_test.go`. It does not fail, because
-`src/a_test_test.go` does not exist, so the `changed-if-present` gate skips it —
+`src/a_test_test.go` does not exist, so the `if.kinExists` gate skips it —
 the OS3 silent skip conceals the OS5 mistake, and `check` exits 0 with `PASS`.
 
-Both hazards are properties of the shape the v3 proposal nominates as the
-default and describes as needing `exclude` only "unless needed". Measured
-against real layouts, `exclude` is needed in the common case, and omitting it
-fails silently rather than loudly.
+Both hazards come from the natural shape of a rule: a broad source glob and a
+related template that lands inside it. Measured against real layouts, an
+`exclude` is needed in the common case, and omitting it fails silently rather
+than loudly.
 
 ## OS6 — Non-`source` groups are inert
 
@@ -366,6 +366,28 @@ produces four results, one per (rule, instance), sorted by `familyId`, then
 Several source files resolving to one instance yield one result listing all of
 them, not one result each.
 
+## OS16 — Non-ASCII filenames never match any rule
+
+Source: [`e17-nonascii-paths.sh`](experiments/e17-nonascii-paths.sh)
+
+Git quotes unusual filenames in `--name-status` output unless told not to. Kyn
+runs `git diff --name-status -M` without `-c core.quotePath=false` or `-z` and
+does not unquote (`internal/changes/git.go:12`). For a change adding
+`src/café.go` and `src/café_test.go`:
+
+```text
+git prints:   A	"src/caf\303\251.go"
+kyn collects: "src/caf/303/251.go"
+```
+
+The octal escapes are normalized into path separators, so the file never matches
+a glob and no rule sees it. The run reports `PASS` for a source file that has no
+updated test. It fails open, with no error.
+
+This is independent of v3. v3 must read git output with quoting disabled (or
+`-z`), and `--files-from` must either do the same or reject quoted lines
+([`02-semantics.md`](02-semantics.md) §6).
+
 ## OS14 — Informational rules, and their effect on the severity counters
 
 Source: [`e15-emit-only.sh`](experiments/e15-emit-only.sh)
@@ -482,3 +504,4 @@ map, or every v3 rule and pattern inherits this defect.
 | OS13 — one file demanded once per source | [`03-instances-and-reports.md`](03-instances-and-reports.md) §1 |
 | OS14 — informational rules and counters | [`02-semantics.md`](02-semantics.md) §5, §8 |
 | OS15 — YAML anchors work | [`04-grammar.md`](04-grammar.md), Sharing globs |
+| OS16 — non-ASCII filenames never match | [`02-semantics.md`](02-semantics.md) §6; [`06-cutover.md`](06-cutover.md), change collection |

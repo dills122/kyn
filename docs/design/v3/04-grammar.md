@@ -30,12 +30,12 @@ must be touched.
 | Field | Required | Default | Meaning |
 | --- | --- | --- | --- |
 | `match` | yes | | Glob, or list of globs, selecting source files. May bind variables |
-| `exclude` | no | | Glob, or list, removed from `match` |
+| `exclude` | no | | Glob, or list, removed from `match`. No variables |
 | `related` | yes, unless `expect: none` | | Path template for the related file |
 | `expect` | yes | | What must be true of the related file |
-| `skipIf` | no | never skip | Skip the rule based on whether the related file is there |
-| `changeType` | no | all | Only apply when a matched source was `added`, `modified` or `renamed` |
-| `severity` | no | `error` | `info`, `warn` or `error` |
+| `skipIf` | no | never skip | Skip the rule based on the state of the related file |
+| `changeType` | no | all | Apply only when a matched **source** file was `added`, `modified` or `renamed`. It filters the source, not the related file |
+| `severity` | no | `error`; `info` when `expect: none` | `info`, `warn` or `error` |
 | `message` | no | generated | Shown when the rule fails |
 | `why` | no | | Why the rule exists. Carried to SARIF `fullDescription` and `explain` |
 | `flags` | no | | Names added to the report's `flags` list whenever the rule applies |
@@ -43,18 +43,35 @@ must be touched.
 Rule IDs are the mapping keys under `rules`. Every list-valued field also
 accepts a single string.
 
-### `match` binds variables
+## Matching
 
-A `{name}` in a glob captures what it matches, and `related` reuses it.
+Paths are slash-normalized and relative to `--cwd`. Matching is case-sensitive.
+Every rule below is checked when the config loads, except the two marked
+resolve-time.
 
-| Syntax | Matches | Example |
+### Globs
+
+| Syntax | Matches |
+| --- | --- |
+| `*` | any characters within one path segment, including none |
+| `?` | exactly one character within a segment |
+| `**/` | zero or more whole directories |
+| a trailing `**` | everything below the directory |
+| `{a,b}` | alternation of literal alternatives, not captured |
+
+There is no way to match a literal `{` or `}` in v3.0.
+
+### Captures
+
+A brace group **without a comma** is a capture.
+
+| Syntax | Matches | Notes |
 | --- | --- | --- |
-| `*`, `**`, `{a,b}` | standard glob wildcards and alternation, not captured | `src/**/*.{ts,html}` |
-| `{name}` | one or more characters within a single path segment | `{name}.component.ts` |
-| `{**name}` | one or more whole path segments | `src/main/java/{**pkg}/{name}.java` |
-| `{dir}` | built in: the directory of the matched file | used in `related` only |
+| `{name}` | one or more characters within a single segment, including a leading dot | Greedy: it takes as much as it can while the rest of the glob still matches |
+| `{**name}` | zero or more whole path segments | Must start a segment and fill it. Captured without the surrounding slashes; zero segments captures the empty string. A **trailing** `{**name}` matches one or more segments, since a path must end in a file |
+| `{dir}` | built in, used in `related` only: the directory of the matched source | Empty at the repository root. Cannot be captured |
 
-A brace group containing a comma is alternation; one without is a capture.
+A capture name is letters, digits and underscore, not starting with a digit.
 
 ```yaml
 story-sync:
@@ -65,24 +82,63 @@ story-sync:
 `button.component.ts` and `button.component.html` both bind `name=button`, so
 they are one instance demanding one story.
 
-`{**name}` is what makes mirrored trees expressible, which v2 could not do:
+Greedy matching only matters when a literal repeats. In
+`src/{name}.{kind}.ts`, the path `user.profile.component.ts` binds
+`name=user.profile` and `kind=component`: the first capture takes as much as it
+can, so it does not split at the first dot. A glob whose captures are separated
+by literals that cannot repeat avoids the question.
+
+`{**name}` is what makes mirrored trees expressible, which v2 could not do. It
+matches zero segments, so top-level files are covered:
 
 ```yaml
-java-test:
-  match: "src/main/java/{**pkg}/{name}.java"
-  related: "src/test/java/{pkg}/{name}Test.java"
+py-test:
+  match: "src/{**pkg}/{name}.py"
+  related: "tests/{pkg}/test_{name}.py"
 ```
 
-Captures replace v2's `{base}`, `{name}`, `{ext}`, `{file}` and
-`baseName.stripSuffixes`. The variable is named where it is matched, so there
-is no second place for it to disagree — the defect behind OS11.
+`src/acme/billing/invoice.py` binds `pkg=acme/billing`; `src/app.py` binds
+`pkg=` and resolves to `tests/test_app.py`, because empty segments are removed
+when the path is cleaned.
 
-### `expect`
+### Several globs in one rule
+
+Every glob in a rule binds the **same set of capture names**. A source path that
+matches more than one glob must bind them to the same values. If it does not,
+the config is rejected at resolve time, naming the path. Order never decides,
+so reordering the list cannot change a policy.
+
+```yaml
+match: ["internal/**/{name}_{handler,service}.go", "internal/**/{name}.go"]
+```
+
+This is rejected the first time `order_handler.go` changes: the first glob binds
+`name=order`, the second binds `name=order_handler`. Write globs that do not
+overlap.
+
+### Exclude
+
+`exclude` globs contain no captures. They remove paths from `match`, and they
+also count when a resolved related path is checked against its own rule (see
+rule 10 below).
+
+### `related`
+
+A template for exactly one path:
+
+- relative, with no `..` segment and no glob characters (`* ? [ ]`);
+- variables are `{dir}` and the names `match` captures, nothing else;
+- at most one variable that can contain `/`: `{dir}` or the `{**name}` capture;
+- every capture must be used.
+
+The result is cleaned, so an empty `{dir}` or `{**name}` leaves no stray slash.
+
+## `expect`
 
 | Value | True when the related path |
 | --- | --- |
 | `touched` | is part of this change (added, modified, or a rename destination) |
-| `untouched` | is not part of this change |
+| `untouched` | is unaffected by this change: not touched, and not removed by it |
 | `exists` | is present in the working tree |
 | `missing` | is not present in the working tree |
 | `none` | no assertion; the rule is informational |
@@ -94,24 +150,23 @@ Plain `expect: touched` is the form to reach for. `[exists, touched]` differs
 from it only when the diff and the working tree disagree (the file is in the
 diff but not on disk), so it is rarely needed.
 
-`untouched` passes for a file this change deleted, because a deleted path is
-not part of the change set. To require "present and unmodified", write
-`expect: [exists, untouched]`.
+## `skipIf`
 
-### `skipIf`
+The related file is in one of three states: `exists`, `missing`, or `removed`
+(it was deleted or renamed away by this change; see
+[`02-semantics.md`](02-semantics.md)).
 
-| Value | The rule is skipped when the related file |
+| `skipIf` | The rule is skipped when the related file is |
 | --- | --- |
-| `missing` | was not there before this change and is not there now |
-| `exists` | is there, or was removed by this change |
+| `missing` | `missing`: it was not there before and is not there now |
+| `exists` | `exists` |
 
-A file **deleted or renamed away by the change is never "missing"**. That is
-what stops a rule being silenced by deleting the file it protects (OS3, OS8).
-The three underlying states are defined in
-[`02-semantics.md`](02-semantics.md).
+**A removal never causes a skip.** A `removed` file is neither "missing" nor
+"exists" for `skipIf`, so the rule applies under both values. That is what
+stops a rule being silenced by deleting the file it protects.
 
-`skipIf: exists` is for the inverse rule — act only when the related file is
-absent:
+`skipIf: exists` is for the inverse rule: act only when the related file is not
+there.
 
 ```yaml
 needs-story:
@@ -122,9 +177,14 @@ needs-story:
   flags: [needsStory]
 ```
 
-Skipped results are reported; see [`03-instances-and-reports.md`](03-instances-and-reports.md).
+Skipped results are reported; see
+[`03-instances-and-reports.md`](03-instances-and-reports.md).
 
-### Informational rules
+The protection is same-change only. If a test was deleted in an earlier change,
+it is `missing` now and `skipIf: missing` skips. A team that wants every handler
+to have a test always should omit `skipIf`.
+
+## Informational rules
 
 `expect: none` makes a rule informational: it never fails, reports status
 `info`, and adds its `flags`.
@@ -138,38 +198,53 @@ payments-review:
 ```
 
 `related` is optional here, because "this code was touched" needs no second
-file. `expect` stays required so that a rule cannot become informational by
-losing a line.
+file. `expect` stays required so a rule cannot become informational by losing a
+line. `none` reads as "no assertion", not "expect no such file".
 
 ## Validation
 
-All of these fail with exit 2 and name the rule and field.
+All of these fail with exit 2 and name the rule and the field.
+
+### At load
 
 | # | Rule |
 | --- | --- |
-| 1 | Unknown fields are rejected. Duplicate rule IDs are rejected by the YAML decoder, with line numbers |
-| 2 | `match` has at least one glob; every glob in one rule binds the same capture names |
-| 3 | A glob has at most one `{**name}`; capture names are unique within a glob; `dir` is reserved |
-| 4 | `related` uses only `{dir}` and names that `match` captures |
-| 5 | `related` uses at most one variable that can contain `/` (`{dir}` or the `{**name}` capture) |
-| 6 | `expect` is required; `none` cannot be combined with other values; lists are deduplicated and sorted |
-| 7 | `related` is required unless `expect: none`; `skipIf` requires `related` |
-| 8 | `expect: none` requires `severity: info` (its default) and at least one of `message` or `flags` |
-| 9 | A resolved `related` path that matches its own rule's `match` and is not excluded is an error. Detected at resolve time, when a concrete path exists |
-| 10 | Resolved paths must stay inside `--cwd` |
-| 11 | Rule IDs are sorted before every validation and resolution pass, so the first error reported is stable |
+| 1 | Unknown fields are rejected, and so are duplicate rule IDs, by the YAML decoder with line numbers |
+| 2 | `match` has at least one glob. Every glob binds the same capture names. Capture names are valid, unique within a glob, and not `dir`. No adjacent captures. At most one `{**name}` per glob, filling whole segments. No captures in `exclude` |
+| 3 | `related` is relative, has no `..` and no glob characters, uses only `{dir}` and captured names, and uses at most one variable that can contain `/` |
+| 4 | Every capture is used in `related`. This also catches `{ts}` written where `{ts,html}` was meant |
+| 5 | `expect` is required with valid values. `none` stands alone. `touched` with `untouched`, and `exists` with `missing`, contradict and are rejected |
+| 6 | `related` is required unless `expect: none`. `skipIf` requires `related`. `skipIf` and `changeType` take only their listed values |
+| 7 | `skipIf: exists` with an `expect` that includes `exists` can never pass, since the rule only applies when the file is not there, and is rejected |
+| 8 | `expect: none` requires `severity: info` and at least one of `message` or `flags` |
 
-Rule 5 keeps instance names unique; the reasoning is in
-[`03-instances-and-reports.md`](03-instances-and-reports.md). Rule 9's error
-tells the author what to do:
+### At resolve time
+
+These need a concrete path, so they fire only when a matching file changes.
+
+| # | Rule |
+| --- | --- |
+| 9 | A path matching two `match` globs with different bindings is an error |
+| 10 | A resolved `related` path that matches its own rule's `match` and is not excluded is an error |
 
 ```text
 rule "go-test": related path "src/a_test.go" also matches this rule's own
 match; add an exclude or narrow the match
 ```
 
-Rule 11 is not style. OS7 measured the current code reporting three different
-errors across thirty identical runs.
+Because 9 and 10 depend on which files change, a config can load cleanly and
+fail on someone's unrelated change. To exercise every rule against the whole
+tree before that happens, resolve every tracked file:
+
+```bash
+git ls-files | kyn check --files-from - --dry-run-resolve
+```
+
+### Always
+
+Rule IDs are processed in sorted order and lists are deduplicated and sorted, so
+the first error reported is stable. These are not errors. OS7 measured the
+current code reporting three different errors across thirty identical runs.
 
 ## Sharing globs
 
@@ -193,21 +268,27 @@ rules:
 
 ## What v3 cannot express
 
-Two v2 capabilities are not carried over. No configuration in this repository
-uses either (four presets, three recipes, `docs/site/config.md`,
-`docs/site/concepts.md`, `testdata/`, `e2e/projects/`).
+Limits found so far, by four reviews and the author's scenarios. The list has
+been wrong before, so it is not claimed to be complete. None is used by a
+configuration in this repository (four presets, three recipes,
+`docs/site/config.md`, `docs/site/concepts.md`, `testdata/`, `e2e/projects/`).
 
-| Limit | v2 form | Why it is out |
+| Limit | Example | Why |
 | --- | --- | --- |
-| Atomic multi-path rules | `if.kinExists: [story, spec]` with `assert.kinChanged: [story, spec]`: skipped as one unit if either is missing | One `related` per rule. Two rules evaluate independently |
-| Gating on one path, asserting on another | `if.kinExists: [figma]` with `assert.kinChanged: [story]` | `skipIf` reads the rule's own `related` path |
+| Atomic multi-path rules | v2 `if.kinExists: [story, spec]` with `assert.kinChanged: [story, spec]`, skipped as one unit | One `related` per rule; two rules evaluate independently |
+| Gating on one path, asserting on another | v2 `if.kinExists: [figma]` with `assert.kinChanged: [story]` | `skipIf` reads the rule's own `related` |
+| A related path that is a glob | "a schema change needs *some* new migration"; "a source change needs a `.changeset/*.md`" | `related` names exactly one path |
+| A capture limited to alternatives | v2 `{ext}` over `*.test.{ts,tsx}`; v3 writes one rule per extension | Alternation inside braces is not captured |
+| Guaranteeing one failure per related file | `related: "docs/{a}-{b}.md"` over `src/{a}_{b}.go`: `x-y_z.go` and `x_y-z.go` are different instances demanding the same `docs/x-y-z.md` | Instances are keyed on variable values, and distinct values can resolve to one path when literal text between variables can also occur inside them. Rare, and reported as two failures, not hidden. Scenario 39 |
+| Forbidding edits with no related path | "files under `db/migrations/` must never be modified" | `expect: untouched` needs a related path, and a rule whose related file is its own match is rejected by rule 10 |
 
-These are the limits found so far, by three reviews. The list has been wrong
-twice, so it is not claimed to be complete. `expect` is list-shaped and
-`related` could become list-shaped later, so the first limit can be lifted
-additively.
+`expect` is list-shaped and `related` could become list-shaped later, so the
+first and third limits could be lifted additively.
 
-One capability is gained: mirrored source and test trees, via `{**name}`.
+What v3 gains: mirrored source and test trees (`{**name}`); per-package and
+per-directory paths (`packages/{pkg}/CHANGELOG.md`); stripping a prefix or
+suffix with literal text (`test_{name}.py`); and one failure, not one per
+source file, for a constant related path.
 
 ## Naming
 
@@ -219,19 +300,22 @@ original v1 in history and documentation.
 ## JSON Schema
 
 A schema ships once this grammar freezes, generated from or CI-checked against
-the loader. It covers shape and enums; cross-field rules (2 to 8) and the
-resolve-time rule (9) stay with the loader, which remains the authority.
+the loader. It covers shape and enums; the cross-field rules (2 to 8) and the
+resolve-time rules (9 and 10) stay with the loader, which remains the
+authority.
 
 ## Worked scenarios
 
-[`experiments/sim/scenarios.yaml`](experiments/sim/scenarios.yaml) holds 21
-realistic configurations with change sets, run by a small simulator of these
-semantics:
+[`experiments/sim/scenarios.yaml`](experiments/sim/scenarios.yaml) holds 51
+scenarios: realistic policies with change sets, and one for each validation
+rule. Each states its expected outcome, and the simulator fails on a mismatch:
 
 ```bash
 go run docs/design/v3/experiments/sim/main.go docs/design/v3/experiments/sim/scenarios.yaml
 ```
 
-The simulator is a model of the design, not Kyn code. It exists so the shape
-can be tried before anything is built, and it is what surfaced optional
-`related` for informational rules and the `{**name}` capture.
+The simulator is a model of this design, not Kyn code, and was written by the
+same author as the scenarios. A green run shows the model is internally
+consistent; it is not independent evidence the design is right. It was
+mutation-tested: reverting each of five decisions in the model turns the
+scenarios that guard them red.
