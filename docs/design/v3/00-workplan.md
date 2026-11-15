@@ -11,19 +11,22 @@ the current design and nothing else.
 | Area | State | Document |
 | --- | --- | --- |
 | Measured v2 baseline | 16 observations; 14 have a script, OS2 is derived from OS1 and OS10 is a source search | [`01`](01-observed-semantics.md) |
-| Semantics | Revised after review 4 | [`02`](02-semantics.md) |
+| Semantics | Revised after review 5 (input modes) | [`02`](02-semantics.md) |
 | Instances and reports | Revised after review 4 | [`03`](03-instances-and-reports.md) |
-| Grammar and matching | Revised after review 4; **the new matching section is not yet independently reviewed** | [`04`](04-grammar.md) |
+| Grammar and matching | Rewritten after review 5 with a defined dialect and binding; **not yet independently reviewed** | [`04`](04-grammar.md) |
 | Cutover inventory | Measured and extended | [`06`](06-cutover.md) |
-| Conformance suite | Specified, with a matcher layer; 96 semantic cells | [`07`](07-conformance.md) |
-| Scenario simulator | 51 scenarios, each asserting its outcome; mutation-tested | [`experiments/sim/`](experiments/sim/) |
+| Conformance suite | Specified, with a matcher layer; 90 semantic cells | [`07`](07-conformance.md) |
+| Scenario simulator | 87 scenarios, each asserting its outcome; matcher is an enumerating reference; mutation-tested | [`experiments/sim/`](experiments/sim/) |
 | v1/v2 compatibility matrix | Historical evidence only | [`05`](05-compatibility-matrix.md) |
 
-Four independent reviews have run (recorded in
+Five independent reviews have run (recorded in
 [`../../reviews/`](../../reviews/)). Review 4 judged the revised shape ready to
-advance once five P1 findings were closed; all five are closed below. Closing
-them added a normative matching section and changed two semantics (D40, D43),
-and none of that has had an independent pass. That is the next gate.
+advance once five P1 findings were closed, and closing them added the matching
+section. Review 5 attacked that section and found it was not implementable from
+the text: seven P1 findings, all reproduced. They are closed below (D51 to D58)
+and the matching section was rewritten around a defined dialect. Closing them
+changed the grammar again, so the next gate is a sixth review of the revised
+section.
 
 ## Two changes of direction
 
@@ -73,7 +76,7 @@ the rule aloud. The four presets went from 39/27/22/22 non-blank lines in v2 to
 | D39 | A capture that `related` never uses is a validation error | Review 4 P1-2: `{ts}` is a literal in today's matcher and a capture in v3, so trimming `{ts,html}` to `{ts}` would silently change a rule. Also catches typos |
 | D40 | **A removal never causes a skip.** `skipIf: missing` skips only `missing`; `skipIf: exists` skips only `exists`; `removed` applies under both. Supersedes the part of D29 under which `skipIf: exists` skipped a removed file | Review 4 P1-3: the prose said "act only when absent" and the table skipped a removed file. Each value now matches the state of the same name; v2's `if.kinMissing` behavior on a just-deleted file is preserved; one plain-path divergence disappears |
 | D41 | `{**name}` matches zero segments, as `**/` does; a trailing `{**name}` matches one or more | Review 4 P1-4: one-or-more left top-level files silently unchecked, and the only workaround was forbidden |
-| D42 | The conformance suite has a matcher layer (layer 0) and 96 semantic cells | Review 4 P1-5. The count is 108 less the 12 cells validation rejects |
+| D42 | The conformance suite has a matcher layer (layer 0) and 96 semantic cells | Review 4 P1-5. The count was 108 less the 12 cells validation rejected; D58 makes it 90 |
 | D43 | `expect: untouched` means unaffected: it fails when the related file was removed by the change | Review 4 P2-5, accepted. Deleting a "frozen" file breaks it; also removes the `[exists, untouched]` workaround |
 | D44 | `instanceName` joins the non-empty variable values with `/`; `.` if none remain; `(all)` for a rule with no variables. The root renders as nothing, not `(root)` | Review 4 P2-1: `(root)` collides with a real directory of that name. Supersedes the root rendering in D31 |
 | D45 | `related` may not contain `..` or be absolute | Review 4 P2-2: re-creates OS13 by reaching one file from two directories |
@@ -82,6 +85,14 @@ the rule aloud. The four presets went from 39/27/22/22 non-blank lines in v2 to
 | D48 | `--files-from`: a line containing a tab is a name-status line, an unknown status is an error, git-quoted paths are unsupported there. Git mode reads with quoting disabled | Review 4 P2-8 and OS16: today non-ASCII filenames are mangled and never match |
 | D49 | Reviews 2, 3 and 4 are recorded verbatim in `docs/reviews/`. The simulator asserts every scenario's outcome and is mutation-tested. `e9` states that it derives state from real git but computes verdicts itself | Review 4 P2-6, P2-10 and its note that review 3 had no record |
 | D50 | `changeType` keeps its name and is documented as filtering the matched source, not the related file | Review 4: `expect: touched` beside `changeType: added` can read as "the related file was added". Taste; maintainer confirmed the name on 2026-11-13 |
+| D51 | **v3 has its own glob dialect, narrow and loud.** Rejected at load, by name: `[ ]`, `\`, nested braces, wildcards, `/` or empty alternatives inside `{a,b}`, `**` that is not a whole segment, and leading/trailing `/`, empty, `.` or `..` segments. A trailing `/**` needs at least one segment, so `src/**` no longer matches a file named `src`. Decided with the maintainer 2026-11-15 | Review 5 P1-4: doublestar accepts all of these; v3 narrowed them silently, so a ported glob could stop matching without any error. No configuration in this repository uses a rejected form |
+| D52 | Binding is defined: among all parses, the one whose captures are longest, first capture first. `*`, `**`, alternation and list order carry no preference. A `{name}` capture may not touch another capture, `*`, `?` or an alternation. The simulator enumerates parses and is the reference | Review 5 P1-1: "greedy" was undefined beside wildcards; `src/*{n}.go` bound `n=c` and alternation order changed bindings. Refines D37 |
+| D53 | A capture name has one kind across all globs of a rule: `{x}` everywhere or `{**x}` everywhere | Review 5 P1-2: reordering `match` flipped a config between rejected and accepted, and the accepted order gave a non-unique instance name. Refines D38 |
+| D54 | `related` resolves in one pass; empty segments are dropped; the result must be non-empty with no `.` or `..` segment (resolve-time rule 11). A related with no variables is checked against its own match at load | Review 5 P1-3 and P2: a capture can bind `..`, so `{n}/{n}/x.txt` left `--cwd`; sequential substitution rescanned values; an empty `{dir}` left an absolute path |
+| D55 | Resolve-time rules 9 to 11 run for every instance before `changeType` and `skipIf` can skip it. The `git ls-files` recipe is documented as a sample of existing paths, with `-c core.quotePath=false` | Review 5 P1-5: a skipped instance hid a rule 10 error from the recipe meant to find it |
+| D56 | Plain-path modes drop listed sources that are not on disk. The plain-path differences are three, listed in `02` §6 | Review 5 P1-6: "exactly two differences" was wrong; a deleted source listed in plain mode created a failing instance that git mode does not |
+| D57 | `--files-from`: identical repeated lines are harmless; a path on conflicting lines, or a path that is not relative and clean, is an error naming it | Review 5 P2: precedence was order-dependent (`D x` then `A x` gave removed and touched) |
+| D58 | More load-time rejections: `skipIf: exists` with `expect: touched` (rule 7, as with `exists`); empty `related` or `match`; `\`, trailing `/` or adjacent variables in `related`; an `exclude` identical to a `match` glob. Layer 1 is therefore 90 cells, not 96 (108 less 18). Undetected and stated: an exclude that covers everything, a `related` that is a directory, case-only renames on case-insensitive filesystems | Review 5 P2. Supersedes the count in D42 |
 
 D29's `why` and `changeType`, and D36, were confirmed by the maintainer on
 2026-11-13.
@@ -196,12 +207,42 @@ filenames never match any rule in shipped v0.1.3 (`e17`); and scenario 39, two
 instances demanding one file when `related` joins variables with text that can
 occur inside their values (D47).
 
+### Independent review 5 (2026-11-15)
+
+A fresh-context review of the matching section at `f9b2914`, scope frozen in
+[`../../reviews/v3-config-review-5-bootstrap.md`](../../reviews/v3-config-review-5-bootstrap.md),
+recorded verbatim in
+[`../../reviews/v3-config-independent-review-5.md`](../../reviews/v3-config-independent-review-5.md).
+Verdict: not ready to implement from the text. Seven P1 findings, each
+reproduced against the simulator before it was accepted. It held up the
+instance-name uniqueness argument for normalized inputs, zero-segment
+`{**name}`, the `skipIf` table, and the messages for rules 3 to 6 and 8.
+
+| Sev | Finding | Disposition |
+| --- | --- | --- |
+| P1 | "Greedy" undefined beside wildcards and alternation; order changed bindings | D52 |
+| P1 | Rules 2 and 3 compared names, not kinds; reordering flipped validity | D53 |
+| P1 | A capture can bind `..` and escape `--cwd` | D54, rule 11 |
+| P1 | v3 silently narrows doublestar (`[ ]`, `\`, nested braces, wildcards in alternatives, `src/**` on a file) | D51; `04` Globs, `06` |
+| P1 | `changeType` skips before rule 10; the `ls-files` recipe cannot exercise it | D55 |
+| P1 | "Exactly two plain-path differences" is wrong | D56; `02` §6 |
+| P1 | Ordering and "exercise every rule" overclaims | D55; recipe reworded |
+| P2 | Conflicting or duplicate `--files-from` lines | D57 |
+| P2 | Validation gaps: `skipIf: exists` with `touched`, constant related in own match, exclude covering match, `../x` globs, empty `related`, adjacent variables, backslash | D58, D51 |
+| P2 | Sequential substitution; empty leading variable stays absolute | D54 |
+| P2 | `git ls-files` quoting | D55 |
+| P2 | Case-only renames; related touched but missing under `skipIf: missing` | Stated: `04` limits, `02` §3 |
+
+The simulator grew from 51 to 87 scenarios, one or more per finding, and the
+matcher was replaced by an enumerating reference. Nine mutations of the new
+decisions each turn their scenarios red.
+
 ## Open items
 
-1. **An independent review of the revisions made while closing review 4.** The
-   new matching section (D37 to D41), the symmetric `skipIf` (D40), and
-   `untouched` on removals (D43) have only the author's simulator behind them.
-   Scope the review to `04` Matching and `02` §3 to §6.
+1. **A sixth independent review.** Review 5's fixes added a dialect, a formal
+   binding rule, rule 11 and the input-mode changes (D51 to D58), and the last two
+   rounds each found that fixes introduced new gaps. Scope it to `04` Globs,
+   Captures, `related` and Validation, and `02` §3 to §7.
 2. **Two shipped defects, per the rule that a bad bug is fixed in place:** OS7
    (non-deterministic errors) and OS16 (non-ASCII filenames never match).
    Neither depends on v3, and both are in code v3 reuses. Decide whether they

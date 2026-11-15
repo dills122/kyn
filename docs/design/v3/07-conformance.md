@@ -57,16 +57,19 @@ no-match.
 
 | Group | Cases |
 | --- | --- |
-| Captures | `{name}` within a segment; leading dot; dotted values; greedy with a repeated literal (`{name}.{kind}.ts` on `user.profile.component.ts`) |
+| Binding | the longest-first rule: `{name}.{kind}.ts` on `user.profile.component.ts`; the same with a `**/` before it; every row cross-checked against an enumerating reference matcher, which is the definition |
+| Captures | `{name}` within a segment; leading dot; dotted values; a value of `.` or `..` |
 | `{**name}` | zero segments; one; many; trailing form needs one or more; a file at the root |
-| Alternation | `{ts,html}` is not captured; `{ts}` is a capture |
-| Several globs | agreeing bindings; **disagreeing bindings are an error**; reordering the list changes nothing |
+| Alternation | `{ts,html}` is not captured; `{ts}` is a capture; order of alternatives never changes a binding |
+| `**` | `src/**` does not match the file `src`; `**/x` matches `x`; a bare `**` matches every path |
+| Several globs | agreeing bindings; **disagreeing bindings are an error**; the same name as `{x}` and `{**x}` is an error in either order; reordering the list changes nothing |
 | Exclude | removes a source; also stops a related path counting as a self-match |
 | Instance names | one case per row of [`03-instances-and-reports.md`](03-instances-and-reports.md) §2, including a root file next to a directory literally named `(root)` |
-| Invalid globs | one case per load-time error in [`04-grammar.md`](04-grammar.md): unclosed brace, invalid name, `dir`, duplicate capture, adjacent captures, partial-segment `{**x}`, capture in exclude, two `{**x}` |
-| Invalid templates | glob characters, `..`, absolute path, unknown variable, two variables that can contain `/`, unused capture |
+| Invalid globs | one case per load-time error in [`04-grammar.md`](04-grammar.md): unclosed or unmatched brace, nested braces, `[`, `\`, wildcard or empty alternative, partial-segment `**` or `{**x}`, `.`/`..`/empty segment, leading or trailing `/`, invalid name, `dir`, duplicate capture, a capture touching another capture, `*`, `?` or an alternation, capture in exclude, two `{**x}`, exclude identical to a match |
+| Invalid templates | empty, glob characters, `\`, `.` or `..`, absolute, trailing `/`, unknown variable, adjacent variables, two variables that can contain `/`, unused capture, a constant path inside its own match |
+| Resolution | one-pass substitution (a value of `{dir}` stays literal); empty segments dropped; a resolved path that is empty or has a `.`/`..` segment is an error |
 
-The simulator's scenarios 14 to 58 are the starting point. They are a draft of
+The simulator's scenarios 14 to 92 are the starting point. They are a draft of
 the expected results, not an oracle.
 
 ## Layer 1: semantics, exhaustive
@@ -77,8 +80,8 @@ the expected results, not an oracle.
 | `expect` | `touched`, `untouched`, `exists`, `missing`, `none`, `[exists, touched]` | 6 |
 | related path | `exists`+touched, `exists`+untouched, `removed` by delete, `removed` by rename, `missing`+untouched, `missing`+touched | 6 |
 
-3 × 6 × 6 = 108, less the 12 cells with `skipIf: exists` and an `expect` that
-includes `exists`, which validation rejects as unable to pass, leaves **96
+3 × 6 × 6 = 108, less the 18 cells with `skipIf: exists` and an `expect` that
+includes `exists` or `touched`, which validation rejects (rule 7), leaves **90
 cells**. Each runs in git mode and is asserted on `explain` JSON, `check` JSON
 and the exit code.
 
@@ -128,13 +131,19 @@ related file is skipped under `skipIf: missing` and passes `untouched`, where gi
 mode fails both; `skipIf: exists` and `expect: missing` behave the same in both.
 
 Also covered here: `--files-from` line parsing (a tab means name-status; an
-unknown status is an error naming the line) and a non-ASCII filename, which must
-match its rule (OS16).
+unknown status is an error naming the line; identical repeated lines are
+harmless; conflicting lines for one path, or a `..` segment, are errors) and a
+non-ASCII filename, which must match its rule (OS16).
+
+Resolve-time rules 9 to 11 get a case each where `changeType` or `skipIf` would
+skip the instance, because they must still fire. The three plain-path
+differences in [`02-semantics.md`](02-semantics.md) §6 are asserted as a table,
+including a plain-mode source that is not on disk creating no instance.
 
 ## Corpus
 
 - the four rewritten presets and the documented recipes
-- the 51 scenarios in
+- the 87 scenarios in
   [`experiments/sim/scenarios.yaml`](experiments/sim/scenarios.yaml), promoted
   to real projects; each already states its expected outcome, but the simulator
   and the scenarios share an author, so they are a draft, not an oracle
@@ -148,7 +157,7 @@ code.
 
 1. The determinism guard passes.
 2. Layer 0 passes, including every invalid-glob and invalid-template case.
-3. Layer 1 passes for all 96 cells, with the positive assertions above.
+3. Layer 1 passes for all 90 cells, with the positive assertions above.
 4. Layer 2 passes across all eight surfaces and all three headlines.
 5. Every invalid corpus config is rejected with the expected message.
 6. Goldens are recorded once, after 1 to 5, as a reviewed change.

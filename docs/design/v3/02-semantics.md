@@ -70,6 +70,10 @@ For `expect: touched`:
 Against today's behavior, `skipIf: missing` changes exactly the two rows it is
 meant to. The never-existed case still skips.
 
+The state alone decides a skip. A related path that is in the diff but not in the
+working tree (the `missing`, touched row of §4) is `missing`, so `skipIf: missing`
+skips it even though it is touched.
+
 v2's `if.kinMissing` fires on a file deleted in this change, because it tests
 only whether the file is on disk. `skipIf: exists` does the same, so that
 behavior is preserved.
@@ -154,25 +158,35 @@ R100	src/old.go	src/new.go
 src/plain-path.go
 ```
 
-Plain single-path lines mean `modified`. Paths that git would quote (non-ASCII
-characters or special characters) are not supported in `--files-from`; use git
-mode, which Kyn invokes with quoting disabled.
+Plain single-path lines mean `modified`. Every path must be relative and clean:
+no leading `/`, and no empty, `.` or `..` segment, or the run fails naming the
+path. A path may appear on several lines only if the lines are identical;
+otherwise (`D x` and `A x`, or a rename destination that is also listed alone) the
+run fails naming the path, because no order of precedence is right. Git never
+emits such a diff.
+
+Paths that git would quote (non-ASCII or special characters) are not supported in
+`--files-from`. Feed it `git -c core.quotePath=false ...`. Git mode itself must
+read paths with quoting disabled; v2 does not, which is OS16, and the cutover
+fixes it ([`06-cutover.md`](06-cutover.md)).
 
 ### What plain-path modes lose
 
-Without removal information the `removed` state cannot be told from `missing`.
-That changes the outcome in exactly two places.
+Plain paths carry no removal information and no statuses. A policy tried with
+`--files` can therefore pass locally and fail in git-mode CI. There are three
+differences, and this is the whole list.
 
-| Rule shape | A related file deleted by the change |
-| --- | --- |
-| `skipIf: missing` | **skipped** in plain-path mode; applies in git mode |
-| `expect: untouched` | **passes** in plain-path mode; fails in git mode |
-| `skipIf: exists`, `expect: missing`, everything else | the same in both |
+| # | Difference | Git mode | `--files`, or plain `--files-from` |
+| --- | --- | --- | --- |
+| 1 | A related file deleted by the change | state `removed`: `skipIf: missing` applies, `expect: untouched` fails | state `missing`: `skipIf: missing` **skips**, `expect: untouched` **passes** |
+| 2 | Source statuses | `added`, `modified`, `renamed` | all `modified`, so `changeType: [added]` never matches |
+| 3 | A listed source that is not on disk | a deleted source creates no instance | the path is dropped the same way, so a deleted source creates no instance either |
 
-So a policy tried with `--files` can pass locally and fail in git-mode CI. The
-tutorial must say so where `--files` is introduced. Inferring deletion from
-"listed but not on disk" was considered and rejected: it would turn typos into
-deletions.
+Everything else, including `skipIf: exists` and `expect: missing`, is the same in
+both. The tutorial must say so where `--files` is introduced. Inferring deletion
+from "listed but not on disk" for a related path was considered and rejected: it
+would turn typos into deletions. Row 3 drops only sources, which cannot resolve
+anyway.
 
 ## 7. `changeType`
 
@@ -182,7 +196,9 @@ if **any** of its sources was added. Instances it excludes are reported as
 `skipped`, not dropped, so a rule that never applies is visible.
 
 `changeType` is meaningful in the first two input modes. In plain-path modes
-every source is `modified`.
+every source is `modified` (§6, row 2). It filters instances after the resolve-time
+checks have run, so a rule whose `changeType` excludes an instance still reports a
+broken `related` ([`04-grammar.md`](04-grammar.md), rules 9 to 11).
 
 Deleted source files never create instances: a removed source has no
 working-tree path to match or resolve from. "Delete the handler, delete its

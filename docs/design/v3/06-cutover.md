@@ -14,8 +14,8 @@ Measured by searching the repository, not listed from memory.
 | --- | --- |
 | `internal/config`: v1/v2 structs, aliases, `Validate`, `MigrateV1ToV2` | Replace with the v3 document and the normalized model in [`03-instances-and-reports.md`](03-instances-and-reports.md) §7 |
 | `internal/family` | Replace: captures, template resolution, instance keys |
-| `internal/matcher` | Extend: capture-aware globs (`{name}`, `{**name}`) |
-| `internal/changes` | Retain deleted paths and rename sources; accept `--name-status` lines in `--files-from`; read git output with quoting disabled (`-c core.quotePath=false`, or `-z`), which also fixes OS16 for v2-era behavior |
+| `internal/matcher` | Replace doublestar with the v3 dialect in [`04-grammar.md`](04-grammar.md): captures, longest-first binding, and rejection of the constructs v2 accepted (`[ ]`, `\`, nested braces, wildcards in alternatives, partial-segment `**`, `.`/`..`/empty segments). Measured against this repository, no configuration uses a rejected form; `src/**` no longer matches a file named `src`. The reference matcher in the simulator is the oracle |
+| `internal/changes` | Retain deleted paths and rename sources; accept `--name-status` lines in `--files-from`; read git output with quoting disabled (`-c core.quotePath=false`, or `-z`), which also fixes OS16 for v2-era behavior; drop plain-mode sources that are not on disk; reject conflicting `--files-from` lines and non-clean input paths ([`02-semantics.md`](02-semantics.md) §6) |
 | `internal/rules`, `internal/report` | The three states, `skipIf`, skipped status, headline, renamed fields |
 | `internal/cli/config_migrate.go`, `kyn config migrate` | Delete. A CLI surface removal, justified because both ends of the migration are gone |
 | `internal/cli/init.go` | Four presets rewritten; the `kin` and `families` wording in its help and next-steps text |
@@ -124,7 +124,7 @@ Preset rules:
 
 1. Fix OS7 (sorted iteration) and add the determinism guard. Everything else is
    tested on top of it.
-2. Capture-aware matcher and instance keys.
+2. The v3 matcher (dialect, captures, binding) with layer 0 passing, then instance keys and resolved-path validation.
 3. Change collection: removals, rename sources, `--name-status` input.
 4. Evaluation and reports.
 5. Presets, e2e projects, goldens re-recorded once.

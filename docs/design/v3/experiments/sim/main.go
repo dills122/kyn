@@ -49,16 +49,16 @@ func (s *strs) UnmarshalYAML(n *yaml.Node) error {
 }
 
 type Rule struct {
-	Match      strs   `yaml:"match"`
-	Exclude    strs   `yaml:"exclude"`
-	Related    string `yaml:"related"`
-	Expect     strs   `yaml:"expect"`
-	SkipIf     string `yaml:"skipIf"`
-	ChangeType strs   `yaml:"changeType"`
-	Severity   string `yaml:"severity"`
-	Message    string `yaml:"message"`
-	Why        string `yaml:"why"`
-	Flags      strs   `yaml:"flags"`
+	Match      strs    `yaml:"match"`
+	Exclude    strs    `yaml:"exclude"`
+	Related    *string `yaml:"related"`
+	Expect     strs    `yaml:"expect"`
+	SkipIf     string  `yaml:"skipIf"`
+	ChangeType strs    `yaml:"changeType"`
+	Severity   string  `yaml:"severity"`
+	Message    string  `yaml:"message"`
+	Why        string  `yaml:"why"`
+	Flags      strs    `yaml:"flags"`
 }
 
 type Config struct {
@@ -87,115 +87,303 @@ type Want struct {
 
 var nameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-type glob struct {
-	re       *regexp.Regexp
-	captures []string // in order of appearance; "**" captures included
-	multi    string   // name of the {**x} capture, or ""
+type tokKind int
+
+const (
+	tLit      tokKind = iota // one literal character
+	tStar                    // *
+	tQ                       // ?
+	tAlt                     // {a,b}: literal alternatives
+	tCap                     // {name}: one or more characters inside a segment
+	tSegs                    // ** in the middle: zero or more whole directories
+	tSegsTail                // a trailing **: one or more segments
+	tMCap                    // {**name} in the middle: zero or more directories, captured
+	tMCapTail                // a trailing {**name}: one or more segments, captured
+)
+
+type token struct {
+	k    tokKind
+	s    string
+	alts []string
 }
 
-// compileGlob turns a match/exclude glob into a regexp. allowCaptures is false
-// for exclude globs. It returns a config error for every malformed construct.
-func compileGlob(g string, allowCaptures bool) (*glob, error) {
-	out := &glob{}
-	var b strings.Builder
-	b.WriteString("^")
-	seen := map[string]bool{}
-	lastWasCapture := false
-	for i := 0; i < len(g); {
-		c := g[i]
-		switch {
-		case strings.HasPrefix(g[i:], "**/"):
-			b.WriteString("(?:.*/)?")
-			i += 3
-			lastWasCapture = false
-		case strings.HasPrefix(g[i:], "**"):
-			b.WriteString(".*")
-			i += 2
-			lastWasCapture = false
-		case c == '*':
-			b.WriteString("[^/]*")
-			i++
-			lastWasCapture = false
-		case c == '?':
-			b.WriteString("[^/]")
-			i++
-			lastWasCapture = false
-		case c == '{':
-			end := strings.IndexByte(g[i:], '}')
-			if end < 0 {
-				return nil, fmt.Errorf("glob %q: unclosed {", g)
-			}
-			end += i
-			body := g[i+1 : end]
-			if strings.Contains(body, ",") { // alternation
-				parts := strings.Split(body, ",")
-				for j := range parts {
-					parts[j] = regexp.QuoteMeta(parts[j])
-				}
-				b.WriteString("(?:" + strings.Join(parts, "|") + ")")
-				i = end + 1
-				lastWasCapture = false
-				continue
-			}
-			// a capture
-			if !allowCaptures {
-				return nil, fmt.Errorf("glob %q: captures are not allowed in exclude", g)
-			}
-			multi := strings.HasPrefix(body, "**")
-			name := strings.TrimPrefix(body, "**")
-			if !nameRe.MatchString(name) {
-				return nil, fmt.Errorf("glob %q: %q is not a valid capture name (letters, digits and underscore, not starting with a digit)", g, name)
-			}
-			if name == "dir" {
-				return nil, fmt.Errorf("glob %q: dir is reserved and cannot be captured", g)
-			}
-			if seen[name] {
-				return nil, fmt.Errorf("glob %q: capture %q appears twice", g, name)
-			}
-			seen[name] = true
-			if multi {
-				if out.multi != "" {
-					return nil, fmt.Errorf("glob %q: at most one {**name} capture per glob", g)
-				}
-				if i > 0 && g[i-1] != '/' {
-					return nil, fmt.Errorf("glob %q: {**%s} must start a path segment", g, name)
-				}
-				after := end + 1
-				if after < len(g) && g[after] != '/' {
-					return nil, fmt.Errorf("glob %q: {**%s} must fill whole path segments", g, name)
-				}
-				out.multi = name
-				out.captures = append(out.captures, name)
-				if after < len(g) { // followed by "/": zero or more segments
-					b.WriteString("(?:(.+)/)?")
-					i = after + 1
-				} else { // trailing: one or more segments
-					b.WriteString("(.+)")
-					i = after
-				}
-				lastWasCapture = false
-				continue
-			}
-			if lastWasCapture {
-				return nil, fmt.Errorf("glob %q: adjacent captures need literal text between them", g)
-			}
-			out.captures = append(out.captures, name)
-			b.WriteString("([^/]+)")
-			i = end + 1
-			lastWasCapture = true
-		default:
-			b.WriteString(regexp.QuoteMeta(string(c)))
-			i++
-			lastWasCapture = false
+type capInfo struct {
+	name  string
+	multi bool
+}
+
+type glob struct {
+	toks     []token
+	captures []capInfo // in order of appearance
+}
+
+func (g *glob) multiName() string {
+	for _, c := range g.captures {
+		if c.multi {
+			return c.name
 		}
 	}
-	b.WriteString("$")
-	re, err := regexp.Compile(b.String())
-	if err != nil {
-		return nil, err
+	return ""
+}
+
+func (g *glob) names() []string {
+	var n []string
+	for _, c := range g.captures {
+		n = append(n, c.name)
 	}
-	out.re = re
+	return n
+}
+
+func (g *glob) kinds() []string {
+	var n []string
+	for _, c := range g.captures {
+		if c.multi {
+			n = append(n, "**"+c.name)
+		} else {
+			n = append(n, c.name)
+		}
+	}
+	return n
+}
+
+// compileGlob parses a match/exclude glob in the v3 dialect (04-grammar.md,
+// "Globs") and returns a config error for every construct outside it.
+func compileGlob(g string, allowCaptures bool) (*glob, error) {
+	bad := func(format string, a ...any) (*glob, error) {
+		return nil, fmt.Errorf("glob %q: "+format, append([]any{g}, a...)...)
+	}
+	if g == "" {
+		return bad("is empty")
+	}
+	if strings.HasPrefix(g, "/") {
+		return bad("must be relative to the repository root")
+	}
+	if strings.ContainsAny(g, "[]") {
+		return bad("character classes ([ ]) are not supported")
+	}
+	if strings.Contains(g, `\`) {
+		return bad("backslash escapes are not supported")
+	}
+	out := &glob{}
+	seen := map[string]bool{}
+	capture := func(name string, multi bool) error {
+		if !allowCaptures {
+			return fmt.Errorf("glob %q: captures are not allowed in exclude", g)
+		}
+		if !nameRe.MatchString(name) {
+			return fmt.Errorf("glob %q: %q is not a valid capture name (letters, digits and underscore, not starting with a digit)", g, name)
+		}
+		if name == "dir" {
+			return fmt.Errorf("glob %q: dir is reserved and cannot be captured", g)
+		}
+		if seen[name] {
+			return fmt.Errorf("glob %q: capture %q appears twice", g, name)
+		}
+		if multi && out.multiName() != "" {
+			return fmt.Errorf("glob %q: at most one {**name} capture per glob", g)
+		}
+		seen[name] = true
+		out.captures = append(out.captures, capInfo{name, multi})
+		return nil
+	}
+
+	segs := strings.Split(g, "/")
+	for si, seg := range segs {
+		last := si == len(segs)-1
+		switch {
+		case seg == "":
+			return bad("has an empty path segment")
+		case seg == "." || seg == "..":
+			return bad("must not contain a %q segment", seg)
+		case seg == "**":
+			if last {
+				out.toks = append(out.toks, token{k: tSegsTail})
+			} else {
+				out.toks = append(out.toks, token{k: tSegs})
+			}
+			continue
+		case strings.Contains(seg, "{**"):
+			if !strings.HasPrefix(seg, "{**") || strings.IndexByte(seg, '}') != len(seg)-1 {
+				return bad("{**name} must fill whole path segments")
+			}
+			name := seg[3 : len(seg)-1]
+			if err := capture(name, true); err != nil {
+				return nil, err
+			}
+			if last {
+				out.toks = append(out.toks, token{k: tMCapTail, s: name})
+			} else {
+				out.toks = append(out.toks, token{k: tMCap, s: name})
+			}
+			continue
+		case strings.Contains(seg, "**"):
+			return bad("** must be a whole path segment")
+		}
+
+		var st []token
+		for i := 0; i < len(seg); {
+			c := seg[i]
+			switch c {
+			case '*':
+				st = append(st, token{k: tStar})
+				i++
+			case '?':
+				st = append(st, token{k: tQ})
+				i++
+			case '}':
+				return bad("unmatched }")
+			case '{':
+				end := strings.IndexByte(seg[i:], '}')
+				if end < 0 {
+					return bad("unclosed {")
+				}
+				end += i
+				body := seg[i+1 : end]
+				if strings.Contains(body, "{") {
+					return bad("nested braces are not supported")
+				}
+				if strings.Contains(body, ",") { // alternation
+					parts := strings.Split(body, ",")
+					for _, p := range parts {
+						if p == "" {
+							return bad("alternation has an empty alternative")
+						}
+						if strings.ContainsAny(p, "*?") {
+							return bad("alternatives must be literal text, but %q has a wildcard", p)
+						}
+					}
+					st = append(st, token{k: tAlt, alts: parts})
+				} else {
+					if err := capture(body, false); err != nil {
+						return nil, err
+					}
+					st = append(st, token{k: tCap, s: body})
+				}
+				i = end + 1
+			default:
+				st = append(st, token{k: tLit, s: string(c)})
+				i++
+			}
+		}
+		for i, t := range st {
+			if t.k != tCap {
+				continue
+			}
+			for _, j := range []int{i - 1, i + 1} {
+				if j < 0 || j >= len(st) {
+					continue
+				}
+				switch st[j].k {
+				case tCap:
+					return bad("adjacent captures need literal text between them")
+				case tStar, tQ, tAlt:
+					return bad("a capture cannot touch *, ? or an alternation; put literal text between them")
+				}
+			}
+		}
+		out.toks = append(out.toks, st...)
+		if !last {
+			out.toks = append(out.toks, token{k: tLit, s: "/"})
+		}
+	}
 	return out, nil
+}
+
+// bind is the reference matcher: it enumerates every way the glob can match p
+// and returns the parse whose captures are longest, comparing the first capture
+// first. This is the normative definition of binding in 04-grammar.md; an
+// implementation may use any algorithm that returns the same answer.
+func (g *glob) bind(p string) ([]string, bool) {
+	var best []string
+	found := false
+	var caps []string
+	better := func(a, b []string) bool {
+		for i := range a {
+			if len(a[i]) != len(b[i]) {
+				return len(a[i]) > len(b[i])
+			}
+		}
+		return false
+	}
+	var walk func(ti, pos int)
+	walk = func(ti, pos int) {
+		if ti == len(g.toks) {
+			if pos == len(p) {
+				if !found || better(caps, best) {
+					best = append([]string(nil), caps...)
+					found = true
+				}
+			}
+			return
+		}
+		t := g.toks[ti]
+		switch t.k {
+		case tLit:
+			if strings.HasPrefix(p[pos:], t.s) {
+				walk(ti+1, pos+len(t.s))
+			}
+		case tStar:
+			for end := pos; ; end++ {
+				walk(ti+1, end)
+				if end >= len(p) || p[end] == '/' {
+					break
+				}
+			}
+		case tQ:
+			if pos < len(p) && p[pos] != '/' {
+				walk(ti+1, pos+1)
+			}
+		case tAlt:
+			for _, a := range t.alts {
+				if strings.HasPrefix(p[pos:], a) {
+					walk(ti+1, pos+len(a))
+				}
+			}
+		case tCap:
+			for end := pos + 1; end <= len(p) && p[end-1] != '/'; end++ {
+				caps = append(caps, p[pos:end])
+				walk(ti+1, end)
+				caps = caps[:len(caps)-1]
+			}
+		case tSegs, tMCap:
+			push := func(v string) {
+				if t.k == tMCap {
+					caps = append(caps, v)
+				}
+			}
+			pop := func() {
+				if t.k == tMCap {
+					caps = caps[:len(caps)-1]
+				}
+			}
+			push("")
+			walk(ti+1, pos)
+			pop()
+			cur := pos
+			for {
+				idx := strings.IndexByte(p[cur:], '/')
+				if idx <= 0 {
+					break
+				}
+				cur += idx + 1
+				push(p[pos : cur-1])
+				walk(ti+1, cur)
+				pop()
+			}
+		case tSegsTail:
+			if pos < len(p) {
+				walk(ti+1, len(p))
+			}
+		case tMCapTail:
+			if pos < len(p) {
+				caps = append(caps, p[pos:])
+				walk(ti+1, len(p))
+				caps = caps[:len(caps)-1]
+			}
+		}
+	}
+	walk(0, 0)
+	return best, found
 }
 
 // ---- related templates ------------------------------------------------------
@@ -205,16 +393,28 @@ var varRe = regexp.MustCompile(`\{([^{}]*)\}`)
 // templateVars returns the distinct variables a related template uses, in
 // order of first appearance, or an error for anything that is not a variable.
 func templateVars(tpl string) ([]string, error) {
+	if tpl == "" {
+		return nil, fmt.Errorf("related must not be empty")
+	}
 	if strings.HasPrefix(tpl, "/") {
 		return nil, fmt.Errorf("related %q must be a relative path", tpl)
+	}
+	if strings.HasSuffix(tpl, "/") {
+		return nil, fmt.Errorf("related %q must name a file, not end with /", tpl)
+	}
+	if strings.Contains(tpl, `\`) {
+		return nil, fmt.Errorf("related %q contains a backslash", tpl)
 	}
 	if strings.ContainsAny(strings.NewReplacer("{", "", "}", "").Replace(tpl), "*?[]") {
 		return nil, fmt.Errorf("related %q contains glob metacharacters; it names exactly one path", tpl)
 	}
 	for _, seg := range strings.Split(tpl, "/") {
-		if seg == ".." {
-			return nil, fmt.Errorf("related %q contains \"..\"", tpl)
+		if seg == ".." || seg == "." {
+			return nil, fmt.Errorf("related %q contains \"%s\"", tpl, seg)
 		}
+	}
+	if strings.Contains(tpl, "}{") {
+		return nil, fmt.Errorf("related %q has adjacent variables; put literal text between them", tpl)
 	}
 	rest := varRe.ReplaceAllString(tpl, "")
 	if strings.ContainsAny(rest, "{}") {
@@ -232,6 +432,40 @@ func templateVars(tpl string) ([]string, error) {
 		}
 	}
 	return vars, nil
+}
+
+// resolveRelated substitutes every variable in one pass (a captured value is
+// never rescanned), drops empty segments, and rejects a result that is empty or
+// has a "." or ".." segment. Rule 11 in 04-grammar.md.
+func resolveRelated(tpl string, vals map[string]string) (string, error) {
+	s := varRe.ReplaceAllStringFunc(tpl, func(m string) string { return vals[m[1:len(m)-1]] })
+	var segs []string
+	for _, sg := range strings.Split(s, "/") {
+		if sg == "" {
+			continue
+		}
+		if sg == "." || sg == ".." {
+			return "", fmt.Errorf("related %q resolves to an invalid path %q: a captured value became a %q segment", tpl, s, sg)
+		}
+		segs = append(segs, sg)
+	}
+	if len(segs) == 0 {
+		return "", fmt.Errorf("related %q resolves to an invalid path: it is empty", tpl)
+	}
+	return strings.Join(segs, "/"), nil
+}
+
+// badInputPath reports an input path that is not relative and clean.
+func badInputPath(p string) bool {
+	if p == "" || strings.HasPrefix(p, "/") {
+		return true
+	}
+	for _, s := range strings.Split(p, "/") {
+		if s == "" || s == "." || s == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 // ---- evaluation -------------------------------------------------------------
@@ -253,6 +487,48 @@ func cfgErr(format string, a ...any) Outcome {
 
 var validExpect = map[string]bool{"touched": true, "untouched": true, "exists": true, "missing": true, "none": true}
 var validSeverity = map[string]bool{"": true, "info": true, "warn": true, "error": true}
+
+type compiled struct {
+	id       string
+	r        Rule
+	match    []*glob
+	exclude  []*glob
+	vars     []string
+	sev      string
+	expect   []string
+	hasRelat bool
+	related  string
+}
+
+// bind applies exclude, then every match glob, and returns the variables a path
+// binds. A path two globs bind differently is rule 9.
+func (c *compiled) bind(p string) (map[string]string, bool, error) {
+	for _, e := range c.exclude {
+		if _, ok := e.bind(p); ok {
+			return nil, false, nil
+		}
+	}
+	var first map[string]string
+	for _, g := range c.match {
+		m, ok := g.bind(p)
+		if !ok {
+			continue
+		}
+		v := map[string]string{"dir": path.Dir(p)}
+		if v["dir"] == "." {
+			v["dir"] = ""
+		}
+		for i, ci := range g.captures {
+			v[ci.name] = m[i]
+		}
+		if first == nil {
+			first = v
+		} else if !equal(first, v) {
+			return nil, false, fmt.Errorf("rule %q: %q matches two match globs with different bindings; make the globs not overlap", c.id, p)
+		}
+	}
+	return first, first != nil, nil
+}
 
 type inst struct {
 	name    string
@@ -278,11 +554,40 @@ func evaluate(sc Scenario) Outcome {
 	}
 	touched := map[string]string{} // path -> added|modified|renamed
 	vanished := map[string]bool{}
+	subject := map[string]string{} // path -> the line that named it
+	note := func(p, l string) error {
+		if badInputPath(p) {
+			return fmt.Errorf("invalid input path %q: must be relative, with no empty, . or .. segment", p)
+		}
+		if prev, ok := subject[p]; ok && prev != l {
+			return fmt.Errorf("path %q appears on more than one line (%q and %q); lines must not conflict", p, prev, l)
+		}
+		subject[p] = l
+		return nil
+	}
 	for _, l := range sc.Changes {
 		f := strings.Fields(l)
 		if sc.Mode == "plain" {
+			if err := note(f[0], l); err != nil {
+				return cfgErr("%v", err)
+			}
 			touched[f[0]] = "modified"
 			continue
+		}
+		switch f[0][0] {
+		case 'A', 'M', 'T', 'D':
+			if err := note(f[1], l); err != nil {
+				return cfgErr("%v", err)
+			}
+		case 'R':
+			if err := note(f[1], l); err != nil {
+				return cfgErr("%v", err)
+			}
+			if err := note(f[2], l); err != nil {
+				return cfgErr("%v", err)
+			}
+		default:
+			return cfgErr("unrecognised status line %q", l)
 		}
 		switch f[0][0] {
 		case 'A':
@@ -294,8 +599,6 @@ func evaluate(sc Scenario) Outcome {
 		case 'R':
 			vanished[f[1]] = true
 			touched[f[2]] = "renamed"
-		default:
-			return cfgErr("unrecognised status line %q", l)
 		}
 	}
 
@@ -306,20 +609,10 @@ func evaluate(sc Scenario) Outcome {
 	sort.Strings(ids) // rule IDs are always processed in sorted order
 
 	// ---- validation, per rule, before any evaluation ----
-	type compiled struct {
-		id       string
-		r        Rule
-		match    []*glob
-		exclude  []*glob
-		vars     []string
-		sev      string
-		expect   []string
-		hasRelat bool
-	}
-	var rules []compiled
+	var rules []*compiled
 	for _, id := range ids {
 		r := cfg.Rules[id]
-		c := compiled{id: id, r: r}
+		c := &compiled{id: id, r: r}
 		fail := func(format string, a ...any) Outcome {
 			return cfgErr("rule %q: "+format, append([]any{id}, a...)...)
 		}
@@ -379,7 +672,10 @@ func evaluate(sc Scenario) Outcome {
 				return fail("expect: none requires at least one of message or flags")
 			}
 		}
-		c.hasRelat = r.Related != ""
+		c.hasRelat = r.Related != nil
+		if c.hasRelat {
+			c.related = *r.Related
+		}
 		if !c.hasRelat && !none {
 			return fail("related is required unless expect is none")
 		}
@@ -389,6 +685,9 @@ func evaluate(sc Scenario) Outcome {
 		if r.SkipIf == "exists" && set["exists"] {
 			return fail("skipIf: exists with expect: exists can never pass: the rule only applies when the related file is not there")
 		}
+		if r.SkipIf == "exists" && set["touched"] {
+			return fail("skipIf: exists with expect: touched can pass only when the diff and the working tree disagree: the rule applies only when the related file is not there")
+		}
 
 		var names []string
 		for gi, g := range r.Match {
@@ -397,9 +696,11 @@ func evaluate(sc Scenario) Outcome {
 				return fail("%v", err)
 			}
 			if gi == 0 {
-				names = cg.captures
-			} else if strings.Join(sorted(cg.captures), ",") != strings.Join(sorted(names), ",") {
-				return fail("every match glob must bind the same capture names (%v versus %v)", names, cg.captures)
+				names = cg.names()
+			} else if strings.Join(sorted(cg.names()), ",") != strings.Join(sorted(names), ",") {
+				return fail("every match glob must bind the same capture names (%v versus %v)", names, cg.names())
+			} else if strings.Join(sorted(cg.kinds()), ",") != strings.Join(sorted(c.match[0].kinds()), ",") {
+				return fail("every match glob must use the same kind for a capture name: {**name} spans segments, {name} does not (%v versus %v)", c.match[0].kinds(), cg.kinds())
 			}
 			c.match = append(c.match, cg)
 		}
@@ -408,10 +709,13 @@ func evaluate(sc Scenario) Outcome {
 			if err != nil {
 				return fail("%v", err)
 			}
+			if contains(r.Match, g) {
+				return fail("exclude %q is identical to a match glob, so it removes every match", g)
+			}
 			c.exclude = append(c.exclude, cg)
 		}
 		if c.hasRelat {
-			vars, err := templateVars(r.Related)
+			vars, err := templateVars(c.related)
 			if err != nil {
 				return fail("%v", err)
 			}
@@ -421,7 +725,7 @@ func evaluate(sc Scenario) Outcome {
 				if v != "dir" && !contains(names, v) {
 					return fail("related uses {%s} but match does not capture it", v)
 				}
-				if v == "dir" || v == c.match[0].multi {
+				if v == "dir" || v == c.match[0].multiName() {
 					slashy++
 				}
 			}
@@ -432,6 +736,15 @@ func evaluate(sc Scenario) Outcome {
 		for _, n := range names {
 			if !contains(c.vars, n) {
 				return fail("capture {%s} is never used in related", n)
+			}
+		}
+		if c.hasRelat && len(c.vars) == 0 {
+			rel, err := resolveRelated(c.related, nil)
+			if err != nil {
+				return fail("%v", err)
+			}
+			if _, self, _ := c.bind(rel); self {
+				return fail("related path %q also matches this rule's own match; add an exclude or narrow the match", rel)
 			}
 		}
 		rules = append(rules, c)
@@ -449,37 +762,12 @@ func evaluate(sc Scenario) Outcome {
 
 	for _, c := range rules {
 		r := c.r
-		bind := func(p string) (map[string]string, bool, error) {
-			for _, e := range c.exclude {
-				if e.re.MatchString(p) {
-					return nil, false, nil
-				}
-			}
-			var first map[string]string
-			for _, g := range c.match {
-				m := g.re.FindStringSubmatch(p)
-				if m == nil {
-					continue
-				}
-				v := map[string]string{"dir": path.Dir(p)}
-				if v["dir"] == "." {
-					v["dir"] = ""
-				}
-				for i, n := range g.captures {
-					v[n] = m[i+1]
-				}
-				if first == nil {
-					first = v
-				} else if !equal(first, v) {
-					return nil, false, fmt.Errorf("rule %q: %q matches two match globs with different bindings; make the globs not overlap", c.id, p)
-				}
-			}
-			return first, first != nil, nil
-		}
-
 		insts := map[string]*inst{}
 		for _, p := range paths {
-			v, ok, err := bind(p)
+			if sc.Mode == "plain" && !disk[p] {
+				continue // a listed source that is not on disk cannot be matched, as with a deleted one in git mode
+			}
+			v, ok, err := c.bind(p)
 			if err != nil {
 				return cfgErr("%v", err)
 			}
@@ -521,6 +809,20 @@ func evaluate(sc Scenario) Outcome {
 				out.Results = append(out.Results, Res{status, c.id, in.name, detail})
 				out.Counts[status]++
 			}
+			// Rules 9 to 11 run for every instance, before changeType and skipIf can
+			// skip it, so a skipped instance cannot hide a broken rule.
+			rel := ""
+			if c.hasRelat {
+				var err error
+				if rel, err = resolveRelated(c.related, in.vars); err != nil {
+					return cfgErr("rule %q: %v", c.id, err)
+				}
+				if _, self, err := c.bind(rel); err != nil {
+					return cfgErr("%v", err)
+				} else if self {
+					return cfgErr("rule %q: related path %q also matches this rule's own match; add an exclude or narrow the match", c.id, rel)
+				}
+			}
 			if len(r.ChangeType) > 0 {
 				ok := false
 				for _, ct := range r.ChangeType {
@@ -537,14 +839,6 @@ func evaluate(sc Scenario) Outcome {
 				}
 				add("info", "")
 				continue
-			}
-			rel := r.Related
-			for _, n := range c.vars {
-				rel = strings.ReplaceAll(rel, "{"+n+"}", in.vars[n])
-			}
-			rel = strings.TrimPrefix(path.Clean(rel), "/") // an empty {dir} leaves a leading "/"
-			if _, self, _ := bind(rel); self {
-				return cfgErr("rule %q: related path %q also matches this rule's own match; add an exclude or narrow the match", c.id, rel)
 			}
 
 			state := "missing"

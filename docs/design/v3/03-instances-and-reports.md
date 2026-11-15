@@ -40,7 +40,9 @@ Consequences:
   limits in [`04-grammar.md`](04-grammar.md).
 
 `related` may not contain `..`, so a template cannot reach the same file from
-different directories by walking back up.
+different directories by walking back up. The resolved path is checked too: a
+captured value can itself be `..`, and a result with a `.` or `..` segment is an
+error ([`04-grammar.md`](04-grammar.md), rule 11).
 
 ## 2. Instance names
 

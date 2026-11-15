@@ -660,3 +660,408 @@
         related: "{dir}/{name}.md"
         expect: touched
   want: {error: "already defined"}
+
+# ---- review 5: binding, dialect, resolved paths ------------------------------
+# Scenarios 60 to 99. Each guards one finding from independent review 5.
+
+- name: "60 A capture may not touch *: binding would depend on the matcher"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/*{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  want: {error: "cannot touch *, ? or an alternation"}
+
+- name: "61 A capture may not touch an alternation"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{x,xy}{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  want: {error: "cannot touch *, ? or an alternation"}
+
+- name: "62 A capture may not touch ?"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}?.go"
+        related: "docs/{n}.md"
+        expect: touched
+  want: {error: "cannot touch *, ? or an alternation"}
+
+- name: "63 Binding: longest first capture, repeated literal and a ** before it"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "**/{name}.{kind}.ts"
+        related: "docs/{name}-{kind}.md"
+        expect: touched
+  disk: [a/b/user.profile.component.ts, docs/user.profile-component.md]
+  changes: ["M a/b/user.profile.component.ts"]
+  want: {results: ["FAIL r user.profile/component"], headline: FAIL}
+
+- name: "64 Same name as {x} in one glob and {**x} in another is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: ["src/{**p}/{n}.go", "lib/{p}/{n}.go"]
+        related: "docs/{p}/{n}.md"
+        expect: touched
+  want: {error: "same kind"}
+
+- name: "65 The same two globs reordered are rejected the same way"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: ["lib/{p}/{n}.go", "src/{**p}/{n}.go"]
+        related: "docs/{p}/{n}.md"
+        expect: touched
+  want: {error: "same kind"}
+
+- name: "66 A capture that binds .. cannot walk out of the repository"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "lib/{n}x.go"
+        related: "{n}/{n}/x.txt"
+        expect: touched
+  disk: ["lib/..x.go"]
+  changes: ["M lib/..x.go"]
+  want: {error: "resolves to an invalid path"}
+
+- name: "67 A capture that binds . is rejected too"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "lib/{n}x.go"
+        related: "{n}/y.txt"
+        expect: touched
+  disk: ["lib/.x.go"]
+  changes: ["M lib/.x.go"]
+  want: {error: "resolves to an invalid path"}
+
+- name: "68 Substitution is one pass: a value that looks like a variable is literal"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}x.go"
+        related: "docs/{n}-{dir}.md"
+        expect: touched
+  disk: ["src/{dir}x.go", "docs/{dir}-src.md"]
+  changes: ["M src/{dir}x.go", "M docs/{dir}-src.md"]
+  want: {results: ["PASS r {dir}/src"], headline: PASS}
+
+- name: "69 Empty leading {dir} does not make the path absolute"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "*.md"
+        exclude: "README.md"
+        related: "{dir}/README.md"
+        expect: touched
+  disk: ["notes.md", "README.md"]
+  changes: ["M notes.md", "M README.md"]
+  want: {results: ["PASS r ."], headline: PASS}
+
+# ---- dialect: narrowed on purpose, each construct rejected by name -----------
+
+- name: "70 Character class is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/[ab]/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  want: {error: "character classes"}
+
+- name: "71 Backslash escape is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/\\*/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  want: {error: "backslash escapes"}
+
+- name: "72 Nested braces are rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{a,{b,c}}/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  want: {error: "nested braces"}
+
+- name: "73 A wildcard inside an alternative is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.{a*,b}"
+        related: "docs/{n}.md"
+        expect: touched
+  want: {error: "alternatives must be literal text"}
+
+- name: "74 An empty alternative is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go{,x}"
+        related: "docs/{n}.md"
+        expect: touched
+  want: {error: "empty alternative"}
+
+- name: "75 ** must be a whole segment"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/a**b/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  want: {error: "must be a whole path segment"}
+
+- name: "76 .. in match is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "../x/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  want: {error: "must not contain a \"..\" segment"}
+
+- name: "77 A leading slash in match is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "/src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  want: {error: "must be relative"}
+
+- name: "78 A trailing slash in match is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}/"
+        related: "docs/{n}.md"
+        expect: touched
+  want: {error: "empty path segment"}
+
+- name: "79 A stray closing brace is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go}"
+        related: "docs/{n}.md"
+        expect: touched
+  want: {error: "unmatched }"}
+
+- name: "80 A trailing /** needs at least one segment below the directory: it does not match the file src"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/**"
+        expect: none
+        message: "m"
+  disk: [src]
+  changes: ["M src"]
+  want: {results: [], headline: PASS}
+
+- name: "80b A trailing /** matches one segment below"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/**"
+        expect: none
+        message: "m"
+  disk: [src/a.go]
+  changes: ["M src/a.go"]
+  want: {results: ["INFO r (all)"], headline: PASS}
+
+- name: "81 An exclude identical to a match glob removes every match"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/**"
+        exclude: "src/**"
+        expect: none
+        message: "m"
+  want: {error: "identical to a match glob"}
+
+# ---- related template additions ----------------------------------------------
+
+- name: "82 Empty related is rejected, not treated as absent"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: ""
+        expect: touched
+  want: {error: "related must not be empty"}
+
+- name: "83 Backslash in related"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs\\{n}.md"
+        expect: touched
+  want: {error: "backslash"}
+
+- name: "84 Adjacent variables in related"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{a}_{b}.go"
+        related: "docs/{a}{b}.md"
+        expect: touched
+  want: {error: "adjacent variables"}
+
+- name: "85 related ending in a slash names a directory"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}/"
+        expect: touched
+  want: {error: "not end with /"}
+
+- name: "86 A constant related path inside the rule's own match is caught at load"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "docs/**"
+        related: "docs/INDEX.md"
+        expect: touched
+  want: {error: "also matches this rule's own match"}
+
+- name: "87 skipIf exists with expect touched passes only when diff and tree disagree"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: exists
+  want: {error: "disagree"}
+
+# ---- resolve-time checks run before changeType and skipIf --------------------
+
+- name: "88 Self-match is found even when changeType skips the instance"
+  config: |
+    version: 3
+    rules:
+      go-test:
+        match: "src/**/{name}.go"
+        related: "{dir}/{name}_test.go"
+        expect: touched
+        changeType: added
+  disk: [src/a.go, src/a_test.go]
+  changes: ["M src/a.go"]
+  want: {error: "also matches this rule's own match"}
+
+- name: "89 Self-match is found even when skipIf would skip the instance"
+  config: |
+    version: 3
+    rules:
+      go-test:
+        match: "src/**/{name}.go"
+        related: "{dir}/{name}_test.go"
+        expect: touched
+        skipIf: missing
+  disk: [src/a.go]
+  changes: ["M src/a.go"]
+  want: {error: "also matches this rule's own match"}
+
+# ---- input modes -------------------------------------------------------------
+
+- name: "90 Plain mode: a listed source that is not on disk creates no instance, as in git mode"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      handler-test:
+        match: "internal/**/{name}_handler.go"
+        related: "{dir}/{name}_handler_test.go"
+        expect: touched
+  disk: []
+  changes: ["internal/order/order_handler.go"]
+  want: {results: [], headline: PASS}
+
+- name: "90b Git mode: a deleted source creates no instance"
+  config: |
+    version: 3
+    rules:
+      handler-test:
+        match: "internal/**/{name}_handler.go"
+        related: "{dir}/{name}_handler_test.go"
+        expect: touched
+  disk: []
+  changes: ["D internal/order/order_handler.go"]
+  want: {results: [], headline: PASS}
+
+- name: "91 --files-from: one path on two conflicting lines is an error"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  disk: [src/a.go]
+  changes: ["D src/a.go", "A src/a.go"]
+  want: {error: "more than one line"}
+
+- name: "91b --files-from: an identical repeated line is harmless"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: [src/a.go]
+  changes: ["M src/a.go", "M src/a.go"]
+  want: {results: ["SKIPPED r a"], headline: PASS}
+
+- name: "92 --files-from: a path with a .. segment is an error"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  changes: ["M src/../a.go"]
+  want: {error: "invalid input path"}
