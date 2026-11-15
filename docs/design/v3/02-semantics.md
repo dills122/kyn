@@ -154,11 +154,19 @@ this order:
 Each line is read on its own: a line containing a TAB is a name-status line, and
 a line with none is a plain path, so one file may mix both. The status field is
 exactly `A`, `M`, `D` or `T` with one more field (the path), or `R` followed by
-one to three digits (the score) with two more (the old and new paths). Anything
-else is an error naming the line: another status, a bare `R`, extra fields. `C`
-and `X` are errors because Kyn never asks git for copies or type changes in that
-form, and `U` (an unmerged path) because a conflicted change set is not one to
-enforce: the message says to resolve the merge first. Both halves of a rename matter: the
+a score from 0 to 100, as git prints it (`R100`, `R095`), with two more (the old
+and new paths). Anything else is an error naming the line: another status, a bare
+`R`, a score above 100, extra fields. `C` and `X` are errors because Kyn never
+asks git for copies, and no other status is one it expects; `U` (an unmerged
+path) is an error because a conflicted change set is not one to enforce, and the
+message says to resolve the merge first.
+
+A line with no TAB that **starts with a status token and a space** (`D src/a.go`,
+`M  src/b.go`, `?? src/c.go`, `R100 a b`) is rejected too, naming the line: it is
+a name-status line whose TAB became spaces, or `git status` output, and reading it
+as a file called `D src/a.go` would silently evaluate nothing. The tokens are
+`A M D T U C X`, `R` with digits, `??` and `!!`. A tracked file whose name really
+begins that way is fed through the status form (`M<TAB>M foo.go`). Both halves of a rename matter: the
 destination joins the change set, the source is what makes a related path
 `removed`.
 
@@ -171,19 +179,19 @@ src/plain-path.go
 
 Plain single-path lines mean `modified`. Empty and whitespace-only lines are
 ignored, and a trailing CR is removed, so CRLF input works. Every path, in every
-input mode including `--files`, must be clean or the run fails naming it. The
-predicate is the one rule 11 applies to resolved paths: valid UTF-8, relative,
-no empty, `.` or `..` segment, no `\`, no control character or BOM, no segment
-that begins or ends with a blank character (so interior spaces are fine), and no
-first segment that begins with a letter and a colon; and for input only, not in
-git's quoted form (a leading `"`). Nothing is
+input mode including `--files`, must be a **clean path** or the run fails naming
+it: the one predicate defined in [`04-grammar.md`](04-grammar.md) under Matching,
+which rule 11 also applies to resolved paths, plus, for input only, not in git's
+quoted form. This is fatal for every changed path, matched or not, so a
+repository that tracks a name like `Q: and A.md`, `old /x.txt` or `a\b.txt`
+(legal on Linux and macOS) fails every run whose change touches it
+([`06-cutover.md`](06-cutover.md)). Nothing is
 trimmed, converted or cleaned for the user: v2 turned `\` into `/` and stripped
 `./`, and v3 rejects both ([`06-cutover.md`](06-cutover.md)). A path may appear on
 several lines only if the lines are identical; otherwise (`D x` and `A x`, or a
 rename destination that is also listed alone) the run fails naming the path,
 because no order of precedence is right. Git never emits such a diff. The
-statuses are exactly the five above: Kyn never asks git for copies, so `C`, `U`
-and `X` are errors.
+statuses are exactly the five above; every other status is an error.
 
 Paths that git would quote (non-ASCII or special characters) are not supported in
 `--files-from`. Feed it `git -c core.quotePath=false ...`, which still quotes a
@@ -212,7 +220,7 @@ The facts apply per line, so in a mixed file only the plain lines are affected.
 | 1 | A related file deleted by the change and **not listed** | state `removed`: `skipIf: missing` applies, `expect: untouched` fails | state `missing`: `skipIf: missing` **skips**, `expect: untouched` **passes** |
 | 2 | A related file deleted by the change and **listed** (what `git diff --name-only` prints) | `removed`, not touched: `expect: touched` **fails**, `untouched` fails | `missing` and **touched**: `expect: touched` **passes**, `untouched` fails "was touched"; `skipIf: missing` skips |
 | 3 | Source statuses | `added`, `modified`, `renamed` | all `modified`, so `changeType: [added]` never matches |
-| 4 | A listed **source** that is not on disk | `D`, or the old name of a rename: no instance. `A` or `M` but absent from disk (a checkout without the file, OS1): an instance is created and its related path is evaluated | dropped, whatever it was, because a deleted source and a typo look the same |
+| 4 | A listed **source** that is not on disk | `D`, or the old name of a rename: no instance. `A` or `M` but absent from disk (a checkout without the file, OS1): an instance is created, its related path is evaluated, and rules 9 to 11 run for it | dropped, whatever it was, because a deleted source and a typo look the same; **no instance, so no resolve-time check, runs for it** (the same config can be fine in plain mode and stop a git-mode run under rule 10) |
 
 Row 2 reopens the delete-to-silence hole for a policy run on `--name-only`
 output: deleting the test makes `expect: touched` pass. Feed `--files-from` the

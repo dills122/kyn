@@ -11,15 +11,15 @@ the current design and nothing else.
 | Area | State | Document |
 | --- | --- | --- |
 | Measured v2 baseline | 16 observations; 14 have a script, OS2 is derived from OS1 and OS10 is a source search | [`01`](01-observed-semantics.md) |
-| Semantics | Revised after review 7 (plain-path facts, input grammar) | [`02`](02-semantics.md) |
+| Semantics | Revised after review 8 (status-like lines, rename score) | [`02`](02-semantics.md) |
 | Instances and reports | Revised after review 4 | [`03`](03-instances-and-reports.md) |
-| Grammar and matching | Rewritten after review 5, tightened after reviews 6 and 7 (total binding by rejection, code points, validation by enumeration, one blank-character predicate); **the review-7 fixes are not yet independently reviewed** | [`04`](04-grammar.md) |
+| Grammar and matching | Rewritten after review 5, tightened after reviews 6 to 8 (total binding by rejection, code points, validation by enumeration, one blank-character predicate defined once); **the review-8 fixes are not yet independently reviewed** | [`04`](04-grammar.md) |
 | Cutover inventory | Measured and extended | [`06`](06-cutover.md) |
 | Conformance suite | Specified, with a matcher layer; 84 semantic cells | [`07`](07-conformance.md) |
-| Scenario simulator | 134 scenarios, each asserting its outcome; matcher is an enumerating reference over code points; a random-glob run (`-ties`) checks binding is total; mutation-tested | [`experiments/sim/`](experiments/sim/) |
+| Scenario simulator | 150 scenarios, each asserting its outcome; matcher is an enumerating reference over code points; a random-glob run (`-ties`) checks binding is total; mutation-tested | [`experiments/sim/`](experiments/sim/) |
 | v1/v2 compatibility matrix | Historical evidence only | [`05`](05-compatibility-matrix.md) |
 
-Seven independent reviews have run (recorded in
+Eight independent reviews have run (recorded in
 [`../../reviews/`](../../reviews/)). Review 4 judged the revised shape ready to
 advance once five P1 findings were closed, and closing them added the matching
 section. Review 5 attacked that section and found it was not implementable from
@@ -28,8 +28,10 @@ and the matching section was rewritten around a defined dialect. Review 6
 found the dialect implementable and no P0, but two P1s (binding not total with
 `**` around a capture; the plain-path "whole list" wrong a third time) and nine
 P2s, closed below (D59 to D65). Review 7 found one P1 (a plain-path row
-contradicting its own derivation) and four P2s, closed as D66 to D70. The next
-gate is an eighth review.
+contradicting its own derivation) and four P2s, closed as D66 to D70. Review 8
+found no P0 or P1, two P2s (a status line with spaces read as a path; zero-width
+characters not treated as blank) and a set of P3s, closed as D71 to D75. The next
+gate is a ninth, and last, review.
 
 ## Two changes of direction
 
@@ -108,6 +110,11 @@ the rule aloud. The four presets went from 39/27/22/22 non-blank lines in v2 to
 | D68 | Rule 7 also rejects a rule that **can never fail** (`skipIf: exists` with `missing`), so layer 1 is **84 cells**, not 90 (108 less 24). `02` stops recommending that combination. The five pairs are git-mode; plain-mode vacuity is stated, not rejected. Supersedes the count in D62 | Review 7 P2-2: an always-pass rule is the same defect class as an informational rule with an error severity |
 | D69 | One **blank-character predicate** (white space, BOM, control) for globs, `related`, and input paths: controls and BOM anywhere, no blank at a segment edge, none inside `{}` (`{ts, html}`), and rule 11 applies the same clean-path check to resolved paths. A first segment of a letter and a colon is rejected in `related` at load. `{**,a}` gets its own message. Refines D63 and D64 | Review 7 P2-1, P2-3 and P3s |
 | D70 | `--files-from` grammar is exact: each line stands alone (a file may mix status and plain lines); status is `A`, `M`, `D`, `T` with two fields or `R<1-3 digits>` with three; extra fields, `C`, `X` and `U` are errors; whitespace-only lines are ignored; a BOM is an error, not a silent never-match. `--files` cannot carry a comma (`06`). Refines D57 and D64 | Review 7 P2-3 |
+| D71 | A TAB-less line that starts with a status token and a space (`D x`, `M  x`, `?? x`, `R100 a b`) is **rejected**, naming the line, in plain and mixed input. A file whose name really starts that way goes through the status form. Refines D70 | Review 8 P2-1: `git status` output or a status line whose TAB became spaces was read as a file called `D src/a.go` and silently evaluated nothing, reopening the delete-to-silence hole for people who thought they were feeding removals |
+| D72 | Format characters (Unicode Cf: zero-width space, joiner, BOM) are **blank** at a segment edge and inside `{}`, and legal in the middle of a segment. The predicate is **defined once** in `04` (Matching) as "clean path", and `02`, rule 11 and `06` refer to it. The property is named: `White_Space`. Refines D69 | Review 8 P2-2 and P3-6: a pasted zero-width space made a glob that never matches, and the BOM was the only Cf character rejected. The text phrased the predicate three ways |
+| D73 | A rename score is 0 to 100, as git prints it; `C`, `X` and every other status are errors for the stated reason that Kyn expects nothing else. Refines D70 | Review 8 P3-10 and P3-7: `R1000` was accepted, and the `T`/type-change wording was wrong |
+| D74 | **Disclosed, not narrowed:** the clean-path check is fatal for every changed path, matched or not, so a tracked name legal on Linux and macOS (`Q: and A.md`, `old /x.txt`, `a\b.txt`) fails every run that touches it. Stated in `02` §6 and `06`; no file in this repository is affected (measured). Maintainer chose disclosure on 2026-11-15 | Review 8 P3-9. Narrowing the check to resolved paths would weaken the guarantee for a rare case |
+| D75 | **The capture-between-`**` rule is kept as is**, reworded: it is a little wider than the ties it prevents, and `src/{**pkg}/{name}/**` and `src/**/{name}/{**rest}` are rejected for name-length stability, not because they tie. Rule 7's vacuity sentences list both plain-mode cases (`skipIf: missing` with `expect: missing` never passes, with `expect: exists` never fails); fact 3 states that no resolve-time check runs for a dropped source; the `-ties` count is stated as two million tried, about one million accepted. Maintainer chose to keep the rule on 2026-11-15 | Review 8 P3-1 to P3-5, P3-8. Relaxing it was supported by a random run, not a proof, and would have needed another review |
 
 D29's `why` and `changeType`, and D36, were confirmed by the maintainer on
 2026-11-13.
@@ -313,13 +320,41 @@ The simulator is at 134 scenarios and thirteen mutations of the new decisions
 each turn scenarios red (two survivors found on the way, a missing segment-edge
 whitespace case and a mutation that only failed to compile, were fixed).
 
+### Independent review 8 (2026-11-15)
+
+A fresh-context review at `300a06e` (design `582442e`), scope frozen in
+[`../../reviews/v3-config-review-8-bootstrap.md`](../../reviews/v3-config-review-8-bootstrap.md),
+recorded verbatim in
+[`../../reviews/v3-config-independent-review-8.md`](../../reviews/v3-config-independent-review-8.md).
+Verdict: not freezable as it stood; freezable after two small P2 edits and P3 text
+fixes. No P0, no P1. Its own matcher, rule 7 checker and clean-path predicate
+agreed with the simulator (about 27 million binding pairs, 2 million random
+strings, every `skipIf` and `expect` list), its attack on totality found nothing,
+and it re-derived the three facts and the 84-cell count.
+
+| Sev | Finding | Disposition |
+| --- | --- | --- |
+| P2 | A name-status line with spaces is read as a plain path | D71 |
+| P2 | Zero-width (Cf) characters are not blank | D72 |
+| P3 | Rejection wider than needed for `{**x}` before a capture | D75, kept and reworded |
+| P3 | "two million accepted" overclaim | D75, fixed |
+| P3 | Rule 7 sentences: plain-mode vacuity incomplete, example labels wrong | D75, fixed |
+| P3 | "as rules 9 and 10 do" ambiguous; rule 11 list drifts from the predicate | `04`; D72 |
+| P3 | `C`/`X` wording; row 4 omits resolve-time checks | D73, D75 |
+| P3 | Whole-run abort on legal names not disclosed | D74 |
+| P3 | `R1000` mutation survivor; uncompiled mutations not counted | D73; scenarios 117 to 117c; mutations redone with a compile check |
+
+The simulator is at 150 scenarios. Seven mutations of the new decisions were
+run with a compile check and a panic check; one survivor (the rename-score cap,
+which `R1000` alone could not reach because the pattern already rejects four
+digits) needed scenario 117c.
+
 ## Open items
 
-1. **An eighth independent review.** Review 7's fixes removed the tie-break,
-   rewrote §6 around three facts, tightened rule 7, and made one blank-character
-   predicate and an exact `--files-from` grammar (D66 to D70). Scope it to `04`
-   Binding, Globs and Validation, and `02` §3 and §6. If it returns only P3s,
-   freeze the matching section.
+1. **A ninth, and last, independent review.** Review 8's fixes added a status-like
+   line rejection, Cf as blank, a rename-score cap, and a single definition of the
+   clean path (D71 to D75). It should confirm those and report whether the matching
+   section can be frozen. If it returns only P3s, freeze.
 2. **Two shipped defects, per the rule that a bad bug is fixed in place:** OS7
    (non-deterministic errors) and OS16 (non-ASCII filenames never match).
    Neither depends on v3, and both are in code v3 reuses. Decide whether they

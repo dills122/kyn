@@ -163,7 +163,7 @@ func compileGlob(g string, allowCaptures bool) (*glob, error) {
 		return bad("is not valid UTF-8")
 	}
 	if hasHidden(g) {
-		return bad("contains a control or invisible character")
+		return bad("contains a control character or a byte order mark")
 	}
 	if strings.HasPrefix(g, "/") {
 		return bad("must be relative to the repository root")
@@ -378,11 +378,15 @@ func dotSegment(st []token) string {
 	return ""
 }
 
-// A blank character is Unicode white space, a byte order mark, or a control
-// character. Controls and the BOM are rejected anywhere in a glob, a related
-// template or an input path; a segment may not begin or end with any blank
-// character; and none may appear inside {}.
-func isBlank(r rune) bool { return unicode.IsSpace(r) || r == 0xFEFF || unicode.IsControl(r) }
+// A blank character is Unicode White_Space, a control character (Cc) or a
+// format character (Cf: zero-width space and joiner, BOM, and the like).
+// Controls and the BOM are rejected anywhere in a glob, a related template or an
+// input path; a segment may not begin or end with a blank character; and none may
+// appear inside {}. A format character in the middle of a segment is legal
+// (emoji sequences need the joiner).
+func isBlank(r rune) bool {
+	return unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r)
+}
 
 func hasHidden(s string) bool {
 	for _, r := range s {
@@ -549,7 +553,7 @@ func templateVars(tpl string) ([]string, error) {
 		return nil, fmt.Errorf("related %q contains a backslash", tpl)
 	}
 	if hasHidden(tpl) {
-		return nil, fmt.Errorf("related %q contains a control or invisible character", tpl)
+		return nil, fmt.Errorf("related %q contains a control character or a byte order mark", tpl)
 	}
 	for i, seg := range strings.Split(tpl, "/") {
 		if edgeBlank(seg) {
@@ -641,7 +645,7 @@ func badPath(p string) string {
 	case !utf8.ValidString(p):
 		return "it is not valid UTF-8"
 	case hasHidden(p):
-		return "it contains a control or invisible character"
+		return "it contains a control character or a byte order mark"
 	case strings.HasPrefix(p, "/"):
 		return "it is absolute"
 	case strings.Contains(p, `\`):
@@ -771,6 +775,9 @@ func evaluate(sc Scenario) Outcome {
 	}
 	fromPlain := map[string]bool{} // sources that came from a plain-path line
 	statusRe := regexp.MustCompile(`^([AMDT]|R[0-9]{1,3})$`)
+	// A TAB-less line that starts with a status token and a space is almost
+	// certainly a name-status line whose TAB became spaces, or git status output.
+	statusLike := regexp.MustCompile(`^([AMDTUCX]|R[0-9]+|\?\?|!!) `)
 	for _, l := range sc.Changes {
 		l = strings.TrimSuffix(l, "\r") // CRLF input
 		if strings.TrimSpace(l) == "" {
@@ -779,6 +786,9 @@ func evaluate(sc Scenario) Outcome {
 		// Each line is read on its own: a TAB makes it a name-status line, no TAB a
 		// plain path. mode "plain" and "mixed" treat a TAB-less line as a path.
 		if !strings.Contains(l, "\t") && (sc.Mode == "plain" || sc.Mode == "mixed") {
+			if statusLike.MatchString(l) {
+				return cfgErr("line %q looks like a status line with spaces instead of a TAB; a plain path may not start with a status token and a space", l)
+			}
 			if err := note(l, l); err != nil {
 				return cfgErr("%v", err)
 			}
@@ -791,11 +801,21 @@ func evaluate(sc Scenario) Outcome {
 		if len(f) == 1 {
 			f = strings.Fields(l)
 		}
+		if len(f) == 0 || f[0] == "" {
+			return cfgErr("empty status on line %q", l)
+		}
+		if sc := f[0]; len(sc) > 1 && sc[0] == 'R' && statusRe.MatchString(sc) {
+			n := 0
+			fmt.Sscan(sc[1:], &n)
+			if n > 100 {
+				return cfgErr("unrecognised status %q on line %q: a rename score is 0 to 100", sc, l)
+			}
+		}
 		if !statusRe.MatchString(f[0]) {
 			if f[0] == "U" {
 				return cfgErr("unmerged path on line %q: resolve the merge first", l)
 			}
-			return cfgErr("unrecognised status %q on line %q: want A, M, D, T or R followed by a score", f[0], l)
+			return cfgErr("unrecognised status %q on line %q: want A, M, D, T or R followed by a score of 0 to 100", f[0], l)
 		}
 		want := 2
 		if f[0][0] == 'R' {

@@ -48,12 +48,23 @@ accepts a single string.
 Paths are slash-normalized and relative to `--cwd`. Matching is case-sensitive
 and works on Unicode code points: `?` is one code point, "longest" counts code
 points, and nothing is normalized, so a name in NFD form does not match an NFC
-glob. `*` and `?` match a leading dot. A **blank character** is Unicode white
-space, a byte order mark or a control character, and the same predicate is used
-for globs, `related` and input paths: controls and the BOM are rejected anywhere,
-no segment may begin or end with a blank character, and none may appear inside
-`{}`. Every rule below is checked when the
-config loads, except the three marked resolve-time.
+glob. `*` and `?` match a leading dot.
+
+A **blank character** is a Unicode `White_Space` character, a control character
+(category Cc) or a format character (Cf: zero-width space, zero-width joiner, the
+byte order mark). **One predicate** is used for globs, `related` templates, input
+paths and resolved related paths, and everything else says "clean path" and
+points here. A path is **clean** when it is non-empty valid UTF-8, relative, has
+no empty, `.` or `..` segment, no `\`, no control character or byte order mark
+anywhere, no segment that begins or ends with a blank character, and no first
+segment that begins with an ASCII letter and a colon. Interior spaces and
+interior format characters are fine, so `my file.go` and an emoji sequence with a
+joiner are legal names. Globs and templates additionally allow no blank character
+inside `{}`. Input paths additionally may not be in git's quoted form (a leading
+`"`).
+
+Every rule below is checked when the config loads, except the three marked
+resolve-time.
 
 ### Globs
 
@@ -78,7 +89,7 @@ A glob is relative and made of non-empty segments. These are rejected:
 | nested braces, or `*`, `?`, `/` or an empty alternative inside `{a,b}` | alternatives are literal text so that alternation cannot decide a binding |
 | `**` that is not a whole segment (`a**b`) | doublestar reads it as `*` and does not cross a `/`; the simulator once read it as "anything". Requiring a whole segment leaves one meaning |
 | a leading `/`, a trailing `/`, an empty segment, a `.` or `..` segment, or an alternative that can make one (`{..,a}`, `{.,a}`) | a glob names repository-relative paths |
-| a blank character at the edge of a segment, inside `{}` (`{ts, html}` is the likely typo: the alternative would be `" html"`), or a control character or BOM anywhere | it can never match what was meant |
+| a blank character at the edge of a segment or inside `{}` (`{ts, html}` is the likely typo: the alternative would be `" html"`; a pasted zero-width space is another), or a control character or BOM anywhere | it can never match what was meant |
 | a `/` inside `{}`, or `*` in a `{**x,a}` | alternatives and capture names cannot hold a separator or a wildcard |
 | an unmatched `{` or `}`, or invalid UTF-8 | |
 
@@ -123,11 +134,14 @@ Sliding also makes the binding depend on directory-name length, so renaming an
 unrelated directory could move a file to another instance. A capture, `{name}` or
 `{**name}`, therefore **may not have `**` or `{**name}` on both sides of it** in
 one glob; the glob is rejected, naming the capture. `src/**/{n}.go` and
-`src/{**pkg}/{name}.py` are fine. With that rule the comparison is total, which
-the simulator checks by running two million random accepted globs
-(`go run docs/design/v3/experiments/sim/main.go -ties 2000000`) and looking for
-two longest parses that bind different values; with the rule removed, it finds
-them.
+`src/{**pkg}/{name}.py` are fine. The rule is deliberately a little wider than the
+ties it prevents: `src/{**pkg}/{name}/**` and `src/**/{name}/{**rest}` do not tie
+(the longer capture wins) but would still bind on name length, and are rejected
+for that stability reason. With the rule the comparison is total. The simulator
+checks that by generating random globs, keeping the accepted ones, and looking
+for a path with two longest parses that bind different values: two million globs
+tried, about one million accepted, none found, and thousands found with the rule
+removed (`go run docs/design/v3/experiments/sim/main.go -ties 2000000`).
 
 A named capture is greedy and `*` is not a capture, so they behave differently
 where they meet: `src/*-{n}.go` binds `n=b-c` on `a-b-c.go`, while
@@ -202,11 +216,13 @@ never scanned for variables, then drops empty segments, so an empty `{dir}` or
 `{**name}` leaves no stray slash and the result is never absolute. The resolved
 path must be non-empty, have no `.` or `..` segment, contain no `\`, and not
 start with a Windows drive, meaning a first segment that begins with an ASCII
-letter and a colon. Input paths pass the same check (see
-[`02-semantics.md`](02-semantics.md) §6). A captured value can be `..` (a file named
+letter and a colon. The resolved path must be a clean path (the definition under
+Matching above), and input paths pass the same check
+([`02-semantics.md`](02-semantics.md) §6). A captured value can be `..` (a file named
 `..x.go` matched by `{n}x.go`), and without this check `{n}/{n}/x.txt` would
 resolve outside `--cwd`. The check is run-level: one such file name stops the
-whole run with exit 2 rather than one instance, as rules 9 and 10 do.
+whole run with exit 2 rather than one instance. Rules 9 and 10 also stop the whole
+run.
 
 A `related` with no variables is a fixed path, so it is checked against the
 rule's own `match` when the config loads.
@@ -293,7 +309,7 @@ All of these fail with exit 2 and name the rule and the field.
 | 4 | Every capture is used in `related`. This also catches `{ts}` written where `{ts,html}` was meant |
 | 5 | `expect` is required with valid values. `none` stands alone. `touched` with `untouched`, and `exists` with `missing`, contradict and are rejected |
 | 6 | `related` is required unless `expect: none`. `skipIf` requires `related`. `skipIf` and `changeType` take only their listed values |
-| 7 | The rule must be able to pass in a state that can really occur. Kyn enumerates the five reachable (state, touched) pairs of [`02-semantics.md`](02-semantics.md) §4, drops the pairs `skipIf` skips, and rejects a rule whose `expect` is false on every remaining pair (it can never pass), true on every remaining pair (it can never fail), or true only on `missing` and touched, the pair that needs the diff and the working tree to disagree. Examples: `skipIf: exists` with `exists` or `touched` (never pass) or with `missing` (never fails; use `none` with `flags`); `skipIf: missing` with `[touched, missing]`; an unconditional `[touched, missing]`. The pairs are those of git mode: in plain modes nothing is `removed`, so `skipIf: missing` with `expect: missing` can never pass there, and is still accepted |
+| 7 | The rule must be able to pass in a state that can really occur. Kyn enumerates the five reachable (state, touched) pairs of [`02-semantics.md`](02-semantics.md) §4, drops the pairs `skipIf` skips, and rejects a rule whose `expect` is false on every remaining pair (it can never pass), true on every remaining pair (it can never fail), or true only on `missing` and touched, the pair that needs the diff and the working tree to disagree. Examples: `skipIf: exists` with `exists` (never passes), with `touched` (passes only on the disagreement pair) or with `missing` (never fails; use `none` with `flags`); `skipIf: missing` with `[touched, missing]` (never passes); an unconditional `[touched, missing]` (disagreement only). The pairs are those of git mode. In plain modes nothing is `removed`, so two accepted combinations are vacuous there: `skipIf: missing` with `expect: missing` can never pass, and `skipIf: missing` with `expect: exists` can never fail. Git mode needs both, so they are not rejected |
 | 8 | `expect: none` requires `severity: info` and at least one of `message` or `flags` |
 
 ### At resolve time
@@ -306,7 +322,7 @@ skipped instance cannot hide a broken rule.
 | --- | --- |
 | 9 | A path matching two `match` globs with different bindings is an error |
 | 10 | A resolved `related` path that matches its own rule's `match` and is not excluded is an error |
-| 11 | A resolved `related` path that is not a clean path is an error: empty, a `.` or `..` segment, a `\`, a Windows drive prefix, a segment with a blank character at its edge, a control character. Input paths use the same predicate |
+| 11 | A resolved `related` path that is not a clean path (defined under Matching) is an error. Input paths use the same predicate |
 
 ```text
 rule "go-test": related path "src/a_test.go" also matches this rule's own
@@ -414,7 +430,7 @@ authority.
 
 ## Worked scenarios
 
-[`experiments/sim/scenarios.yaml`](experiments/sim/scenarios.yaml) holds 134
+[`experiments/sim/scenarios.yaml`](experiments/sim/scenarios.yaml) holds 150
 scenarios: realistic policies with change sets, one for each validation rule,
 and one for each finding of the fifth to seventh reviews. Each states its expected outcome, and the simulator fails on a mismatch:
 
@@ -426,4 +442,4 @@ The simulator is a model of this design, not Kyn code, and was written by the
 same author as the scenarios. A green run shows the model is internally
 consistent; it is not independent evidence the design is right. It was
 mutation-tested: reverting a decision in the model turns the scenarios that
-guard it red (five decisions at first, nine more after review 5, ten more after review 6, thirteen more after review 7).
+guard it red (five decisions at first, nine more after review 5, ten more after review 6, thirteen more after review 7, seven more after review 8).

@@ -1497,7 +1497,7 @@
         expect: touched
   disk: []
   changes: []
-  want: {error: "control or invisible"}
+  want: {error: "control character or a byte order mark"}
 
 - name: "113d A byte order mark in a glob is rejected"
   config: |
@@ -1509,7 +1509,7 @@
         expect: touched
   disk: []
   changes: []
-  want: {error: "control or invisible"}
+  want: {error: "control character or a byte order mark"}
 
 - name: "113e Leading whitespace in related is rejected"
   config: |
@@ -1638,7 +1638,7 @@
         skipIf: missing
   disk: [src/a.go]
   changes: ["\ufeffsrc/a.go"]
-  want: {error: "invisible character"}
+  want: {error: "byte order mark"}
 
 
 - name: "115g A segment with trailing whitespace is rejected wherever the space is"
@@ -1664,3 +1664,211 @@
   disk: ["src/a b.go"]
   changes: ["M\tsrc/a b.go"]
   want: {error: "resolves to an invalid path"}
+
+# ---- review 8 ----------------------------------------------------------------
+
+- name: "116 A plain line that starts with a status token and a space is rejected"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["D src/a_t.go"]
+  want: {error: "instead of a TAB"}
+
+- name: "116b git status --short output is rejected, not read as file names"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["?? src/b.go"]
+  want: {error: "instead of a TAB"}
+
+- name: "116c The same in a mixed file"
+  mode: mixed
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: [src/a.go]
+  changes: ["M\tsrc/a.go", "R100 src/a.go src/b.go"]
+  want: {error: "instead of a TAB"}
+
+- name: "116d A plain path that merely contains a status letter is fine"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: ["src/Mfile.go"]
+  changes: ["src/Mfile.go"]
+  want: {results: ["SKIPPED r Mfile"], headline: PASS}
+
+- name: "117 A rename score above 100 is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["R1000\tsrc/a.go\tsrc/b.go"]
+  want: {error: "0 to 100"}
+
+- name: "117b R100 and R095 are accepted"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: [src/b.go, src/c.go]
+  changes: ["R100\tsrc/a.go\tsrc/b.go", "R095\tsrc/x.go\tsrc/c.go"]
+  want: {results: ["SKIPPED r b", "SKIPPED r c"], headline: PASS}
+
+- name: "118 A zero-width space at the end of a glob is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go\u200b"
+        related: "docs/{n}.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "leading or trailing whitespace"}
+
+- name: "118b A zero-width space at the start of a segment is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/\u200b{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "leading or trailing whitespace"}
+
+- name: "118c A zero-width space inside {} is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.{ts,\u200bhtml}"
+        related: "docs/{n}.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "whitespace inside {}"}
+
+- name: "118d A zero-width joiner inside a segment is legal"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: ["src/a\u200db.go"]
+  changes: ["M src/a\u200db.go"]
+  want: {results: ["SKIPPED r a\u200db"], headline: PASS}
+
+- name: "118e A zero-width space at the end of an input path is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+        skipIf: missing
+  disk: []
+  changes: ["M\tsrc/a.go\u200b"]
+  want: {error: "leading or trailing whitespace"}
+
+- name: "118f A zero-width space at the start of related is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "\u200bdocs/{n}.md"
+        expect: touched
+  disk: []
+  changes: []
+  want: {error: "leading or trailing whitespace"}
+
+- name: "119 Fact 3: a dropped plain source never reaches rule 10"
+  mode: plain
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/**/{n}.go"
+        related: "src/{n}.go"
+        expect: exists
+  disk: []
+  changes: ["src/a.go"]
+  want: {results: [], headline: PASS}
+
+- name: "119b The same source in git mode is evaluated, and rule 10 stops the run"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/**/{n}.go"
+        related: "src/{n}.go"
+        expect: exists
+  disk: []
+  changes: ["M\tsrc/a.go"]
+  want: {error: "also matches this rule's own match"}
+
+- name: "119c skipIf missing with expect exists is accepted (it can never fail only in plain mode)"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: exists
+        skipIf: missing
+  disk: [src/a.go, docs/a.md]
+  changes: ["M src/a.go"]
+  want: {results: ["PASS r a"], headline: PASS}
+
+- name: "117c A rename score of 101 is rejected"
+  config: |
+    version: 3
+    rules:
+      r:
+        match: "src/{n}.go"
+        related: "docs/{n}.md"
+        expect: touched
+  disk: []
+  changes: ["R101\tsrc/a.go\tsrc/b.go"]
+  want: {error: "0 to 100"}
