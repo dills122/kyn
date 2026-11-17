@@ -15,7 +15,7 @@ rules:
 ```
 
 Start with the grammar. Each document describes the current design only; how it
-got here is in the workplan.
+got here is in the notes.
 
 | Document | Contents |
 | --- | --- |
@@ -24,24 +24,4 @@ got here is in the workplan.
 | [`03-instances-and-reports.md`](03-instances-and-reports.md) | Instances, names, ordering, report fields, skipped results, headline |
 | [`06-cutover.md`](06-cutover.md) | Removing v1/v2: measured inventory, presets, order of work |
 | [`07-conformance.md`](07-conformance.md) | The suite that proves an implementation matches |
-| [`01-observed-semantics.md`](01-observed-semantics.md) | Measured v2 behavior, the factual baseline |
-| [`05-compatibility-matrix.md`](05-compatibility-matrix.md) | v1/v2 shapes probed; historical |
-| [`00-workplan.md`](00-workplan.md) | Decision log, superseded decisions, review dispositions, open items |
-| [`experiments/`](experiments/) | Reproduction scripts and the scenario simulator |
-| [`../../reviews/`](../../reviews/) | The nine independent reviews, recorded verbatim, and their frozen scopes |
-
-## Running the experiments
-
-```bash
-go build -o /tmp/kyn ./cmd/kyn
-KYN=/tmp/kyn bash docs/design/v3/experiments/e3-truthtable.sh
-```
-
-Each script builds a disposable fixture under `$TMPDIR` and leaves the
-repository untouched. They measure the shipped v2 binary.
-
-The scenario simulator models the v3 design instead:
-
-```bash
-go run docs/design/v3/experiments/sim/main.go docs/design/v3/experiments/sim/scenarios.yaml
-```
+| [`notes.md`](notes.md) | Measured v2 behavior (OS1 to OS16), decisions that shaped the specs, review history, open items |

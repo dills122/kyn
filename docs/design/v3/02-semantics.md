@@ -1,8 +1,8 @@
 # Semantics
 
 Status: proposed. Current state only; history is in
-[`00-workplan.md`](00-workplan.md). Claims about today's behavior cite an
-observation in [`01-observed-semantics.md`](01-observed-semantics.md).
+[`notes.md`](notes.md). Claims about today's behavior cite an observation (OS1,
+OS2, ...) listed there.
 
 ## 1. What Kyn observes
 
@@ -48,14 +48,6 @@ name, and `removed` falls through to the rule in both cases.
 | *(omitted)* | applies | applies | applies |
 | `missing` | applies | applies | skipped |
 | `exists` | skipped | applies | applies |
-
-[`e9-gate-prototype.sh`](experiments/e9-gate-prototype.sh) derives each
-scenario's state and change-set membership from real git output in a real
-repository, and applies the table above. The verdicts are computed by the script
-from these rules; it does not run the binary. What the shipped binary does today
-for the deleted and renamed rows is measured by
-[`e4-git-delete.sh`](experiments/e4-git-delete.sh) and
-[`e8-rename-blindness.sh`](experiments/e8-rename-blindness.sh).
 
 For `expect: touched`:
 

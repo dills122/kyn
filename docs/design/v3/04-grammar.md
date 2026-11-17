@@ -1,7 +1,7 @@
 # v3 grammar
 
 Status: proposed. This is the current shape; the history of how it got here is
-in [`00-workplan.md`](00-workplan.md). Nothing is implemented.
+in [`notes.md`](notes.md). Nothing is implemented.
 
 The goal is a config a developer can read aloud: *when files like this change,
 that file is expected to be touched too.*
@@ -101,7 +101,7 @@ A glob is relative and made of non-empty segments. These are rejected:
 | `[ab]`, `[!x]` | v2 treated them as character classes. v3 has none, and silently reading `[` as a literal would change what a ported glob matches |
 | `\` escapes | the same |
 | nested braces, or `*`, `?`, `/` or an empty alternative inside `{a,b}` | alternatives are literal text so that alternation cannot decide a binding |
-| `**` that is not a whole segment (`a**b`) | doublestar reads it as `*` and does not cross a `/`; the simulator once read it as "anything". Requiring a whole segment leaves one meaning |
+| `**` that is not a whole segment (`a**b`) | doublestar reads it as `*` and does not cross a `/`. Requiring a whole segment leaves one meaning |
 | a leading `/`, a trailing `/`, an empty segment, a `.` or `..` segment, or an alternative that can make one (`{..,a}`, `{.,a}`) | a glob names repository-relative paths |
 | a blank character at the edge of a segment or inside `{}` (`{ts, html}` is the likely typo: the alternative would be `" html"`; a pasted zero-width space is another), or a control character or BOM anywhere | it can never match what was meant |
 | a first segment that begins with an ASCII letter and a colon (`c:{n}.go`, `c:/{n}`, `c:*`) | a drive prefix; no clean path can match it |
@@ -152,11 +152,11 @@ one glob; the glob is rejected, naming the capture. `src/**/{n}.go` and
 `src/{**pkg}/{name}.py` are fine. The rule is deliberately a little wider than the
 ties it prevents: `src/{**pkg}/{name}/**` and `src/**/{name}/{**rest}` do not tie
 (the longer capture wins) but would still bind on name length, and are rejected
-for that stability reason. With the rule the comparison is total. The simulator
-checks that by generating random globs, keeping the accepted ones, and looking
-for a path with two longest parses that bind different values: two million globs
-tried, about one million of them accepted by the rejection rule, none found, and thousands found with the rule
-removed (`go run docs/design/v3/experiments/sim/main.go -ties 2000000`).
+for that stability reason. With the rule the comparison is total. A throwaway
+simulator checked that by generating random globs, keeping the accepted ones, and
+looking for a path with two longest parses that bind different values: two million
+globs tried, about one million accepted, none found, and thousands found with the
+rule removed. It is in the history of PR #50, not in the tree.
 
 A named capture is greedy and `*` is not a capture, so they behave differently
 where they meet: `src/*-{n}.go` binds `n=b-c` on `a-b-c.go`, while
@@ -167,7 +167,7 @@ text, a `/`, or an end of the glob. It may not touch another capture, `*`, `?` o
 an alternation. `src/*{n}.go` is rejected; in a regular-expression matcher it
 would bind `n=c` on `src/abc.go`, which no one means.
 
-The longest-first rule is the **definition**, and the simulator implements it by
+The longest-first rule is the **definition**, and a reference matcher implements it by
 enumerating every parse. An implementation can use any algorithm that returns
 the same bindings; the layer 0 conformance cases check that
 ([`07-conformance.md`](07-conformance.md)).
@@ -389,7 +389,7 @@ rules:
 
 ## What v3 cannot express
 
-Limits found so far, by six reviews and the author's scenarios. The list has
+Limits found so far, by nine reviews and the author's scenarios. The list has
 been wrong before, so it is not claimed to be complete. None is used by a
 configuration in this repository (four presets, three recipes,
 `docs/site/config.md`, `docs/site/concepts.md`, `testdata/`, `e2e/projects/`).
@@ -401,7 +401,7 @@ Glob constructs v3 rejects are listed under Globs, not here.
 | Gating on one path, asserting on another | v2 `if.kinExists: [figma]` with `assert.kinChanged: [story]` | `skipIf` reads the rule's own `related` |
 | A related path that is a glob | "a schema change needs *some* new migration"; "a source change needs a `.changeset/*.md`" | `related` names exactly one path |
 | A capture limited to alternatives | v2 `{ext}` over `*.test.{ts,tsx}`; v3 writes one rule per extension | Alternation inside braces is not captured |
-| Guaranteeing one failure per related file | `related: "docs/{a}-{b}.md"` over `src/{a}_{b}.go`: `x-y_z.go` and `x_y-z.go` are different instances demanding the same `docs/x-y-z.md` | Instances are keyed on variable values, and distinct values can resolve to one path when literal text between variables can also occur inside them. Rare, and reported as two failures, not hidden. Scenario 39 |
+| Guaranteeing one failure per related file | `related: "docs/{a}-{b}.md"` over `src/{a}_{b}.go`: `x-y_z.go` and `x_y-z.go` are different instances demanding the same `docs/x-y-z.md` | Instances are keyed on variable values, and distinct values can resolve to one path when literal text between variables can also occur inside them. Rare, and reported as two failures, not hidden. |
 | Forbidding edits with no related path | "files under `db/migrations/` must never be modified" | `expect: untouched` needs a related path, and a rule whose related file is its own match is rejected by rule 10 |
 
 Things Kyn does not detect, and says so rather than guess:
@@ -444,19 +444,3 @@ A schema ships once this grammar freezes, generated from or CI-checked against
 the loader. It covers shape and enums; the cross-field rules (2 to 8) and the
 resolve-time rules (9 to 11) stay with the loader, which remains the
 authority.
-
-## Worked scenarios
-
-[`experiments/sim/scenarios.yaml`](experiments/sim/scenarios.yaml) holds 172
-scenarios: realistic policies with change sets, one for each validation rule,
-and one for each finding of the fifth to ninth reviews. Each states its expected outcome, and the simulator fails on a mismatch:
-
-```bash
-go run docs/design/v3/experiments/sim/main.go docs/design/v3/experiments/sim/scenarios.yaml
-```
-
-The simulator is a model of this design, not Kyn code, and was written by the
-same author as the scenarios. A green run shows the model is internally
-consistent; it is not independent evidence the design is right. It was
-mutation-tested: reverting a decision in the model turns the scenarios that
-guard it red (five decisions at first, nine more after review 5, ten more after review 6, thirteen more after review 7, seven more after review 8).

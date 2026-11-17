@@ -1,7 +1,7 @@
 # Instances and reports
 
 Status: proposed. Current state only; history is in
-[`00-workplan.md`](00-workplan.md).
+[`notes.md`](notes.md).
 
 ## 1. What an instance is
 
@@ -69,7 +69,7 @@ is the one variable that can span segments, and an empty value contributes no
 component. `.` can only be produced when every value is empty, and a real
 directory is never named `.`. An earlier draft rendered the root as `(root)`,
 which collides with a real directory of that name (`(root)` is a common
-Next.js route group); scenario 21 pins the fix.
+Next.js route group).
 
 Without the one-variable rule, two multi-segment values could render the same
 string (`p/q` + `r` and `p` + `q/r`).

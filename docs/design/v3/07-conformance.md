@@ -1,7 +1,7 @@
 # Conformance suite
 
 Status: proposed. Current state only; history is in
-[`00-workplan.md`](00-workplan.md).
+[`notes.md`](notes.md).
 
 The suite that proves an implementation matches
 [`02-semantics.md`](02-semantics.md), [`03-instances-and-reports.md`](03-instances-and-reports.md)
@@ -69,9 +69,6 @@ no-match.
 | Invalid globs | one case per load-time error in [`04-grammar.md`](04-grammar.md): unclosed or unmatched brace, nested braces, `[`, `\`, wildcard or empty alternative, partial-segment `**` or `{**x}`, `.`/`..`/empty segment, `{..,a}` and `{.,a}`, leading or trailing `/`, a `/` inside `{}`, whitespace inside `{}` (`{ts, html}`), edge whitespace, a control character or BOM, invalid name, `dir`, duplicate capture, a capture touching another capture, `*`, `?` or an alternation, capture in exclude, two `{**x}`, exclude identical to a match |
 | Invalid templates | empty, glob characters, `\`, `.` or `..`, absolute, trailing `/`, unknown variable, adjacent variables, two variables that can contain `/`, `{dir}` or `{**x}` in part of a segment, a template made only of those, unused capture, a constant path inside its own match or inside its match minus its exclude |
 | Resolution | one-pass substitution (a value of `{dir}` stays literal); empty segments dropped; a resolved path that is empty, has a `.`/`..` segment, a `\` or a drive prefix is an error |
-
-The simulator's scenarios are the starting point. They are a draft of
-the expected results, not an oracle.
 
 ## Layer 1: semantics, exhaustive
 
@@ -151,10 +148,6 @@ same source in git mode creates one.
 ## Corpus
 
 - the four rewritten presets and the documented recipes
-- the 172 scenarios in
-  [`experiments/sim/scenarios.yaml`](experiments/sim/scenarios.yaml), promoted
-  to real projects; each already states its expected outcome, but the simulator
-  and the scenarios share an author, so they are a draft, not an oracle
 - one invalid config per validation rule in [`04-grammar.md`](04-grammar.md),
   asserted to be rejected with exit 2 and the expected message
 

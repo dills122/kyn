@@ -7,11 +7,11 @@ This file captures product and implementation decisions locked for MVP.
 >
 > - **Git Change Detection** excludes `D` paths from the change set. Measured
 >   consequence: a policy rule is silenced by deleting or renaming away the file
->   it protects. Overturned by decision D5 — see
+>   it protects. Overturned by the v3 design — see
 >   [design/v3/02-semantics.md](design/v3/02-semantics.md).
 > - **Family Instance Deduplication** and the `{dir}/{base}` instance key
 >   over-partition when the related-path template ignores the source file name.
->   Refined by decision D17 — see
+>   Refined by the v3 design — see
 >   [design/v3/03-instances-and-reports.md](design/v3/03-instances-and-reports.md).
 >
 > Everything else — exit codes, input modes, deterministic ordering — still
