@@ -316,3 +316,54 @@ func cloneClauses(in RuleClauses) RuleClauses {
 		EmitFlag:         in.EmitFlag,
 	}
 }
+
+// The first error reported must not depend on Go's map iteration order (OS7).
+func TestValidateReportsFirstMapErrorDeterministically(t *testing.T) {
+	base := func() Config {
+		return Config{
+			Version: 2,
+			Families: []Family{{
+				ID: "f",
+				Groups: GroupMap{
+					"source": {Include: []string{"src/**/*.go"}},
+				},
+				Kin: KinMap{"ok": "{dir}/{base}.md"},
+			}},
+		}
+	}
+
+	tests := []struct {
+		name   string
+		modify func(f *Family)
+		want   string
+	}{
+		{
+			name: "invalid kin templates",
+			modify: func(f *Family) {
+				f.Kin = KinMap{"charlie": "{bogusC}", "alpha": "{bogusA}", "bravo": "{bogusB}"}
+			},
+			want: `kin "alpha"`,
+		},
+		{
+			name: "groups with empty include",
+			modify: func(f *Family) {
+				f.Groups["charlie"] = GroupDef{}
+				f.Groups["alpha"] = GroupDef{}
+				f.Groups["bravo"] = GroupDef{}
+			},
+			want: `group "alpha"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for i := 0; i < 100; i++ {
+				cfg := base()
+				tt.modify(&cfg.Families[0])
+				err := Validate(cfg)
+				if err == nil || !strings.Contains(err.Error(), tt.want) {
+					t.Fatalf("run %d: Validate() error = %v, want it to contain %s", i, err, tt.want)
+				}
+			}
+		})
+	}
+}

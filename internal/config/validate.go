@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"fmt"
 	"regexp"
 	"slices"
@@ -70,7 +71,8 @@ func Validate(cfg Config) error {
 			if _, ok := fam.Groups["source"]; !ok {
 				return fmt.Errorf("family %q groups.source is required for version 2", fam.ID)
 			}
-			for groupName, group := range fam.Groups {
+			for _, groupName := range sortedKeys(fam.Groups) {
+				group := fam.Groups[groupName]
 				if strings.TrimSpace(groupName) == "" {
 					return fmt.Errorf("family %q has empty group name", fam.ID)
 				}
@@ -88,7 +90,8 @@ func Validate(cfg Config) error {
 		if len(fam.Kin) == 0 {
 			return fmt.Errorf("family %q must define at least one kin template", fam.ID)
 		}
-		for kinName, template := range fam.Kin {
+		for _, kinName := range sortedKeys(fam.Kin) {
+			template := fam.Kin[kinName]
 			if strings.TrimSpace(kinName) == "" {
 				return fmt.Errorf("family %q has empty kin name", fam.ID)
 			}
@@ -207,4 +210,16 @@ func validateKinRefs(ruleID string, field string, kinRefs []string, kinMap KinMa
 		}
 	}
 	return nil
+}
+
+// sortedKeys returns the keys of m in ascending order. Validation and resolution
+// stop at the first error, so they must visit map entries in a fixed order or
+// the reported error changes from run to run.
+func sortedKeys[M ~map[K]V, K cmp.Ordered, V any](m M) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	return keys
 }

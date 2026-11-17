@@ -226,3 +226,32 @@ func TestResolveAllowsMultiExtensionInstanceWhenKinIsExtensionAgnostic(t *testin
 		t.Fatalf("kin[story] = %q, want libs/ui/button/button.stories.ts", got)
 	}
 }
+
+// With several conflicting kin templates the one reported must not depend on
+// Go's map iteration order (OS7).
+func TestResolveReportsFirstConflictingKinDeterministically(t *testing.T) {
+	cfg := config.Config{
+		Version: 1,
+		Families: []config.Family{{
+			ID:       "web-component",
+			Include:  []string{"libs/**/*.component.ts", "libs/**/*.component.html"},
+			BaseName: config.BaseName{StripSuffixes: []string{".component"}},
+			Kin: config.KinMap{
+				"charlie": "{dir}/{base}{ext}.c",
+				"alpha":   "{dir}/{base}{ext}.a",
+				"bravo":   "{dir}/{base}{ext}.b",
+			},
+		}},
+	}
+	changed := []string{
+		"libs/ui/button/button.component.html",
+		"libs/ui/button/button.component.ts",
+	}
+
+	for i := 0; i < 100; i++ {
+		_, err := Resolve(cfg, changed)
+		if err == nil || !strings.Contains(err.Error(), `kin "alpha"`) {
+			t.Fatalf("run %d: Resolve() error = %v, want it to name kin \"alpha\"", i, err)
+		}
+	}
+}

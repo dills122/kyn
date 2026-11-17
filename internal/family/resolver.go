@@ -124,7 +124,13 @@ func Resolve(cfg config.Config, changedFiles []string) ([]Instance, error) {
 // whichever file happened to resolve the instance first (order-dependent on
 // the sorted changed-file list), fail with an actionable error.
 func checkKinAgreement(fam config.Family, ctx templateContext, file string, instanceName string, existing map[string]string) error {
-	for kinName, kinTemplate := range fam.Kin {
+	kinNames := make([]string, 0, len(fam.Kin))
+	for kinName := range fam.Kin {
+		kinNames = append(kinNames, kinName)
+	}
+	sort.Strings(kinNames) // the first conflict reported must not depend on map order
+	for _, kinName := range kinNames {
+		kinTemplate := fam.Kin[kinName]
 		resolved := resolveTemplate(kinTemplate, ctx)
 		normalized, err := matcher.NormalizeRelativePath(resolved)
 		if err != nil {
