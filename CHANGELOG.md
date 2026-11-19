@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- config validation and kin resolution now visit groups and kin templates in sorted order, so
+  the error reported for a config with several problems is the same on every run (it used to
+  vary with Go map iteration order)
+
 ## v0.1.3 - 2026-09-05
 
 ### Added
