@@ -67,8 +67,9 @@ Observed on the shipped binary. The specs cite these ids.
   70 cells (90 less 20).
 - **Plain-path modes follow three facts** (D60, D67): the list is the whole change
   set, all `modified`; nothing is `removed`; a listed source not on disk is dropped.
-- **One clean-path predicate** (D69, D72): blank = White_Space, Cc, Cf (Unicode
-  15.0); applied to globs, `related`, input paths and resolved paths. Input
+- **One clean-path predicate** (D69, D72): blank = White_Space or Cc (Cf is not
+  blank, so format characters are legal in names; a pasted zero-width space in a
+  glob silently never matches, a stated limit); applied to globs, `related`, input paths and resolved paths. Input
   cleaning is a stated compatibility break (D64); a bad changed path aborts the
   run only where a rule would match it or a related path resolves to it (D74,
   narrowed by review 10), except removed paths and rename sources (D77).
@@ -91,10 +92,12 @@ Observed on the shipped binary. The specs cite these ids.
 | 9 | no P0/P1, 1 P2 | two-letter git status codes still read as paths; fix-PR blocked by abort |
 | 10 (whole design) | no P0/P1, 11 P2 | added related file still machine-dependent; subdirectory `--cwd` silent pass; format sniffing; rule 7 text rejected `none`; report fields dropped; cutover inventory incomplete |
 
-Review 10 also suggested cuts that are **not taken**: the Cf and Unicode-pinned
-blank rules, list-valued `expect`, and rule 7 as a forbidden table. Each removes
-complexity but narrows what v3 can say; decide them before implementation, not by
-default.
+Decisions closed after review 10 (maintainer, 2026-11-19): drop the Cf and
+Unicode-15.0-pin rule (blank is White_Space or Cc); keep list-valued `expect`;
+keep rule 7 as pair enumeration; presets are lenient with `api` as two focused
+rules; the release is a hard cutover with a loud unsupported-version error and
+release notes, no compatibility window. The report JSON field names are
+**provisional** until the maintainer has reviewed the examples in `03` §8.
 
 Recurring failure mode: "exactly N" or "complete" claims, and fixes that opened
 new gaps. The last fixes (D76 to D80) were not independently re-reviewed or

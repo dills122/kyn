@@ -83,7 +83,6 @@ func TestCompileRejects(t *testing.T) {
 		"src/x.go ":              "whitespace",
 		"src/\tx.go":             "control character",
 		"\ufeffsrc/x.go":         "byte order mark",
-		"src/x\u200b/y.go":       "whitespace", // zero-width space at a segment edge
 		"src/{n":                 "unclosed",
 		"src/n}":                 "unmatched",
 		"src/\xffx.go":           "UTF-8",
@@ -116,7 +115,8 @@ func TestCompileRejects(t *testing.T) {
 		t.Fatalf("a capture in exclude: error = %v", err)
 	}
 	// Legal, and easy to confuse with the illegal.
-	for _, ok := range []string{"src/**/{n}.go", "src/{**pkg}/{name}.py", "my file/{n}.go", "a\u200db/{n}.go", "src/{ts,html}/x", "**/*.go"} {
+	// Format characters are not blank: a glob with one at an edge compiles (and never matches).
+	for _, ok := range []string{"src/x\u200b/y.go", "src/{a,b\u200b}", "src/**/{n}.go", "src/{**pkg}/{name}.py", "my file/{n}.go", "a\u200db/{n}.go", "src/{ts,html}/x", "**/*.go"} {
 		if _, err := Compile(ok, true); err != nil {
 			t.Errorf("Compile(%q) = %v, want accepted", ok, err)
 		}
@@ -289,13 +289,13 @@ func TestResolve(t *testing.T) {
 }
 
 func TestWhyNotClean(t *testing.T) {
-	clean := []string{"a", "src/a.go", "my file.go", "a\u200db/x", "日本語/テスト.go", ".hidden/x", "a..b/x"}
+	clean := []string{"a", "a\u200b/b", "\u200dx", "src/a.go", "my file.go", "日本語/テスト.go", ".hidden/x", "a..b/x"}
 	for _, p := range clean {
 		if why := WhyNotClean(p); why != "" {
 			t.Errorf("WhyNotClean(%q) = %q, want clean", p, why)
 		}
 	}
-	unclean := []string{"", "/a", "a//b", "a/./b", "a/../b", `a\b`, "a\tb", "a\x00b", "\ufeffa", " a", "a ", "a/ b", "a /b", "a\u200b/b", "C:/x", "c:x", "a\xff", "x/"}
+	unclean := []string{"", "/a", "a//b", "a/./b", "a/../b", `a\b`, "a\tb", "a\x00b", "\ufeffa", " a", "a ", "a/ b", "a /b", "C:/x", "c:x", "a\xff", "x/"}
 	for _, p := range unclean {
 		if why := WhyNotClean(p); why == "" {
 			t.Errorf("WhyNotClean(%q) = clean, want a reason", p)

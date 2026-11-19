@@ -310,14 +310,13 @@ func dotSegment(st []token) string {
 	return ""
 }
 
-// A blank character is Unicode White_Space, a control character (Cc) or a
-// format character (Cf: zero-width space and joiner, BOM, and the like).
-// Controls and the BOM are rejected anywhere in a glob, a related template or an
-// input path; a segment may not begin or end with a blank character; and none may
-// appear inside {}. A format character in the middle of a segment is legal
-// (emoji sequences need the joiner).
+// A blank character is Unicode White_Space or a control character (Cc). Format
+// characters (Cf, such as a zero-width joiner) are not blank, so names that use
+// them are legal. Controls and the BOM are rejected anywhere in a glob, a related
+// template or an input path; a segment may not begin or end with a blank
+// character; and none may appear inside {}.
 func isBlank(r rune) bool {
-	return unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r)
+	return unicode.IsSpace(r) || unicode.IsControl(r)
 }
 
 func hasHidden(s string) bool {

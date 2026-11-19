@@ -182,8 +182,8 @@ quoted path are rejected **when a rule matches the file or a related path
 resolves to it**, and ignored otherwise; a deleted path or rename source with an
 edge blank is accepted and a destination with one is not; a leading `"` is
 rejected for `--files-from` and `--files` and accepted in git mode; blank lines
-and CRLF are tolerated; a name with a space; a zero-width character at a segment
-edge is rejected and one in the middle is legal. A non-ASCII filename must match
+and CRLF are tolerated; a name with a space; a zero-width character is legal anywhere
+in a name, and a glob with one at an edge never matches (documented, not rejected). A non-ASCII filename must match
 its rule (OS16).
 
 Resolve-time rules 9 to 11 get a case each where `changeType` or `skipIf` would

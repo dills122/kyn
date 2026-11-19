@@ -166,7 +166,7 @@ type Rule struct {
 
 ## 8. Report contracts
 
-The examples below are the contract; golden fixtures are recorded from them.
+The examples below are the contract; golden fixtures are recorded from them. **The field names are provisional** until the maintainer has reviewed them.
 Keys are listed in the order they are written. Ordering of arrays is §3, and
 `flags` and `rulesWithoutInstances` are sorted and deduplicated.
 

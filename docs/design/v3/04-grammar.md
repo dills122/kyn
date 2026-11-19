@@ -64,26 +64,26 @@ and works on Unicode code points: `?` is one code point, "longest" counts code
 points, and nothing is normalized, so a name in NFD form does not match an NFC
 glob. `*` and `?` match a leading dot.
 
-A **blank character** is a Unicode `White_Space` character, a control character
-(category Cc) or a format character (Cf: zero-width space, zero-width joiner, the
-byte order mark). **One predicate** is used for globs, `related` templates, input
+A **blank character** is a Unicode `White_Space` character or a control character
+(category Cc). The byte order mark is rejected anywhere, separately. **One predicate** is used for globs, `related` templates, input
 paths and resolved related paths, and everything else says "clean path" and
 points here. A path is **clean** when it is non-empty valid UTF-8, relative, has
 no empty, `.` or `..` segment, no `\`, no control character or byte order mark
 anywhere, no segment that begins or ends with a blank character, and no first
-segment that begins with an ASCII letter and a colon. Interior spaces and
-interior format characters are fine, so `my file.go` and an emoji sequence with a
-joiner are legal names. Globs and templates additionally allow no blank character
+segment that begins with an ASCII letter and a colon. Interior spaces are
+fine, so `my file.go` is a legal name, and so are names with format characters
+(zero-width joiners in an emoji sequence, a tag-sequence flag, a trailing
+right-to-left mark): format characters (Unicode Cf) are **not** blank. Globs and templates additionally allow no blank character
 inside `{}`, and a glob's first segment may not begin with an ASCII letter and a
 colon, since no clean path can match it.
 
-Only those three categories are detected, against **Unicode 15.0** (the version
-in Go 1.22), and a conformance suite must pin the same one. Characters that merely
-look blank are accepted: U+2800 (Braille blank), U+3164, U+115F, U+034F, a lone
-U+FE0F. Legal names with a format character at a segment edge are rejected as a
-consequence of the Cf rule: a flag written as a tag sequence, a trailing
-right-to-left mark, a leading or trailing joiner. That is a known limit, kept
-because a silent never-match is worse. Paths read from `--files-from` and `--files`
+Only `White_Space` and Cc are detected, so a character that merely looks blank is
+accepted: a zero-width space or joiner, U+2800 (Braille blank), U+3164, U+115F,
+U+034F, a lone U+FE0F. A glob with one pasted at a segment edge or inside `{}`
+silently never matches. That is a known limit, chosen over rejecting real file
+names that end in a format character (a tag-sequence flag, a right-to-left
+mark). `White_Space` is taken from the Unicode version of the Go release that
+builds Kyn, which a conformance suite must pin. Paths read from `--files-from` and `--files`
 additionally may not be in git's quoted form (a leading `"`); git mode reads paths
 with quoting disabled, so there a leading `"` is part of a real name.
 
@@ -120,7 +120,7 @@ A glob is relative and made of non-empty segments. These are rejected:
 | nested braces, or `*`, `?`, `/` or an empty alternative inside `{a,b}` | alternatives are literal text so that alternation cannot decide a binding |
 | `**` that is not a whole segment (`a**b`) | doublestar reads it as `*` and does not cross a `/`. Requiring a whole segment leaves one meaning |
 | a leading `/`, a trailing `/`, an empty segment, a `.` or `..` segment, or an alternative that can make one (`{..,a}`, `{.,a}`) | a glob names repository-relative paths |
-| a blank character at the edge of a segment or inside `{}` (`{ts, html}` is the likely typo: the alternative would be `" html"`; a pasted zero-width space is another), or a control character or BOM anywhere | it can never match what was meant |
+| a blank character at the edge of a segment or inside `{}` (`{ts, html}` is the likely typo: the alternative would be `" html"`), or a control character or BOM anywhere | it can never match what was meant |
 | a first segment that begins with an ASCII letter and a colon (`c:{n}.go`, `c:/{n}`, `c:*`) | a drive prefix; no clean path can match it |
 | a `/` inside `{}`, or `*` in a `{**x,a}` | alternatives and capture names cannot hold a separator or a wildcard |
 | an unmatched `{` or `}`, or invalid UTF-8 | |
@@ -442,7 +442,7 @@ Things Kyn does not detect, and says so rather than guess:
   be one file. Windows trailing dots and spaces are not handled either. Backslash
   and drive prefixes are rejected (rule 11), so those cannot reach a path.
 - A file whose name makes a capture `.`, `..`, or a segment with a blank at its
-  edge (`.x.go` under `{n}x.go`; `a ` or a trailing joiner under `{n}.go`), so the
+  edge (`.x.go` under `{n}x.go`; `a ` under `{n}.go`), so the
   resolved path is not clean. Rule 11 stops the whole run, since the alternative
   is a per-instance error kind that no other rule needs. It is rare, and the
   message names the path.
