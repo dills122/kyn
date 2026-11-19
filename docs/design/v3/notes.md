@@ -14,7 +14,7 @@ Observed on the shipped binary. The specs cite these ids.
 | OS1, OS2 | Assertions read two orthogonal axes: exists-on-disk and in-the-change-set | `02` §1, §4 |
 | OS3, OS8 | Deleting or renaming away the related file is invisible, so a rule is silenced by the change that should trip it | `02` §2, §3 |
 | OS4, OS11 | `stripSuffixes` decides grouping; the shipped `api` preset contradicts itself | `04` captures, `03` §1 |
-| OS5 | The common form matches its own related file, hidden by OS3 | `04` rule 9 |
+| OS5 | The common form matches its own related file, hidden by OS3 | `04` rules 3 and 10 |
 | OS6, OS10 | Non-`source` groups are inert; `description` is parsed and never read | removed, or made functional (`why`) |
 | OS7 | Error selection was non-deterministic; **fixed in v2** (PR #51), determinism guard kept | `06`, `07` |
 | OS9 | Result count is rules × instances | `03` §1 |
@@ -62,16 +62,21 @@ Observed on the shipped binary. The specs cite these ids.
   prints a count per rule, zeros included, and `--fail-on-empty` applies to it.
 - **Resolve-time rules 9 to 11 run before `changeType` and `skipIf`** (D55), and
   rule 11 (resolved path must be clean) stops the whole run.
-- **Rule 7 is general** (D62, D68): enumerate the five reachable (state, touched)
+- **Rule 7 is general** (D62, D68): enumerate the four reachable (state, touched)
   pairs, reject a rule that can never pass or never fail. Layer 1 conformance is
-  84 cells.
+  70 cells (90 less 20).
 - **Plain-path modes follow three facts** (D60, D67): the list is the whole change
   set, all `modified`; nothing is `removed`; a listed source not on disk is dropped.
 - **One clean-path predicate** (D69, D72): blank = White_Space, Cc, Cf (Unicode
   15.0); applied to globs, `related`, input paths and resolved paths. Input
   cleaning is a stated compatibility break (D64); a bad changed path aborts the
-  run (D74), except removed paths and rename sources (D77). A TAB-less line that
-  starts with a git status token is rejected, not read as a file name (D71, D76).
+  run only where a rule would match it or a related path resolves to it (D74,
+  narrowed by review 10), except removed paths and rename sources (D77).
+- **Input format is declared** (review 10, replacing D71 and D76): `--name-status`
+  says a stream is status lines; without it every line is a path and a TAB line is
+  an error. No sniffing, no status-token list. The report records `inputMode`.
+- **Git mode requires the head to be checked out**: an added or modified path
+  absent from the tree is an error, and git is read with `--relative -z`.
 
 ## Review history
 
@@ -84,6 +89,12 @@ Observed on the shipped binary. The specs cite these ids.
 | 7 | 1 P1, 4 P2 | plain-path row contradicted its derivation; loose line grammar |
 | 8 | no P0/P1, 2 P2 | status line with spaces read as a path; zero-width chars not blank |
 | 9 | no P0/P1, 1 P2 | two-letter git status codes still read as paths; fix-PR blocked by abort |
+| 10 (whole design) | no P0/P1, 11 P2 | added related file still machine-dependent; subdirectory `--cwd` silent pass; format sniffing; rule 7 text rejected `none`; report fields dropped; cutover inventory incomplete |
+
+Review 10 also suggested cuts that are **not taken**: the Cf and Unicode-pinned
+blank rules, list-valued `expect`, and rule 7 as a forbidden table. Each removes
+complexity but narrows what v3 can say; decide them before implementation, not by
+default.
 
 Recurring failure mode: "exactly N" or "complete" claims, and fixes that opened
 new gaps. The last fixes (D76 to D80) were not independently re-reviewed or

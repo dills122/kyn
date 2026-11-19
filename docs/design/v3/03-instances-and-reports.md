@@ -92,11 +92,11 @@ named for what they are.
 | --- | --- | --- |
 | `json`, `explain` JSON | `ruleId`, `familyId`, `familyName` | `ruleId`, `instanceName` |
 | `text` | `Family:`, `Instance:` | `Instance:` |
-| `sarif` | `properties.familyId`, `familyName` on results; `familyId` on rules | `properties.instanceName` on results; nothing on rules |
-| `rdjson`, `checkstyle` | message suffix `(family instance: src/a)` | `(instance: src/a)` |
+| `sarif` | `properties.familyId`, `familyName` on results; `familyId` on rules; rule description = first failing message | `properties.instanceName`, `reason`, `relatedState` and `expectedFiles` on results; `relatedLocations` kept; rule `fullDescription` = `why`, never an instance's message |
+| `rdjson`, `checkstyle` | message suffix `(family instance: src/a)` | `(instance: src/a, removed by this change)`: the instance, then the reason text |
 | `--dry-run-resolve` | instances with a `kin` map | per rule: instances, each with `sources` and `related` |
 | RDJSON/Checkstyle location | first changed file, falling back to the family name as a path | first changed file; no fallback, since an instance name is not a path |
-| `check` JSON | per result: `ruleId`, `familyId`, `familyName`, `message`, counters | `headline`, `summary`, `rulesWithoutInstances`, and per result `ruleId`, `instanceName`, `status`, `reason`, `relatedState`, and the rest of §8 |
+| `check` JSON | `ok`, `passed`, `failed`, `infos`, `warnings`, `errors`, `flags`; per result `ruleId`, `familyId`, `familyName`, `changedFiles`, `expectedFiles` | `ok`, `headline`, `inputMode`, `removalInfo`, `summary` (`evaluated`, `passed`, `failed`, `info`, `skipped`, `errors`, `warnings`), `flags`, `rulesWithoutInstances`; per result `ruleId`, `instanceName`, `sources` (was `changedFiles`), `related` (was `expectedFiles`), `reason`, `relatedState`. Every removed or renamed key is listed in [`06-cutover.md`](06-cutover.md) |
 | `--fail-on-empty` | "no family instances match" | fails when no rule produced any instance, skipped or not |
 
 `explain` traces name the fields the author wrote. Text sections are `SkipIf:`
@@ -133,6 +133,7 @@ that is configured but never applies shows up as skips rather than as silence.
 | a failure at or above `--fail-on` | `FAIL` | 1 |
 | failures exist, none at or above `--fail-on` | `NON-BLOCKING` | 0 |
 | no failures | `PASS` | 0 |
+| `--fail-on-empty` and no rule produced an instance | `FAIL (nothing matched: --fail-on-empty)` | 1 |
 
 Today a failing `severity: warn` rule prints `PASS` directly above
 `Rules failed: 1` (OS12), and the shipped `web-ui` preset triggers it. `PASS`
@@ -166,14 +167,19 @@ type Rule struct {
 ## 8. Report contracts
 
 The examples below are the contract; golden fixtures are recorded from them.
-Keys are listed in the order they are written. Ordering of arrays is §3.
+Keys are listed in the order they are written. Ordering of arrays is §3, and
+`flags` and `rulesWithoutInstances` are sorted and deduplicated.
 
 `check --format json`, one failure from a deletion, one skip:
 
 ```json
 {
+  "ok": false,
   "headline": "FAIL",
-  "summary": {"evaluated": 1, "passed": 0, "failed": 1, "skipped": 1, "errors": 1, "warnings": 0},
+  "inputMode": "git",
+  "removalInfo": true,
+  "summary": {"evaluated": 1, "passed": 0, "failed": 1, "info": 0, "skipped": 1, "errors": 1, "warnings": 0},
+  "flags": [],
   "rulesWithoutInstances": ["changelog"],
   "results": [
     {
@@ -205,36 +211,82 @@ Keys are listed in the order they are written. Ordering of arrays is §3.
 }
 ```
 
-`reason` is absent on `pass` and `info`. A rule with no instance appears in
-`rulesWithoutInstances`, never as a result. `summary-only` output is the same
-object without `results`. An **empty run** (no instance at all):
+Definitions. `ok` is true when no failure is at or above `--fail-on`. `inputMode`
+is `git`, `name-status` or `paths`; `removalInfo` is false for `paths`. In
+`summary`, `evaluated` is `passed + failed + info` (skipped results are not
+evaluated); `errors` and `warnings` count **failed** results by severity (v2 counted
+every result by severity, which inflated `errors` for informational rules, OS14).
+Top-level `flags` is the union of every applied rule's flags, and is present in
+`--summary-only` output. `reason` is absent on `pass` and `info`. A rule with no
+instance appears in `rulesWithoutInstances`, never as a result. `--summary-only`
+is the same object without `results`.
+
+An **empty run** (no instance at all):
 
 ```json
-{"headline": "PASS", "summary": {"evaluated": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0, "warnings": 0}, "rulesWithoutInstances": ["handler-test", "changelog"], "results": []}
+{"ok": true, "headline": "PASS", "inputMode": "git", "removalInfo": true, "summary": {"evaluated": 0, "passed": 0, "failed": 0, "info": 0, "skipped": 0, "errors": 0, "warnings": 0}, "flags": [], "rulesWithoutInstances": ["changelog", "handler-test"], "results": []}
 ```
 
-It exits 0, or 1 with `--fail-on-empty`. The text headline separates the three
-situations a reader can confuse: `PASS` (evaluated and passed), `PASS (nothing
-evaluated: N instances, all skipped)`, and `PASS (nothing matched)`.
+It exits 0. With `--fail-on-empty` it exits 1, `ok` is false, the headline is
+`FAIL (nothing matched: --fail-on-empty)`, and `summary` gains `"empty": true`. SARIF,
+RDJSON and Checkstyle carry one synthetic diagnostic, rule `kyn/fail-on-empty`,
+message `no rule produced an instance`, as v2 does, so a failing exit is never
+without a diagnostic. The text headline separates the three situations a reader
+can confuse: `PASS` (evaluated and passed), `PASS (nothing evaluated: N instances,
+all skipped)`, and `PASS (nothing matched)`.
 
-`explain --format json` adds the trace for each instance and nothing else:
+`check --format text`, the same failure (golden-grade):
+
+```text
+FAIL
+Instance: handler-test internal/orders/order
+  Source:   internal/orders/order_handler.go
+  Related:  internal/orders/order_handler_test.go (removed)
+  Expected: touched
+  Reason:   removed by this change
+  Message:  Handler changed but its test did not.
+Rules: 1 evaluated, 1 failed, 0 info; Skipped: 1
+Input: git (removal information: yes)
+```
+
+`Expected:` prints the `expect` value, which is what would satisfy the rule.
+`Message:` is the authored or generated message (§5 of
+[`02-semantics.md`](02-semantics.md)). When `inputMode` is `paths` the `Input:`
+line says `paths (no removal information)`.
+
+`explain --format json` is the `check` result for each instance plus a `trace`,
+and nothing else:
 
 ```json
 {
   "ruleId": "handler-test",
   "instanceName": "internal/orders/order",
-  "skipIf": {"value": "missing", "relatedState": "removed", "skipped": false, "clause": "skipIf.missing"},
-  "expect": {"value": "touched", "passed": false, "clause": "expect.touched"},
   "status": "fail",
-  "reason": "removed"
+  "reason": "removed",
+  "sources": ["internal/orders/order_handler.go"],
+  "related": "internal/orders/order_handler_test.go",
+  "relatedState": "removed",
+  "touched": false,
+  "trace": {
+    "changeType": {"value": ["added"], "matched": true},
+    "skipIf": {"value": "missing", "relatedState": "removed", "skipped": false, "clause": "skipIf.missing"},
+    "expect": [{"value": "touched", "passed": false, "clause": "expect.touched"}]
+  }
 }
 ```
+
+`changeType` is omitted when the rule has none; `expect` is always a list, one
+entry per listed value. `explain` never exits 1 for a result.
 
 `--dry-run-resolve --format json` evaluates nothing and lists every rule,
 **zeros included**:
 
 ```json
 {
+  "inputMode": "git",
+  "removalInfo": true,
+  "changedCount": 2,
+  "changedFiles": ["internal/orders/order_handler.go", "internal/orders/order_service.go"],
   "matchedInstances": 1,
   "rules": [
     {"ruleId": "handler-test", "matchedInstances": 1, "instances": [
@@ -244,6 +296,8 @@ evaluated: N instances, all skipped)`, and `PASS (nothing matched)`.
   ]
 }
 ```
+
+`changedFiles` is how a user debugs a `--stdin` stream: it lists what Kyn read.
 
 ## 9. Resolve preview
 

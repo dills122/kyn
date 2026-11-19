@@ -87,9 +87,12 @@ because a silent never-match is worse. Paths read from `--files-from` and `--fil
 additionally may not be in git's quoted form (a leading `"`); git mode reads paths
 with quoting disabled, so there a leading `"` is part of a real name.
 
-The predicate runs on every changed path that is matched or resolved. A path that
-is only **removed** (a `D` path or a rename source) is a state key and is never
-matched, so it is exempt, and the change that renames a bad name away passes.
+The predicate runs on a changed path that a rule's `match` selects as a source,
+on every resolved related path (rule 11), and, for `--files` and `--files-from`,
+on any path in git's quoted form. A changed path that no rule matches is never
+evaluated and is not checked. A path that is only **removed** (a `D` path or a
+rename source) is a state key and is never matched, so it is exempt, and the
+change that renames a bad name away passes.
 
 Every rule below is checked when the config loads, except the three marked
 resolve-time.
@@ -262,16 +265,16 @@ rule's own `match` when the config loads.
 | --- | --- |
 | `touched` | is part of this change (added, modified, or a rename destination) |
 | `untouched` | is unaffected by this change: not touched, and not removed by it |
-| `exists` | is present in the working tree |
-| `missing` | is not present in the working tree |
+| `exists` | is in state `exists`: present in the working tree and not removed by this change |
+| `missing` | is in state `removed` or `missing`: not there after this change |
 | `none` | no assertion; the rule is informational |
 
 A list is AND-combined. Kyn observes paths, never content: `touched` means the
 path is in the change, not that its content is correct.
 
 Plain `expect: touched` is the form to reach for. `[exists, touched]` differs
-from it only when the diff and the working tree disagree (the file is in the
-diff but not on disk), so it is rarely needed.
+from it only in plain-path input, where a listed file need not be on disk, so it
+is rarely needed.
 
 ## `skipIf`
 
@@ -334,11 +337,11 @@ All of these fail with exit 2 and name the rule and the field.
 | --- | --- |
 | 1 | Unknown fields are rejected, and so are duplicate rule IDs, by the YAML decoder with line numbers |
 | 2 | `match` has at least one glob, and every `match` and `exclude` glob is in the dialect above: nothing from the rejected table, `**` only as a whole segment, alternatives literal, non-empty and unable to spell `.` or `..`. Captures: valid names, unique within a glob, not `dir`; `{**name}` fills a whole segment, at most one per glob; a `{name}` capture does not touch another capture, `*`, `?` or an alternation; no capture has `**` or `{**name}` on both sides; no captures in `exclude`; an `exclude` is not identical to a `match` glob |
-| 3 | Every glob binds the same capture names, each of the same kind (`{x}` or `{**x}`). `related` is non-empty and relative, has no `.`/`..` segment, `\`, trailing `/` or glob character, uses only `{dir}` and captured names, has no two adjacent variables, and uses at most one distinct variable that can contain `/`, and gives `{dir}` and `{**name}` a whole segment each with at least one other segment present. A `related` with no variables must not match its own rule |
-| 4 | Every capture is used in `related`. This also catches `{ts}` written where `{ts,html}` was meant |
+| 3 | Every glob binds the same capture names, each of the same kind (`{x}` or `{**x}`). `related` is non-empty and relative, has no `.`/`..` segment, `\`, trailing `/` or glob character, uses only `{dir}` and captured names, has no two adjacent variables, and uses at most one distinct variable that can contain `/`, and gives `{dir}` and `{**name}` a whole segment each with at least one other segment present. A `related` with no variables must not match its own rule. A list-valued `related` is an error saying `related` names exactly one path and that either-or rules are a stated limit |
+| 4 | Every capture is used in `related`; a rule with no `related` therefore has no captures. This also catches `{ts}` written where `{ts,html}` was meant |
 | 5 | `expect` is required with valid values. `none` stands alone. `touched` with `untouched`, and `exists` with `missing`, contradict and are rejected |
 | 6 | `related` is required unless `expect: none`. `skipIf` requires `related`. `skipIf` and `changeType` take only their listed values |
-| 7 | The rule must be able to pass in a state that can really occur. Kyn enumerates the five reachable (state, touched) pairs of [`02-semantics.md`](02-semantics.md) §4, drops the pairs `skipIf` skips, and rejects a rule whose `expect` is false on every remaining pair (it can never pass), true on every remaining pair (it can never fail), or true only on `missing` and touched, the pair that needs the diff and the working tree to disagree. Examples: `skipIf: exists` with `exists` (never passes), with `touched` (passes only on the disagreement pair) or with `missing` (never fails; use `none` with `flags`); `skipIf: missing` with `[touched, missing]` (never passes); an unconditional `[touched, missing]` (disagreement only). The pairs are those of git mode. In plain modes nothing is `removed`, so two accepted combinations are vacuous there: `skipIf: missing` with `expect: missing` can never pass, and `skipIf: missing` with `expect: exists` can never fail. Git mode needs both, so they are not rejected |
+| 7 | The rule must be able to pass and able to fail in a state that can really occur, unless it is informational. Kyn enumerates the four reachable (state, touched) pairs of [`02-semantics.md`](02-semantics.md) §4, drops the pairs `skipIf` skips, and rejects a rule whose `expect` is false on every remaining pair (it can never pass) or true on every remaining pair (it can never fail). `expect: none` is exempt: it is true on every pair by design. Examples: `skipIf: exists` with `exists` or `touched` (never passes) or with `missing` (never fails; use `none` with `flags`); `skipIf: missing` with `[touched, missing]` (never passes); an unconditional `[touched, missing]` (never passes). In plain modes nothing is `removed` and a listed related file need not be on disk, so two accepted combinations are vacuous there: `skipIf: missing` with `expect: missing` can never pass, and `skipIf: missing` with `expect: exists` can never fail. Git mode needs both, so they are not rejected |
 | 8 | `expect: none` requires `severity: info` and at least one of `message` or `flags` |
 
 ### At resolve time
@@ -360,7 +363,7 @@ match; add an exclude or narrow the match
 
 Because 9 to 11 depend on which files change, a config can load cleanly and fail
 on someone's unrelated change. To exercise them against every existing tracked
-path before that happens, resolve all of them:
+path before that happens, resolve all of them (run it in CI on pull requests that change the config; the natural rule `src/**/{name}.ts` with `{dir}/{name}.spec.ts` and no `exclude` fails rule 10 only on a change that touches a `.spec.ts`, so it is the easiest way to learn about it before someone else does):
 
 ```bash
 git ls-files | kyn check --stdin --dry-run-resolve --fail-on-empty
@@ -426,6 +429,9 @@ Things Kyn does not detect, and says so rather than guess:
 
 - An `exclude` that happens to cover everything `match` selects. The rule simply
   has no instances; `--fail-on-empty` reports a run where no rule had any.
+- That `exists` is a working-tree fact: an untracked, ignored or generated file
+  counts (a `gen/*.pb.go` built earlier in CI), and a sparse checkout hides files.
+  Git mode requires the head to be checked out ([`02-semantics.md`](02-semantics.md) §6).
 - A `related` that resolves to a directory. It is `exists` and can never be
   `touched`, since only files appear in a change.
 - Anything that depends on the operating system's file naming. Matching and the
