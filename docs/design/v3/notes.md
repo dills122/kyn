@@ -22,7 +22,7 @@ Observed on the shipped binary. The specs cite these ids.
 | OS13 | The instance key over-partitions when `related` ignores the file name | `03` §1 |
 | OS14 | Informational rules affect severity counters | `02` §5, §8 |
 | OS15 | YAML anchors work through the strict loader | `04` sharing globs |
-| OS16 | Non-ASCII filenames never match any rule (git quoting) | `02` §6, `06` |
+| OS16 | Non-ASCII filenames never matched any rule (git quoting); **fixed in v2** (PR #52, `-z`) | `02` §6, `06` |
 
 ## Decisions that shape the specs
 
@@ -91,8 +91,7 @@ mutation-tested.
 
 ## Open items
 
-1. OS16 (non-ASCII filenames never match) is a shipped v2 defect, independent of
-   v3, tracked as a separate task; fix it in v2 in place.
+1. OS7 and OS16 are fixed in v2 (PRs #51 and #52); no shipped v2 defect from the baseline is still open except those listed in `06`.
 2. The `api` preset uses focused tests per source (`06`).
 3. A glob-valued `related` is deferred (D47).
 4. `docs/site/getting-started.md` teaches v2 and needs a v3 rewrite at cutover.
