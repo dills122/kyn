@@ -16,7 +16,7 @@ Observed on the shipped binary. The specs cite these ids.
 | OS4, OS11 | `stripSuffixes` decides grouping; the shipped `api` preset contradicts itself | `04` captures, `03` §1 |
 | OS5 | The common form matches its own related file, hidden by OS3 | `04` rule 9 |
 | OS6, OS10 | Non-`source` groups are inert; `description` is parsed and never read | removed, or made functional (`why`) |
-| OS7 | Error selection is non-deterministic (shipping defect) | `06`, `07` |
+| OS7 | Error selection was non-deterministic; **fixed in v2** (PR #51), determinism guard kept | `06`, `07` |
 | OS9 | Result count is rules × instances | `03` §1 |
 | OS12 | A report can print `PASS` above `Rules failed: 1` | `03` §6 |
 | OS13 | The instance key over-partitions when `related` ignores the file name | `03` §1 |
@@ -51,6 +51,15 @@ Observed on the shipped binary. The specs cite these ids.
   Matching is on Unicode code points, no normalization (D61).
 - **Binding is total by rejection** (D66, D75): longest captures win, first capture
   first; a capture between two `**` is rejected, so no tie exists.
+- **The change record decides `removed`** (review: Codex, after review 9): a
+  path the diff deletes or renames away is `removed` whatever the working tree
+  holds, so a stale checkout cannot hide a deletion; `skipIf` reads the same
+  state.
+- **CI feeds status lines.** `--stdin` is `--files-from -`; enforcement examples
+  use `git diff --name-status -M`; plain paths are for local trials. Git mode
+  reads `git diff --name-status -z -M` (lossless); `T` counts as `modified`.
+- **Results carry a stable `reason`** beside the authored message; the preview
+  prints a count per rule, zeros included, and `--fail-on-empty` applies to it.
 - **Resolve-time rules 9 to 11 run before `changeType` and `skipIf`** (D55), and
   rule 11 (resolved path must be clean) stops the whole run.
 - **Rule 7 is general** (D62, D68): enumerate the five reachable (state, touched)
@@ -82,10 +91,9 @@ mutation-tested.
 
 ## Open items
 
-1. OS7 (non-deterministic errors) and OS16 (non-ASCII filenames) are shipped
-   defects independent of v3; fix in v2 in place or at cutover.
-2. The `api` preset must choose one shared test per handler/service pair or one
-   per file (`06`).
+1. OS16 (non-ASCII filenames never match) is a shipped v2 defect, independent of
+   v3, tracked as a separate task; fix it in v2 in place.
+2. The `api` preset uses focused tests per source (`06`).
 3. A glob-valued `related` is deferred (D47).
 4. `docs/site/getting-started.md` teaches v2 and needs a v3 rewrite at cutover.
 5. A JSON Schema ships once the grammar freezes (D20).

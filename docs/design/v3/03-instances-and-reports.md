@@ -96,6 +96,7 @@ named for what they are.
 | `rdjson`, `checkstyle` | message suffix `(family instance: src/a)` | `(instance: src/a)` |
 | `--dry-run-resolve` | instances with a `kin` map | per rule: instances, each with `sources` and `related` |
 | RDJSON/Checkstyle location | first changed file, falling back to the family name as a path | first changed file; no fallback, since an instance name is not a path |
+| `check` JSON | per result: `ruleId`, `familyId`, `familyName`, `message`, counters | `headline`, `summary`, `rulesWithoutInstances`, and per result `ruleId`, `instanceName`, `status`, `reason`, `relatedState`, and the rest of §8 |
 | `--fail-on-empty` | "no family instances match" | fails when no rule produced any instance, skipped or not |
 
 `explain` traces name the fields the author wrote. Text sections are `SkipIf:`
@@ -161,3 +162,94 @@ type Rule struct {
     Origin     Position // file, line, column, for validation errors
 }
 ```
+
+## 8. Report contracts
+
+The examples below are the contract; golden fixtures are recorded from them.
+Keys are listed in the order they are written. Ordering of arrays is §3.
+
+`check --format json`, one failure from a deletion, one skip:
+
+```json
+{
+  "headline": "FAIL",
+  "summary": {"evaluated": 1, "passed": 0, "failed": 1, "skipped": 1, "errors": 1, "warnings": 0},
+  "rulesWithoutInstances": ["changelog"],
+  "results": [
+    {
+      "ruleId": "handler-test",
+      "instanceName": "internal/orders/order",
+      "status": "fail",
+      "severity": "error",
+      "message": "Handler changed but its test did not.",
+      "reason": "removed",
+      "sources": ["internal/orders/order_handler.go"],
+      "related": "internal/orders/order_handler_test.go",
+      "relatedState": "removed",
+      "touched": false,
+      "flags": []
+    },
+    {
+      "ruleId": "story-sync",
+      "instanceName": "src/ui/button",
+      "status": "skipped",
+      "severity": "error",
+      "reason": "related_missing",
+      "sources": ["src/ui/button.component.ts"],
+      "related": "src/ui/button.stories.ts",
+      "relatedState": "missing",
+      "touched": false,
+      "flags": []
+    }
+  ]
+}
+```
+
+`reason` is absent on `pass` and `info`. A rule with no instance appears in
+`rulesWithoutInstances`, never as a result. `summary-only` output is the same
+object without `results`. An **empty run** (no instance at all):
+
+```json
+{"headline": "PASS", "summary": {"evaluated": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0, "warnings": 0}, "rulesWithoutInstances": ["handler-test", "changelog"], "results": []}
+```
+
+It exits 0, or 1 with `--fail-on-empty`. The text headline separates the three
+situations a reader can confuse: `PASS` (evaluated and passed), `PASS (nothing
+evaluated: N instances, all skipped)`, and `PASS (nothing matched)`.
+
+`explain --format json` adds the trace for each instance and nothing else:
+
+```json
+{
+  "ruleId": "handler-test",
+  "instanceName": "internal/orders/order",
+  "skipIf": {"value": "missing", "relatedState": "removed", "skipped": false, "clause": "skipIf.missing"},
+  "expect": {"value": "touched", "passed": false, "clause": "expect.touched"},
+  "status": "fail",
+  "reason": "removed"
+}
+```
+
+`--dry-run-resolve --format json` evaluates nothing and lists every rule,
+**zeros included**:
+
+```json
+{
+  "matchedInstances": 1,
+  "rules": [
+    {"ruleId": "handler-test", "matchedInstances": 1, "instances": [
+      {"instanceName": "internal/orders/order", "sources": ["internal/orders/order_handler.go"], "related": "internal/orders/order_handler_test.go", "relatedState": "exists"}
+    ]},
+    {"ruleId": "handler-tset", "matchedInstances": 0, "instances": []}
+  ]
+}
+```
+
+## 9. Resolve preview
+
+`--dry-run-resolve` runs matching, binding and resolution (rules 9 to 11
+included) and stops before evaluation. Exit codes: 0 when it resolved, 2 for a
+config or resolve-time error, 1 with `--fail-on-empty` when no rule produced an
+instance. Text output prints one line per rule with its instance count, so a
+misspelled rule shows as `handler-tset: 0` even when another rule matched. This
+is what the recipe in [`04-grammar.md`](04-grammar.md) relies on.

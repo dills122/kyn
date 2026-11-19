@@ -21,9 +21,17 @@ exist on disk, when the diff and the tree disagree).
 
 | State | Condition |
 | --- | --- |
-| `exists` | present in the working tree |
-| `removed` | not in the tree, and this change deleted it or renamed it away |
-| `missing` | neither: it was not there before and is not there now |
+| `removed` | **the change record says** this change deleted it or renamed it away, whatever the working tree holds |
+| `exists` | not `removed`, and present in the working tree |
+| `missing` | neither: not recorded as removed, and not in the tree |
+
+The three are checked in that order, so `removed` wins. The change record is
+authoritative because the working tree can be a different checkout from the one
+the diff describes: with `--base main --head origin/feature` run from a checkout
+that still has the file the feature branch deleted, the file is `removed`, not
+`exists`. Otherwise the same diff would fail on one machine and pass on another,
+and `expect: untouched` would pass for a file the change deleted. `skipIf` reads
+the same state, so a removal is never skipped from a stale tree either.
 
 Today Kyn has only "exists on disk or not", so a deleted test and a test that
 never existed look identical, and the rule protecting the test is skipped
@@ -91,19 +99,19 @@ well as if it is edited. Today's `kinUnchanged` passes for a deleted file and
 its trace prints "unchanged" for a path that no longer exists (OS3).
 
 State and membership are independent except for one constraint: a `removed`
-path is never touched. That leaves six reachable combinations.
+path is never touched. That leaves five reachable combinations.
 
 | State | Touched | Reachable? |
 | --- | --- | --- |
 | `exists` | yes / no | yes |
-| `removed` | no | yes (deleted, or renamed away) |
+| `removed` | no | yes (deleted or renamed away, whether or not the tree still has it) |
 | `removed` | yes | no |
 | `missing` | no | yes |
 | `missing` | **yes** | **yes**: the diff contains the path but the working tree does not, e.g. `--base main --head origin/feature` from another checkout (OS1) |
 
 The last row is the only one that separates `expect: touched` from
-`expect: [exists, touched]`, so the conformance suite must include it
-([`07-conformance.md`](07-conformance.md)).
+`expect: [exists, touched]`, so the conformance suite must include it, and so the
+stale-checkout deletion above ([`07-conformance.md`](07-conformance.md)).
 
 ## 5. Result status
 
@@ -114,8 +122,20 @@ The last row is the only one that separates `expect: touched` from
 | `pass` | the rule applied and every expectation was true |
 | `info` | the rule applied and `expect` is `none` |
 
-A skipped result carries a short reason: `related is missing`,
-`related exists`, or `no source has a listed changeType`.
+A `skipped` or `fail` result carries a stable **reason code** next to the
+message, so a custom `message` (which says what the rule is for) never hides what
+actually went wrong. A preset message such as "Component changed but its story
+did not" is the wrong advice when the story was deleted; the reason says so.
+
+| Status | `reason` | Text shown |
+| --- | --- | --- |
+| `skipped` | `related_missing` | `related is missing` |
+| `skipped` | `related_exists` | `related exists` |
+| `skipped` | `change_type` | `no source has a listed changeType` |
+| `fail` | `removed`, `missing`, `not_touched`, `touched`, `exists` | the last column of the table below |
+
+`pass` and `info` carry no reason. The text report prints the authored (or
+generated) message, then the reason text; JSON has both fields.
 
 `flags` are added whenever the rule applies, pass or fail, and never when it is
 skipped. This matches v2 (`internal/rules/evaluator.go:47`) and is why
@@ -138,14 +158,22 @@ this order:
 | Mode | Change set | Removal information | Source statuses |
 | --- | --- | --- | --- |
 | Git (`--base`/`--head`, or automatic) | from the diff | yes | yes |
-| `--files-from` with `git diff --name-status` lines | from the lines | yes | yes |
-| `--files`, or `--files-from` with plain paths | the listed paths | **no** | all `modified` |
+| `--files-from` or `--stdin` with `git diff --name-status -M` lines | from the lines | yes | yes |
+| `--files`, or `--files-from` / `--stdin` with plain paths | the listed paths | **no** | all `modified` |
+
+`--stdin` is `--files-from -`: the same reader and the same grammar, not a second
+format. **Enforcement in CI should always feed the status form**
+(`git diff --name-status -M base...head | kyn check --stdin`), including the
+container job, because plain paths lose deletion protection (below). `--files`
+is the quick way to try a rule locally. The help text and every example in the
+docs follow this.
 
 ### `--files-from` format
 
 Each line is read on its own: a line containing a TAB is a name-status line, and
 a line with none is a plain path, so one file may mix both. The status field is
-exactly `A`, `M`, `D` or `T` with one more field (the path), or `R` followed by
+exactly `A`, `M`, `D` or `T` (a type change, which counts as `modified` and
+touched) with one more field (the path), or `R` followed by
 a score from 0 to 100, as git prints it (`R100`, `R095`), with two more (the old
 and new paths). Anything else is an error naming the line: another status, a bare
 `R`, a score above 100, extra fields. `C` and `X` are errors because Kyn never
@@ -199,10 +227,12 @@ so in a repository that tracks a name starting with a status token and a space
 status form there.
 
 Paths that git would quote (non-ASCII or special characters) are not supported in
-`--files-from`. Feed it `git -c core.quotePath=false ...`, which still quotes a
-tab, newline, `"` or `\`; those lines are rejected, not skipped. Git mode itself
-must read paths with quoting disabled; v2 does not, which is OS16, and the cutover
-fixes it ([`06-cutover.md`](06-cutover.md)).
+the line-oriented stream. `git -c core.quotePath=false` fixes non-ASCII names but
+still quotes a name containing a tab, newline, `"` or `\`; those lines are
+rejected, not skipped. Git mode does not have this limit: Kyn reads git with
+`git diff --name-status -z -M`, which prints every name literally (measured), so
+a `"` in a name is legal there. v2 reads quoted output, which is OS16, and the
+cutover fixes it ([`06-cutover.md`](06-cutover.md)).
 
 ### What plain-path modes lose
 
@@ -263,8 +293,11 @@ informational rule with `severity: error` reports `errors: 1` beside
 `failed: 0` and `ok: true`, so a rule that cannot fail inflates the error
 count.
 
-`--fail-on-empty` fails the run when no rule produced any instance, skipped or
-not.
+`--fail-on-empty` fails the run (exit 1) when no rule produced any instance,
+skipped or not. It applies to `--dry-run-resolve` too, which today exits 0 with
+zero matches because preview returns before the check. It is a global guard: it
+cannot see one misspelled rule while another matches, which is what the per-rule
+counts in [`03-instances-and-reports.md`](03-instances-and-reports.md) §9 are for.
 
 ## 9. Generated messages
 

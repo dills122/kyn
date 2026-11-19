@@ -11,8 +11,9 @@ implementation.
 
 ## First: determinism
 
-OS7 measured today's code reporting three different errors across thirty
-identical runs, and v3 reuses that code. The first test written runs the same
+OS7 measured v2 reporting three different errors across thirty identical runs.
+It is fixed in v2 (PR #51, sorted iteration) and v3 reuses that code, so the
+guard stays. The first test written runs the same
 input repeatedly and requires byte-identical output, for valid and invalid
 configs. It is the only criterion that can fail intermittently, so nothing else
 is trustworthy until it passes.
@@ -42,7 +43,7 @@ print different text, and the text is what people and CI consume.
 | `check` JSON | `ruleId`, `instanceName`, statuses including `skipped`, counters, `flags` |
 | SARIF, RDJSON, Checkstyle | failures only; `(instance: …)` message suffix; `why` in SARIF |
 | `explain` text and JSON | `SkipIf:` / `Expect:` sections, clause strings, the state a `skipIf` saw |
-| `--dry-run-resolve` | per rule: instances, sources, related path |
+| `--dry-run-resolve` | per rule: count (zeros included), instances, sources, related path, state; exit code with `--fail-on-empty` |
 | ordering | `ruleId`, then `instanceName` |
 
 `--show-passes` is on, so a failure flipping to a pass or a skip shows up as a
@@ -85,7 +86,7 @@ fail); the other `expect` values chosen here reach no rejected combination. Rule
 list, checked against an independent enumeration of the five reachable pairs. Each runs in git mode and is asserted on `explain` JSON, `check` JSON
 and the exit code.
 
-The related-path rows are the six reachable combinations from
+The related-path rows are the five reachable combinations from
 [`02-semantics.md`](02-semantics.md) §4. `missing`+touched needs the diff and
 the working tree to disagree: the fixture commits the related file on the head
 ref and evaluates from a checkout without it. It is the only row that separates
@@ -158,7 +159,18 @@ code.
 
 1. The determinism guard passes.
 2. Layer 0 passes, including every invalid-glob and invalid-template case.
-3. Layer 1 passes for all 84 cells, with the positive assertions above.
+3. Layer 1 passes for all 84 cells, with the positive assertions above, plus the
+   stale-checkout fixture: the same diff deleting a related file, evaluated from
+   a tree that has it and from one that does not, gives identical results for
+   `touched`, `untouched`, `exists`, `missing` and both `skipIf` values.
 4. Layer 2 passes across all eight surfaces and all three headlines.
 5. Every invalid corpus config is rejected with the expected message.
-6. Goldens are recorded once, after 1 to 5, as a reviewed change.
+6. The status-bearing container pipeline (`git diff --name-status -M | kyn check
+   --stdin`) fails on a deleted test, and `--stdin` and `--files-from -` give
+   byte-identical output. A name containing `"` is read correctly in git mode.
+7. The document root cases are rejected with exit 2: no `rules`, `rules: null`,
+   `rules: {}`, an unknown top-level key, a bad rule ID, `version: 2`.
+8. The empty-run and preview contracts of `03` §8 and §9, including
+   `--dry-run-resolve --fail-on-empty` exiting 1 on zero matches.
+9. Release acceptance in [`06-cutover.md`](06-cutover.md) passes.
+10. Goldens are recorded once, after 1 to 9, as a reviewed change.

@@ -25,6 +25,20 @@ rules:
 Drop `skipIf` and the rule is strict: every handler must have a test, and it
 must be touched.
 
+## The document
+
+A config is a YAML mapping with exactly two top-level keys.
+
+| Key | Rule |
+| --- | --- |
+| `version` | required; must be the integer `3`. Any other value is an error naming the version this binary reads (`this kyn reads config version 3; the file says 2`) and, for a lower one, saying to run a kyn release that reads it |
+| `rules` | required; a non-empty mapping. Absent, `null`, `{}`, a list or a scalar is an error, so a file holding only `version: 3` is rejected instead of passing with nothing checked |
+
+Any other top-level key is an error. A rule ID, the key under `rules`, matches
+`[A-Za-z0-9][A-Za-z0-9._-]*`: it is printed in reports, sorted byte-wise, and
+used in SARIF, so it carries no spaces or control characters. Duplicate IDs are
+rejected by the decoder (rule 1).
+
 ## Fields
 
 | Field | Required | Default | Meaning |
@@ -349,17 +363,21 @@ on someone's unrelated change. To exercise them against every existing tracked
 path before that happens, resolve all of them:
 
 ```bash
-git -c core.quotePath=false ls-files | kyn check --files-from - --dry-run-resolve --fail-on-empty
+git ls-files | kyn check --stdin --dry-run-resolve --fail-on-empty
 ```
 
 This samples the **tracked paths that are on disk today**: plain input drops
 listed sources that are not on disk, and no related path is ever listed as
 removed. It cannot know a source file someone will add tomorrow, so it narrows
 the risk rather than removing it. `--fail-on-empty` makes a run that resolved
-nothing fail, which is what happens when git runs in another directory than
-`--cwd`. The `-c core.quotePath=false` is needed because git otherwise quotes
-non-ASCII paths. Git still quotes a name containing a tab, a newline, `"` or `\`;
-those lines are rejected by name, not skipped, so the run stops and tells you.
+nothing fail (exit 1), which is what happens when git runs in another directory
+than `--cwd`. It is a global guard, so the preview also prints a count for every
+rule, zeros included (`03` §9): a misspelled rule shows as `0` while another rule
+matches. Git still quotes a non-ASCII name in `ls-files` output unless run with
+`-c core.quotePath=false`, and quotes a name containing a tab, a newline, `"` or
+`\` regardless; those lines are rejected by name, not skipped, so the run stops
+and tells you. Use `git -c core.quotePath=false ls-files` in a repository with
+non-ASCII names.
 
 ### Always
 
