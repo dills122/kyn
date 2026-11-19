@@ -101,7 +101,7 @@ implementation. (A throwaway simulator that modelled matching existed at commit
 | --- | --- | --- |
 | `skipIf` | omitted, `missing`, `exists` | 3 |
 | `expect` | `touched`, `untouched`, `exists`, `missing`, `none`, `[exists, touched]` | 6 |
-| related path | `exists`+touched, `exists`+untouched, `removed` by delete, `removed` by rename, `missing`+untouched, `missing`+touched | 6 |
+| related path | `exists`+touched, `exists`+untouched, `removed` by delete, `removed` by rename, `missing`+untouched | 5 |
 
 3 × 6 × 5 = 90, less the 20 cells that rule 7 rejects, leaves **70 cells**. The
 rejected combinations are `skipIf: exists` with `touched`, `exists` or
