@@ -58,7 +58,7 @@ Advanced flags:
   kyn check -c kyn.config.yaml --base origin/main --head HEAD
 
   # Piped changed-file list
-  git diff --name-only origin/main...HEAD | kyn check -c kyn.config.yaml --files-from -
+  git -c core.quotePath=false diff --name-only origin/main...HEAD | kyn check -c kyn.config.yaml --files-from -
 
   # Explicit files
   kyn check -c kyn.config.yaml -f libs/ui/button/button.component.ts,libs/ui/button/button.component.html
