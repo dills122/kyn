@@ -91,7 +91,7 @@ mutation-tested.
 
 ## Open items
 
-1. OS7 and OS16 are fixed in v2 (PRs #51 and #52); no shipped v2 defect from the baseline is still open except those listed in `06`.
+1. OS7 and OS16 are fixed in v2 (PRs #51 and #52). OS11 (`api` preset) and OS12 (`PASS` above a failure count) remain in v2 and are resolved by the cutover.
 2. The `api` preset uses focused tests per source (`06`).
 3. A glob-valued `related` is deferred (D47).
 4. `docs/site/getting-started.md` teaches v2 and needs a v3 rewrite at cutover.
