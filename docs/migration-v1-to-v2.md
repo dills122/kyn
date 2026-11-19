@@ -1,5 +1,10 @@
 # Kyn v1 to v2 Migration Guide
 
+> **Slated for removal.** Config versions 1 and 2, and the `kyn config migrate`
+> command this guide describes, are planned for removal in favour of the
+> rule-centric v3 format ([design/v3/06-cutover.md](design/v3/06-cutover.md)).
+> Until the release that removes them ships, this guide is current.
+
 Kyn v2 keeps the same core behavior, but clarifies rule semantics and adds safer CLI defaults.
 
 ## Why Migrate

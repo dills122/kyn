@@ -15,6 +15,12 @@ Repository documentation for Kyn users, maintainers, and historical design work.
 - [release.md](release.md): release artifacts, container image, and install flow
 - [migration-v1-to-v2.md](migration-v1-to-v2.md): migration strategy and command usage
 
+## Active Design Work
+
+Unapproved. Nothing in this section describes shipped behavior.
+
+- [design/v3/](design/v3/): v3 configuration design — start with [the grammar](design/v3/04-grammar.md)
+
 ## Historical Design and Planning
 
 - [related-file-policy-exploration.md](related-file-policy-exploration.md): unapproved candidates for deeper related-file policy capabilities
