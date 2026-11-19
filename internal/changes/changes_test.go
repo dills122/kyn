@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -220,7 +221,10 @@ func TestCollectFromGitDiffKeepsNonASCIIAndSpecialNames(t *testing.T) {
 	runGit(t, dir, "commit", "-m", "base")
 	base := strings.TrimSpace(runGit(t, dir, "rev-parse", "HEAD"))
 
-	names := []string{"café.go", "日本語/テスト.go", `say "hi".txt`, "tab\there.txt", " lead.txt"}
+	names := []string{"café.go", "日本語/テスト.go"}
+	if runtime.GOOS != "windows" { // Windows forbids `"` and tab in file names
+		names = append(names, `say "hi".txt`, "tab\there.txt")
+	}
 	for _, n := range names {
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, n)), 0o750); err != nil {
 			t.Fatal(err)
@@ -237,7 +241,7 @@ func TestCollectFromGitDiffKeepsNonASCIIAndSpecialNames(t *testing.T) {
 		t.Fatalf("CollectDetailed returned error: %v", err)
 	}
 
-	for _, want := range []string{"café.go", "日本語/テスト.go", `say "hi".txt`, "tab\there.txt", "renamed é.txt"} {
+	for _, want := range append([]string{"renamed é.txt"}, names...) {
 		if !slices.Contains(result.Files, want) {
 			t.Errorf("Files = %q, missing %q", result.Files, want)
 		}
