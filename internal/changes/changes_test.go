@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -201,6 +202,57 @@ func TestCollectDetailedAllowsEmptyGitDiff(t *testing.T) {
 	}
 	if len(result.Files) != 0 {
 		t.Fatalf("expected no files, got %v", result.Files)
+	}
+}
+
+// Git quotes and C-escapes non-ASCII and special paths unless asked to print
+// them literally, so such files used to be reported under a name that matched
+// nothing (OS16).
+func TestCollectFromGitDiffKeepsNonASCIIAndSpecialNames(t *testing.T) {
+	dir := t.TempDir()
+
+	runGit(t, dir, "init")
+	runGit(t, dir, "config", "user.email", "test@example.com")
+	runGit(t, dir, "config", "user.name", "Test")
+
+	write(t, filepath.Join(dir, "keep.txt"), "old")
+	write(t, filepath.Join(dir, "old name.txt"), "old content that is long enough to be a rename")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "base")
+	base := strings.TrimSpace(runGit(t, dir, "rev-parse", "HEAD"))
+
+	names := []string{"café.go", "日本語/テスト.go"}
+	if runtime.GOOS != "windows" { // Windows forbids `"` and tab in file names
+		names = append(names, `say "hi".txt`, "tab\there.txt")
+	}
+	for _, n := range names {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, n)), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		write(t, filepath.Join(dir, n), "new")
+	}
+	runGit(t, dir, "mv", "old name.txt", "renamed é.txt")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "head")
+	head := strings.TrimSpace(runGit(t, dir, "rev-parse", "HEAD"))
+
+	result, err := CollectDetailed(Input{Cwd: dir, Base: base, Head: head})
+	if err != nil {
+		t.Fatalf("CollectDetailed returned error: %v", err)
+	}
+
+	for _, want := range append([]string{"renamed é.txt"}, names...) {
+		if !slices.Contains(result.Files, want) {
+			t.Errorf("Files = %q, missing %q", result.Files, want)
+		}
+	}
+	if got := result.StatusByFile["renamed é.txt"]; got != StatusRenamed {
+		t.Errorf("status of renamed é.txt = %s, want %s", got, StatusRenamed)
+	}
+	for _, f := range result.Files {
+		if strings.HasPrefix(f, `"`) {
+			t.Errorf("path %q is still in git's quoted form", f)
+		}
 	}
 }
 

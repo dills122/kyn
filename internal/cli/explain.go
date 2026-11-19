@@ -44,7 +44,7 @@ Advanced flags:
   kyn explain -c kyn.config.yaml --base origin/main --head HEAD
 
   # Explain using stdin list
-  git diff --name-only origin/main...HEAD | kyn explain -c kyn.config.yaml --stdin
+  git -c core.quotePath=false diff --name-only origin/main...HEAD | kyn explain -c kyn.config.yaml --stdin
 
   # Summary-only diagnostics in JSON
   kyn explain -c kyn.config.yaml --summary-only -o json

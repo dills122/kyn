@@ -103,7 +103,7 @@ The distroless Kyn image does not contain Git. Compute changed paths on the host
 mount the repository for config and existence checks, and pipe the list:
 
 ```bash
-git diff --name-only origin/main...HEAD \
+git -c core.quotePath=false diff --name-only origin/main...HEAD \
   | docker run --rm -i \
   -v "$PWD:/work" \
   -w /work \

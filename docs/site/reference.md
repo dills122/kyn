@@ -40,7 +40,7 @@ kyn check -c kyn.config.yaml --files src/a.go,src/a_test.go
 kyn check -c kyn.config.yaml --files-from changed-files.txt
 
 # Standard input
-git diff --name-only origin/main...HEAD | kyn check -c kyn.config.yaml --stdin
+git -c core.quotePath=false diff --name-only origin/main...HEAD | kyn check -c kyn.config.yaml --stdin
 
 # Git diff
 kyn check -c kyn.config.yaml --base origin/main --head HEAD

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- changed files whose names contain non-ASCII or special characters (`café.go`, `日本語.go`, a name with a quote) are now read from git literally instead of as quoted, escaped strings, so they match rules and exist on disk; the piped-list examples pass `-c core.quotePath=false` for the same reason
+- config validation and kin resolution now visit groups and kin templates in sorted order, so
+  the error reported for a config with several problems is the same on every run (it used to
+  vary with Go map iteration order)
+
 ## v0.1.3 - 2026-09-05
 
 ### Added

@@ -90,7 +90,7 @@ To check the current repository, compute the diff on the host and pipe the paths
 to Kyn:
 
 ```bash
-git diff --name-only origin/main...HEAD \
+git -c core.quotePath=false diff --name-only origin/main...HEAD \
   | docker run --rm -i \
   -v "$PWD:/work" \
   -w /work \
